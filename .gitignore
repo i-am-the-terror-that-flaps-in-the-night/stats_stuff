@@ -1,40 +1,86 @@
-# Python
+# ---- Python ----
 __pycache__/
 *.py[cod]
-*.pyo
-*.pyd
-*.egg-info/
-dist/
-build/
-*.egg
-.eggs/
+*$py.class
+*.so
 
-# Virtual environments
+# Packaging / build
+build/
+dist/
+sdist/
+wheels/
+*.egg
+*.egg-info/
+.eggs/
+*.whl
+*.tar.gz
+
+# ---- Virtual environments ----
 .venv/
 venv/
 env/
+ENV/
 
-# uv
+# ---- uv ----
+# uv.lock is intentionally committed; only the cache is ignored.
 .uv/
+.uv-cache/
 
-# Jupyter
+# ---- Testing / type checking / linting ----
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.dmypy.json
+.pyre/
+.pytype/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+
+# ---- Jupyter ----
 .ipynb_checkpoints/
-*.ipynb_checkpoints
+*-checkpoint.ipynb
+profile_default/
+ipython_config.py
 
-# JetBrains IDE
+# ---- Generated output ----
+# Figures are reproducible from main.py + data/data.csv.
+# Delete the lines below if you want to version specific figures.
+figures/
+*.pdf
+*.png
+*.jpg
+*.svg
+
+# ---- Data artifacts (keep source data/data.csv tracked, ignore scratch) ----
+*.parquet
+*.feather
+*.pkl
+*.h5
+*.hdf5
+
+# ---- Environment / secrets ----
+.env
+.env.*
+!.env.example
+
+# ---- IDE / editors ----
 .idea/
 *.iml
 *.iws
 *.ipr
+.vscode/
+*.code-workspace
+*.swp
+*.swo
+*~
 
-# macOS
+# ---- OS ----
 .DS_Store
 .AppleDouble
 .LSOverride
-
-# Byte-compiled
-*.pyc
-
-# Distribution / packaging
-*.whl
-*.tar.gz
+Thumbs.db
+ehthumbs.db
+Desktop.ini
