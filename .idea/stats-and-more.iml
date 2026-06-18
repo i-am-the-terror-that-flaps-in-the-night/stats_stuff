@@ -4,6 +4,7 @@
     <content url="file://$MODULE_DIR$">
       <excludeFolder url="file://$MODULE_DIR$/.venv" />
       <excludeFolder url="file://$MODULE_DIR$/data" />
+      <excludeFolder url="file://$MODULE_DIR$/figures" />
     </content>
     <orderEntry type="jdk" jdkName="uv (stats_and_more)" jdkType="Python SDK" />
     <orderEntry type="sourceFolder" forTests="false" />
