@@ -5,12 +5,21 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.14.5"
 dependencies = [
+    "fastapi==0.138.1",
+    "ipykernel>=7.3.0",
     "matplotlib>=3.11.0",
     "numpy>=2.4.6",
+    "numpy-typing-compat==20260602.2.5",
     "pandas>=3.0.3",
     "pandas-stubs>=3.0.3.260530",
-    "scipy>=1.17.1",
-    "scipy-stubs>=1.17.1.5",
+    "scipy==1.18.0",
+    "scipy-stubs==1.18.0.0",
     "seaborn>=0.13.2",
     "statsmodels>=0.14.6",
 ]
+
+[dependency-groups]
+dev = [
+    "ruff>=0.15.20",
+]
+
