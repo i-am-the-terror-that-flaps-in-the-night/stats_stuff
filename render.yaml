@@ -6,10 +6,10 @@ services:
     name: stats-and-more
     runtime: python
     plan: free
-    # App code lives in Backend/; build and start commands run from there.
-    rootDir: Backend
-    buildCommand: pip install -r ../requirements.txt
-    startCommand: uvicorn app:app --host 0.0.0.0 --port $PORT
+    # Build and run from the repo root. The default start command `uvicorn
+    # main:app` resolves the root main.py, which re-exports Backend/app.py.
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
     # Render probes this for zero-downtime deploys; app.py returns 200 here.
     healthCheckPath: /healthz
     envVars:

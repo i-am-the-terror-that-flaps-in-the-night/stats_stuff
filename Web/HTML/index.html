@@ -1,23 +1,32 @@
-<!--This code is not production ready, please do not expect full, working, or consistent features-->
-
-
 <!doctype html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport"
-          content="width=device-width, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
-    <meta http-equiv="X-UA-Compatible" content="ie=edge">
-    <title>Preview</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>stats-and-more</title>
     <link rel="icon" href="favicon.ico" sizes="any">
     <link rel="stylesheet" href="../CSS/styles.css">
 </head>
 
 <body>
-<h1 id="title">Hello World</h1>
-<p class="text">Click the button to change stuff.</p>
-<button id="btn">Click me</button>
-<div id="box"></div>
+<main class="card">
+    <h1 id="title">stats-and-more</h1>
+    <p class="text">Pick a column from <code>data.csv</code> and get its descriptive stats.</p>
+
+    <div class="controls">
+        <select id="column" aria-label="Column to analyze">
+            <option value="">Loading columns…</option>
+        </select>
+        <button id="analyze" disabled>Analyze</button>
+    </div>
+
+    <p id="status" class="status"></p>
+
+    <table id="results" hidden>
+        <tbody></tbody>
+    </table>
+</main>
+
 <script src="../TS/script.js"></script>
 </body>
 </html>
