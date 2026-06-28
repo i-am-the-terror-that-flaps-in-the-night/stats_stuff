@@ -9,7 +9,6 @@ def df_cleanup(df):
         coerced = pd.to_numeric(cleaned, errors="coerce")
         if coerced.notna().mean() >= 0.8:  # mostly numbers -> treat as numeric
             df[col] = coerced.fillna(coerced.mean())
-
     return df
 
 
@@ -53,15 +52,25 @@ class DataAnalyzer:
     def __init__(self, df):
         self.df = df
 
-    def basic_analysis(self):
-        column_name = prompt_for_column(self.df)
-        series = pd.to_numeric(self.df[column_name], errors="coerce").dropna()
+    def basic_analysis(self, column):
+        series = pd.to_numeric(self.df[column], errors="coerce").dropna()
 
         if series.empty:
-            print("Selected column has no numeric values to analyze.")
-            return
+            return {"error": "No numeric values in that column."}
 
-        print_series_stats(series)
+        modes = series.mode()
+        mode_val = modes.iloc[0] if not modes.empty else float("nan")
+
+        return {
+            "column": column,
+            "mean": round(float(series.mean()), 3),
+            "median": float(series.median()),
+            "mode": float(mode_val),
+            "min": float(series.min()),
+            "max": float(series.max()),
+            "std": round(float(series.std()), 3),
+            "variance": round(float(series.var()), 3),
+        }
 
     def medium_analysis(self):
         # TODO: Add analysis of medium complexity
@@ -83,7 +92,8 @@ def main():
     df_stats(df_clean)
 
     analyzer = DataAnalyzer(df_clean)
-    analyzer.basic_analysis()
+    result = analyzer.basic_analysis(column=prompt_for_column(df_clean))
+    print(result)
     analyzer.medium_analysis()
 
 
