@@ -8,8 +8,8 @@ WHY THIS EXISTS
     Render's health probe) and serving the static preview under Web/.
 
 RUNNING IT
-    Locally:   uvicorn app:app --reload          (from this Python/ directory)
-    On Render:  see ../render.yaml (rootDir: Python, uvicorn app:app)
+    Locally:   uvicorn app:app --reload          (from this Backend/ directory)
+    On Render:  see ../render.yaml (rootDir: Backend, uvicorn app:app)
 
 ROUTES
     GET /healthz   -> {"status": "ok"}     liveness probe for Render

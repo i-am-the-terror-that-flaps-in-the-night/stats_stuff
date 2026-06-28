@@ -1,14 +1,15 @@
 """
-Build one analytic table from every NHANES 2017-2018 file in data/csv_data/.
+Build one analytic table from every NHANES 2017-2018 file in extra_data/csv_data/.
 
 THE ONE RULE: every file joins on SEQN (unique participant ID).
 THE ONE STRUCTURE: DEMO_J is the spine. Everything LEFT-joins onto it, because
 DEMO contains every participant plus the design variables (weights, strata, PSU)
 that all weighted analysis needs.
 
-This pulls EVERY column from EVERY file in data/csv_data/ -- the output is the
-full union of variables, not a hand-picked subset. Files are read from the
-pre-converted .csv (pd.read_csv); raw .xpt is still handled transparently.
+This pulls EVERY column from EVERY file in extra_data/csv_data/ -- the output is
+the full union of variables, not a hand-picked subset. Files are read from the
+pre-converted .csv (pd.read_csv); raw .xpt is still handled transparently. The
+built table is written to Data/nhanes_analytic.csv (read by weighted_stats.py).
 Download files from: https://wwwn.cdc.gov/nchs/nhanes/continuousnhanes/
   (Cycle 2017-2018; each component page has an "XPT Data File" link.)
 
@@ -35,8 +36,10 @@ The LBXSGL in BIOPRO_J is NON-fasting serum glucose on the full MEC sample
 import pandas as pd
 from pathlib import Path
 
-DATA_DIR = Path("../data/csv_data")  # folder holding the data files
+DATA_DIR = Path("../extra_data/csv_data")  # raw NHANES component files (input)
+OUT_DIR = Path("../Data")  # curated analytic output, alongside data.csv
 SPINE_FILE = "DEMO_J.csv"  # demographics + design variables
+OUT_FILE = "nhanes_analytic.csv"  # the built table; never read back as a component
 
 
 def read_nhanes(path):
@@ -92,11 +95,14 @@ demo = read_nhanes(DATA_DIR / SPINE_FILE)
 components = sorted(
     p
     for p in DATA_DIR.glob("*")
-    if p.suffix.lower() in (".csv", ".xpt") and p.name != SPINE_FILE
+    # never merge the spine twice, and never re-ingest our own output even if a
+    # stale copy ever lands in the input folder.
+    if p.suffix.lower() in (".csv", ".xpt") and p.name not in (SPINE_FILE, OUT_FILE)
 )
 
 analytic = merge_onto_demo(demo, components)
-out_file = DATA_DIR / "nhanes_analytic.csv"  # data/nhanes_analytic.csv
+OUT_DIR.mkdir(parents=True, exist_ok=True)
+out_file = OUT_DIR / OUT_FILE  # Data/nhanes_analytic.csv (read by weighted_stats)
 analytic.to_csv(out_file, index=False)
 print(
     f"\nFinal analytic table: {analytic.shape[0]} rows x "

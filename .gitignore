@@ -46,7 +46,7 @@ profile_default/
 ipython_config.py
 
 # ---- Generated output ----
-# Figures are reproducible from main.py + data/data.csv.
+# Figures are generated artifacts (no current script reproduces them).
 # Delete the lines below if you want to version specific figures.
 figures/
 *.pdf
@@ -54,7 +54,7 @@ figures/
 *.jpg
 *.svg
 
-# ---- Data artifacts (keep source data/data.csv tracked, ignore scratch) ----
+# ---- Data artifacts (keep source Data/data.csv tracked, ignore scratch) ----
 *.parquet
 *.feather
 *.pkl
@@ -86,3 +86,5 @@ Thumbs.db
 ehthumbs.db
 Desktop.ini
 *.csv
+# ...but keep the small practice dataset tracked (see Data-artifacts note above).
+!Data/data.csv

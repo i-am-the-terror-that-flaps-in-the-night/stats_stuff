@@ -10,7 +10,7 @@ early web preview scaffold.
 |----------------------|-----------------------------|---------------------------------------------------------------------------|
 | **NHANES pipeline**  | `main.py` → `stats_test.py` | One wide analytic table (`nhanes_analytic.csv`) merged on participant ID  |
 | **Survey estimates** | `weighted_stats.py`         | Weighted means, proportions, subgroup tables, and design-based regression |
-| **Practice dataset** | `extra.py`                  | Interactive column stats on `data/data.csv`                               |
+| **Practice dataset** | `extra.py`                  | Interactive column stats on `Data/data.csv`                               |
 | **Web preview**      | `Web/HTML/index.html`       | Minimal static page (work in progress)                                    |
 
 NHANES is a complex multistage sample. Plain `pandas` means, counts, and OLS **ignore survey design** and give wrong
@@ -21,14 +21,18 @@ answers. The `Survey` class in `weighted_stats.py` applies the correct weights, 
 
 ```
 stats_and_more/
-├── Python/
-│   ├── main.py            # Optional: convert .xpt → .csv in data/csv_data/
+├── Backend/
+│   ├── app.py             # FastAPI service (health check + serves Web/) for Render
+│   ├── main.py            # Optional: convert .xpt → .csv in extra_data/csv_data/
 │   ├── stats_test.py      # Merge all NHANES components onto DEMO_J spine
 │   ├── weighted_stats.py  # Design-based estimates (means, proportions, OLS)
-│   ├── extra.py           # Interactive stats on data/data.csv
+│   ├── extra.py           # Interactive stats on Data/data.csv
 │   └── irrelevant.py      # Scratch / early experiments
-├── data/
+├── Data/                  # Curated analysis data
 │   ├── data.csv           # Practice dataset (tracked in git)
+│   ├── laptopData.csv     # Secondary practice dataset
+│   └── nhanes_analytic.csv  # Built by stats_test.py (gitignored)
+├── extra_data/            # Raw NHANES source files
 │   ├── csv_data/          # NHANES component files (.csv or .xpt; not in git)
 │   └── PDF_explanations/  # Variable documentation PDFs
 ├── Web/                   # Static HTML/CSS/TS preview
@@ -62,13 +66,13 @@ pip install -r requirements.txt
 ### 1. Download data
 
 Download 2017–2018 cycle **XPT** files from
-the [NHANES continuous survey page](https://wwwn.cdc.gov/nchs/nhanes/continuousnhanes/). Place them in `data/csv_data/`.
+the [NHANES continuous survey page](https://wwwn.cdc.gov/nchs/nhanes/continuousnhanes/). Place them in `extra_data/csv_data/`.
 
 Included components in a typical setup: `DEMO_J`, `BMX_J`, `BIOPRO_J`, `GLU_J`, `HDL_J`, `TCHOL_J`, `TRIGLY_J`, `GHB_J`,
 `HSCRP_J`, `BPX_J`, `DR1TOT_J`, `DR2TOT_J`, `PAQY_J`, `SLQ_J`, and related files. PDF variable guides live in
-`data/PDF_explanations/`.
+`extra_data/PDF_explanations/`.
 
-> **Note:** `*.csv` files under `data/csv_data/` are gitignored. You must download or generate them locally.
+> **Note:** `*.csv` files under `extra_data/csv_data/` are gitignored. You must download or generate them locally.
 
 ### 2. Convert XPT to CSV (optional)
 
@@ -76,27 +80,26 @@ Included components in a typical setup: `DEMO_J`, `BMX_J`, `BIOPRO_J`, `GLU_J`, 
 originals once CSVs exist.
 
 ```bash
-cd Python
+cd Backend
 uv run python main.py
 ```
 
 ### 3. Build the analytic table
 
-Merges every file in `data/csv_data/` onto `DEMO_J` (the spine) by participant ID (`SEQN`), carrying all design
+Merges every file in `extra_data/csv_data/` onto `DEMO_J` (the spine) by participant ID (`SEQN`), carrying all design
 variables (weights, strata, PSU).
 
 ```bash
-cd Python
+cd Backend
 uv run python stats_test.py
 ```
 
-Writes `data/csv_data/nhanes_analytic.csv` (and a copy may also appear at `data/nhanes_analytic.csv` depending on your
-layout).
+Writes `Data/nhanes_analytic.csv` — the curated analytic table, read by `weighted_stats.py`.
 
 ### 4. Run survey-weighted analysis
 
 ```bash
-cd Python
+cd Backend
 uv run python weighted_stats.py
 ```
 
@@ -141,10 +144,10 @@ non-fasting serum glucose on the full MEC sample (`WTMEC2YR`).
 
 ## Practice dataset
 
-`data/data.csv` is a smaller dataset for trying basic descriptive stats interactively:
+`Data/data.csv` is a smaller dataset for trying basic descriptive stats interactively:
 
 ```bash
-cd Python
+cd Backend
 uv run python extra.py
 ```
 
@@ -159,8 +162,8 @@ I'm working on setting up a FastAPI backend to share the analysis outside a term
 Lint with Ruff (dev dependency):
 
 ```bash
-uv run ruff check Python/
-uv run ruff format Python/
+uv run ruff check Backend/
+uv run ruff format Backend/
 ```
 
 ## Key dependencies
@@ -176,4 +179,4 @@ uv run ruff format Python/
 
 - [NHANES 2017–2018](https://wwwn.cdc.gov/nchs/nhanes/continuousnhanes/) — National Health and Nutrition Examination
   Survey (CDC/NCHS)
-- `data/data.csv` — local practice dataset
+- `Data/data.csv` — local practice dataset

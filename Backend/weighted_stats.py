@@ -32,7 +32,7 @@ WHAT IT DOES
     rows discards PSUs and biases the variance.
 
 RUN A WORKED DEMO
-    cd Python && uv run python weighted_stats.py
+    cd Backend && uv run python weighted_stats.py
 """
 
 from pathlib import Path
@@ -93,9 +93,9 @@ def pick_weight(var):
 
 
 def _analytic_path():
-    here = Path(__file__).resolve().parent
+    here = Path(__file__).resolve().parent  # Backend/
     for cand in (
-        here.parent / "data" / "nhanes_analytic.csv",  # data/ (canonical)
+        here.parent / "Data" / "nhanes_analytic.csv",  # Data/ (canonical)
         here / "nhanes_analytic.csv",
         here.parent / "nhanes_analytic.csv",
         Path("nhanes_analytic.csv"),
@@ -297,8 +297,7 @@ if __name__ == "__main__":
     )
 
     print(
-        "\nDesign-based regression  LBXGLU ~ BMXBMI  (fasting subsample, "
-        "adults 20+):"
+        "\nDesign-based regression  LBXGLU ~ BMXBMI  (fasting subsample, adults 20+):"
     )
     res = svy.ols("LBXGLU", ["BMXBMI"], subpop=adults)
     print(res.summary().tables[1])

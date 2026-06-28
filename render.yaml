@@ -6,8 +6,8 @@ services:
     name: stats-and-more
     runtime: python
     plan: free
-    # App code lives in Python/; build and start commands run from there.
-    rootDir: Python
+    # App code lives in Backend/; build and start commands run from there.
+    rootDir: Backend
     buildCommand: pip install -r ../requirements.txt
     startCommand: uvicorn app:app --host 0.0.0.0 --port $PORT
     # Render probes this for zero-downtime deploys; app.py returns 200 here.

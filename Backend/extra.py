@@ -77,7 +77,7 @@ class DataAnalyzer:
 
 
 def main():
-    df = pd.read_csv("../data/data.csv")
+    df = pd.read_csv("../Data/data.csv")
     df_clean = df_cleanup(df)
 
     df_stats(df_clean)
