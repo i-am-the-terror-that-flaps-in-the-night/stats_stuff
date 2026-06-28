@@ -174,4 +174,5 @@ uv run ruff format Backend/
 
 - [NHANES 2017–2018](https://wwwn.cdc.gov/nchs/nhanes/continuousnhanes/) — National Health and
   Nutrition Examination Survey (CDC/NCHS)
-- `Data/data.csv`, `Data/laptopData.csv` — local practice datasets
+- `Data/data.csv` — local practice dataset
+- [laptopData.csv](https://www.kaggle.com/code/elhadjimouhamadou/laptop-prices-data-cleaning/input) — Kaggle data cleaning dataset
