@@ -10,7 +10,7 @@ A small Python project pairing **interactive descriptive statistics** with a min
 |-------------------|-------------------------|------------------------------------------------------------------------|
 | **Web service**   | `Backend/app.py`        | FastAPI app: `/healthz` probe, a JSON stats API, and serves the `Web/` preview; deploys to Render |
 | **Practice stats**| `Backend/extra.py`      | Descriptive stats on `Data/data.csv` (CLI, and the engine behind the API)  |
-| **Web preview**   | `Web/HTML/index.html`   | Static page that calls the API to show column stats                    |
+| **Web preview**   | `index.html`            | Static page that calls the API to show column stats                    |
 
 > **Note on history:** earlier versions of this repo included a survey-weighted NHANES
 > pipeline (`stats_test.py`, `weighted_stats.py`) and an XPT→CSV converter (`main.py`). Those
@@ -22,8 +22,9 @@ A small Python project pairing **interactive descriptive statistics** with a min
 
 ```
 stats_and_more/
+├── index.html             # Static preview, served at / by the FastAPI app
 ├── Backend/
-│   ├── app.py             # FastAPI service: /healthz + serves Web/ (Render entry point)
+│   ├── app.py             # FastAPI service: /healthz + serves index.html (Render entry point)
 │   ├── extra.py           # Interactive descriptive stats on Data/data.csv
 │   └── main.py            # Empty placeholder (was the XPT→CSV converter)
 ├── Data/
@@ -33,10 +34,10 @@ stats_and_more/
 ├── extra_data/            # Retained NHANES source files (analysis scripts removed)
 │   ├── csv_data/          # NHANES component CSV files (gitignored)
 │   └── PDF_explanations/  # Variable documentation PDFs
-├── Web/                   # Static preview
-│   ├── HTML/index.html
+├── Web/                   # Static preview assets (served at /Web)
 │   ├── CSS/styles.css
-│   └── TS/{main.ts,script.js}
+│   ├── JS/script.js
+│   └── favicon.ico
 ├── figures/               # Generated plots (gitignored)
 ├── render.yaml            # Render Blueprint (deploys Backend/app.py)
 ├── pyproject.toml         # Dependencies (managed with uv)
@@ -58,7 +59,7 @@ cd stats_and_more
 # With uv (recommended)
 uv sync
 
-# Or with pip
+# Or with pip (installs just the minimal runtime set — see Key dependencies)
 python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
@@ -78,11 +79,11 @@ uv run uvicorn Backend.main:app --reload
 
 Then open <http://127.0.0.1:8000/> and pick a column to analyze. Routes:
 
-- `GET /` — redirects to the static preview under `Web/`
+- `GET /` — serves the static preview (`index.html`)
 - `GET /healthz` — liveness probe, returns `{"status": "ok"}`
 - `GET /api/columns` — columns available in `Data/data.csv`
 - `GET /api/stats/{column}` — mean/median/mode/min/max/std/variance for one column
-- `/web/*` — the `Web/` directory, served as static files
+- `/Web/*` — the `Web/` directory (CSS/JS/favicon), served as static files
 
 The API is backed by `extra.py`: `df_cleanup()` coerces mostly-numeric columns
 (stripping `$`/`,`) and `DataAnalyzer.basic_analysis()` computes the stats.
@@ -132,17 +133,17 @@ DataAnalyzer(df).basic_analysis("price")
 
 ## Web preview
 
-`Web/` holds a small static page (HTML/CSS/JS) served by the FastAPI app. It loads the
-column list from `/api/columns`, then fetches `/api/stats/{column}` and renders the result
-as a table — a browser front end for the same stats `extra.py` prints in the terminal.
+A small static page — `index.html` at the repo root, with CSS/JS under `Web/` — served by the
+FastAPI app. It loads the column list from `/api/columns`, then fetches `/api/stats/{column}`
+and renders the result as a table — a browser front end for the same stats `extra.py` prints
+in the terminal.
 
 ```
+index.html            # markup, served at / (loaded by the FastAPI "/" route)
 Web/
-├── HTML/index.html   # markup loaded at /web/HTML/index.html
 ├── CSS/styles.css    # styling
-└── TS/
-    ├── script.js     # all the front-end logic (loaded by index.html)
-    └── main.ts       # empty placeholder
+├── JS/script.js      # all the front-end logic (loaded by index.html)
+└── favicon.ico
 ```
 
 The page tries the API on the same origin first (the case when uvicorn serves it), then
@@ -161,14 +162,16 @@ uv run ruff format Backend/
 
 ## Key dependencies
 
-- **FastAPI**, **uvicorn**, **python-multipart** — the web service
-- **pandas**, **numpy**, **scipy** — data handling and statistics
-- **statsmodels**, **scikit-learn** — modeling
-- **matplotlib**, **seaborn** — visualization
-- **openpyxl** — Excel I/O
-- **ipykernel** — Jupyter notebook support
+**Runtime** — what the deployed app actually imports, pinned in `requirements.txt` and kept
+minimal so Render builds stay fast:
 
-(Dependencies are declared in `pyproject.toml` and pinned in `requirements.txt`.)
+- **FastAPI** + **uvicorn** — the web service
+- **pandas** (with **numpy**) — data handling and statistics
+
+`pyproject.toml` additionally declares a fuller toolchain for local and exploratory work —
+**scipy**, **statsmodels**, **scikit-learn**, **matplotlib**, **seaborn**, **openpyxl**,
+**ipykernel**, type stubs, and **ruff** (dev). `uv sync` installs that full set;
+`pip install -r requirements.txt` installs just the runtime set above.
 
 ## Data sources
 

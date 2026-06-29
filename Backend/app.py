@@ -7,7 +7,7 @@ WHY THIS EXISTS
     is that entry point: a minimal FastAPI app that
 
       * exposes a health check (for Render's health probe),
-      * serves the static preview under Web/, and
+      * serves the static preview (index.html at the repo root, assets under Web/), and
       * exposes a small JSON API (backed by extra.py) that the preview calls to
         compute descriptive stats on Data/data.csv.
 
@@ -18,10 +18,10 @@ RUNNING IT
 
 ROUTES
     GET /healthz             -> {"status": "ok"}     liveness probe for Render
-    GET /                    -> redirect to the static preview (or info JSON if absent)
+    GET /                    -> the static preview (index.html), or info JSON if absent
     GET /api/columns         -> available columns in Data/data.csv
     GET /api/stats/{column}  -> descriptive stats for one column
-    /web/*                   -> the Web/ directory, served as static files
+    /Web/*                   -> the Web/ directory (CSS/JS), served as static files
 """
 
 from functools import lru_cache
@@ -30,7 +30,7 @@ from pathlib import Path
 import pandas as pd
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import RedirectResponse
+from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 try:  # launched from inside Backend/ (e.g. `uvicorn app:app`)
@@ -39,11 +39,11 @@ except ModuleNotFoundError:  # launched from the repo root (e.g. `uvicorn Backen
     from Backend.extra import DataAnalyzer, df_cleanup
 
 # Resolve paths from __file__ so they're correct regardless of the working
-# directory. Web/ and Data/ both live at the repo root, one level up from here.
+# directory. index.html, Web/ and Data/ all live at the repo root, one level up.
 ROOT = Path(__file__).resolve().parent.parent
 WEB_DIR = ROOT / "Web"
 DATA_CSV = ROOT / "Data" / "data.csv"
-PREVIEW = "/web/HTML/index.html"  # index.html references ../CSS and ../TS
+INDEX_HTML = ROOT / "index.html"  # references Web/CSS and Web/JS (served at /Web)
 
 app = FastAPI(title="stats-and-more")
 
@@ -100,13 +100,14 @@ def column_stats(column: str):
 
 @app.get("/")
 def root():
-    """Send visitors to the static preview, falling back to info if it's gone."""
-    if WEB_DIR.is_dir():
-        return RedirectResponse(PREVIEW)
+    """Serve the static preview (index.html), falling back to info if it's gone."""
+    if INDEX_HTML.is_file():
+        return FileResponse(INDEX_HTML)
     return {"service": "stats-and-more", "status": "ok", "preview": None}
 
 
-# Mount the static frontend last so it can't shadow the routes above. Mounting
-# Web/ (not Web/HTML/) at /web keeps the page's ../CSS and ../TS links working.
+# Mount the static frontend last so it can't shadow the routes above. index.html
+# lives at the repo root (served by "/") and pulls its CSS/JS from /Web, so we
+# mount Web/ at /Web to match the page's Web/CSS and Web/JS links.
 if WEB_DIR.is_dir():
-    app.mount("/web", StaticFiles(directory=WEB_DIR), name="web")
+    app.mount("/Web", StaticFiles(directory=WEB_DIR), name="web")

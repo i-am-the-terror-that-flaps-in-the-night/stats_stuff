@@ -55,7 +55,7 @@ button {
 }
 
 button:hover:not(:disabled) {
-    background-color: royalblue;
+    background-color: darkblue;
 }
 
 button:disabled {

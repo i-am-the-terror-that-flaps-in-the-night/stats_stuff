@@ -1,24 +1,15 @@
 [project]
 name = "stats-and-more"
 version = "0.1.0"
-description = "Add your description here"
+description = "Interactive descriptive statistics with a minimal FastAPI web service"
 readme = "README.md"
 requires-python = ">=3.14.6"
 dependencies = [
     "fastapi==0.138.1",
-    "ipykernel>=7.3.0",
     "matplotlib>=3.11.0",
     "numpy>=2.4.6",
-    "numpy-typing-compat==20260602.2.5",
-    "openpyxl>=3.1.5",
     "pandas>=3.0.3",
     "pandas-stubs>=3.0.3.260530",
-    "python-multipart>=0.0.32",
-    "scikit-learn>=1.9.0",
-    "scipy==1.18.0",
-    "scipy-stubs==1.18.0.0",
-    "seaborn>=0.13.2",
-    "statsmodels>=0.14.6",
     "uvicorn[standard]>=0.49.0",
 ]
 
