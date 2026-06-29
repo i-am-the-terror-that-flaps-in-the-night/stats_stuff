@@ -8,7 +8,11 @@ def df_cleanup(df):
         cleaned = df[col].astype(str).str.replace(r"[$,]", "", regex=True)
         coerced = pd.to_numeric(cleaned, errors="coerce")
         if coerced.notna().mean() >= 0.8:  # mostly numbers -> treat as numeric
-            df[col] = coerced.fillna(coerced.mean())
+            # Keep the un-parseable cells as NaN rather than imputing them with the
+            # mean. Imputing would silently inflate n and shrink variance/std (the
+            # filled points sit exactly on the mean), distorting the very stats this
+            # tool reports. basic_analysis() drops these NaNs before summarizing.
+            df[col] = coerced
     return df
 
 

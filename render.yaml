@@ -13,8 +13,8 @@ services:
     # Render probes this for zero-downtime deploys; app.py returns 200 here.
     healthCheckPath: /healthz
     envVars:
-      # Match the version pinned in .python-version / pyproject.toml.
+      # Match the version pinned in .python-version / pyproject.toml (>=3.14.6).
       - key: PYTHON_VERSION
-        value: 3.14.5
+        value: 3.14.6
       - key: PYTHONUNBUFFERED
         value: "1"

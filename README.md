@@ -14,8 +14,9 @@ A small Python project pairing **interactive descriptive statistics** with a min
 
 > **Note on history:** earlier versions of this repo included a survey-weighted NHANES
 > pipeline (`stats_test.py`, `weighted_stats.py`) and an XPT→CSV converter (`main.py`). Those
-> scripts have been removed (and `main.py` emptied to a placeholder). The NHANES data files
-> they produced still live under `Data/` and `extra_data/`; recover the scripts from git
+> scripts have been removed; `main.py` was repurposed into a thin deployment entry point that
+> re-exports the FastAPI app (so Render's default `uvicorn main:app` resolves). The NHANES data
+> files they produced still live under `Data/` and `extra_data/`; recover the scripts from git
 > history if you need them.
 
 ## Project structure
@@ -23,10 +24,11 @@ A small Python project pairing **interactive descriptive statistics** with a min
 ```
 stats_and_more/
 ├── index.html             # Static preview, served at / by the FastAPI app
+├── main.py                # Root deploy entry point: re-exports Backend/app.py (Render's `uvicorn main:app`)
 ├── Backend/
-│   ├── app.py             # FastAPI service: /healthz + serves index.html (Render entry point)
+│   ├── app.py             # FastAPI service: /healthz + serves index.html (the real app)
 │   ├── extra.py           # Interactive descriptive stats on Data/data.csv
-│   └── main.py            # Empty placeholder (was the XPT→CSV converter)
+│   └── main.py            # Entry-point alias: re-exports app.py as `main:app`
 ├── Data/
 │   ├── data.csv           # Practice dataset (tracked in git)
 │   ├── laptopData.csv     # Secondary practice dataset (tracked in git)
@@ -47,7 +49,7 @@ stats_and_more/
 
 ## Requirements
 
-- **Python 3.14.5+** (see `.python-version`)
+- **Python 3.14.6+** (see `.python-version`)
 - [uv](https://docs.astral.sh/uv/) recommended, or pip
 
 ## Setup
@@ -160,6 +162,15 @@ uv run ruff check Backend/
 uv run ruff format Backend/
 ```
 
+Run the tests (pytest, dev dependency) from the repo root:
+
+```bash
+uv run pytest
+```
+
+`tests/test_extra.py` covers `basic_analysis()` (numeric column, no-numeric-values,
+mode ties) and confirms `df_cleanup()` drops missing values rather than imputing them.
+
 ## Key dependencies
 
 **Runtime** — what the deployed app actually imports, pinned in `requirements.txt` and kept
@@ -168,10 +179,22 @@ minimal so Render builds stay fast:
 - **FastAPI** + **uvicorn** — the web service
 - **pandas** (with **numpy**) — data handling and statistics
 
-`pyproject.toml` additionally declares a fuller toolchain for local and exploratory work —
-**scipy**, **statsmodels**, **scikit-learn**, **matplotlib**, **seaborn**, **openpyxl**,
-**ipykernel**, type stubs, and **ruff** (dev). `uv sync` installs that full set;
-`pip install -r requirements.txt` installs just the runtime set above.
+`pyproject.toml` declares the same runtime set plus a little extra for local work —
+**matplotlib** and **pandas-stubs** (type stubs), with **ruff** as a dev dependency. `uv sync`
+installs that full set (resolved against `uv.lock`); `pip install -r requirements.txt` installs
+just the runtime set above.
+
+### Two dependency lists, kept in sync by hand
+
+There are two manifests, and they can drift — so it's worth knowing which one does what:
+
+- **`requirements.txt`** hard-pins exact versions (e.g. `pandas==3.0.3`). **This is what Render
+  builds from:** `render.yaml`'s build command is `pip install -r requirements.txt`.
+- **`pyproject.toml` + `uv.lock`** drive local `uv sync`. `pyproject.toml` uses floors (e.g.
+  `pandas>=3.0.3`); **`uv.lock` is the source of truth** for the exact versions `uv` resolves.
+
+Nothing regenerates `requirements.txt` from the lock file, so when you bump a dependency, update
+both — otherwise the version Render ships can quietly diverge from the one you develop against.
 
 ## Data sources
 
