@@ -60,6 +60,9 @@ figures/
 *.pkl
 *.h5
 *.hdf5
+*.csv
+# ...but keep the small practice dataset tracked.
+!Data/data.csv
 
 # ---- Environment / secrets ----
 .env
@@ -85,6 +88,3 @@ figures/
 Thumbs.db
 ehthumbs.db
 Desktop.ini
-*.csv
-# ...but keep the small practice dataset tracked (see Data-artifacts note above).
-!Data/data.csv

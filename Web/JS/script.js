@@ -1,4 +1,4 @@
-/* jshint esversion: 8 */
+/* jshint esversion: 9 */
 // Front end for the FastAPI backend (Backend/app.py).
 //
 // This page can be served three ways, and the API lives in different places in
@@ -36,7 +36,7 @@
             let res;
             try {
                 res = await fetch(`${base}/api/columns`);
-            } catch (err) {
+            } catch {
                 continue; // network error (server not here) -- try the next candidate
             }
             if (!res.ok) {
@@ -58,7 +58,7 @@
             return;
         }
 
-        setStatus("Could not reach the backend. Start it with: uvicorn app:app", true);
+        setStatus("Could not reach the backend. Start it with: uvicorn main:app (from the repo root).", true);
     }
 
     // Fetch stats for the selected column and render them as a table.

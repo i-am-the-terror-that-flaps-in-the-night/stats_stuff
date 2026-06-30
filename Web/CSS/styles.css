@@ -1,17 +1,16 @@
+:root {
+    --accent: #2f32f8;
+}
+
 body {
     font-family: system-ui, sans-serif;
     background-color: #10141d;
     color: #e5e7eb;
     margin: 0;
     padding: 40px 16px;
-     background-image: radial-gradient(#32425a 1px, transparent 1px);
+    background-image: radial-gradient(#32425a 1px, transparent 1px);
     background-size: 24px 24px;
 }
-
-:root {
-    --accent: #2f32f8;
-}
-
 
 .card {
     background-color: #111827;

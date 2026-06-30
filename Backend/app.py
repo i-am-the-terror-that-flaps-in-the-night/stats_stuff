@@ -8,12 +8,12 @@ WHY THIS EXISTS
 
       * exposes a health check (for Render's health probe),
       * serves the static preview (index.html at the repo root, assets under Web/), and
-      * exposes a small JSON API (backed by extra.py) that the preview calls to
+      * exposes a small JSON API (backed by engine.py) that the preview calls to
         compute descriptive stats on Data/data.csv.
 
 RUNNING IT
     Locally:   uvicorn app:app --reload          (from this Backend/ directory)
-    On Render:  see ../render.yaml (rootDir: Backend, uvicorn app:app)
+    On Render:  see ../render.yaml (runs from the repo root: uvicorn main:app)
     Then open:  http://127.0.0.1:8000/
 
 ROUTES
@@ -33,10 +33,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-try:  # launched from inside Backend/ (e.g. `uvicorn app:app`)
-    from extra import DataAnalyzer, df_cleanup
-except ModuleNotFoundError:  # launched from the repo root (e.g. `uvicorn Backend.app:app`)
-    from Backend.extra import DataAnalyzer, df_cleanup
+# Import works whether launched from inside Backend/ (`uvicorn app:app`) or from
+# the repo root (`uvicorn main:app`): try the bare module, then the package path.
+try:
+    from engine import DataAnalyzer, df_cleanup
+except ModuleNotFoundError:
+    from Backend.engine import DataAnalyzer, df_cleanup
 
 # Resolve paths from __file__ so they're correct regardless of the working
 # directory. index.html, Web/ and Data/ all live at the repo root, one level up.
@@ -45,7 +47,7 @@ WEB_DIR = ROOT / "Web"
 DATA_CSV = ROOT / "Data" / "data.csv"
 INDEX_HTML = ROOT / "index.html"  # references Web/CSS and Web/JS (served at /Web)
 
-app = FastAPI(title="stats-and-more")
+app = FastAPI(title="DataLens")
 
 # Allow the static page to call the API even when it's opened from a different
 # origin (e.g. a separate dev server or file://). Permissive is fine for a demo.
@@ -68,7 +70,8 @@ def load_data() -> pd.DataFrame:
     try:
         return get_dataframe()
     except FileNotFoundError:
-        raise HTTPException(status_code=503, detail=f"Dataset not found: {DATA_CSV.name}")
+        detail = f"Dataset not found: {DATA_CSV.name}"
+        raise HTTPException(status_code=503, detail=detail) from None
 
 
 @app.get("/healthz")
@@ -103,7 +106,7 @@ def root():
     """Serve the static preview (index.html), falling back to info if it's gone."""
     if INDEX_HTML.is_file():
         return FileResponse(INDEX_HTML)
-    return {"service": "stats-and-more", "status": "ok", "preview": None}
+    return {"service": "DataLens", "status": "ok", "preview": None}
 
 
 # Mount the static frontend last so it can't shadow the routes above. index.html

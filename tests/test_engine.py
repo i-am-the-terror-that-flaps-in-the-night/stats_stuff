@@ -1,5 +1,5 @@
 """
-Tests for the stats engine in Backend/extra.py.
+Tests for the stats engine in Backend/engine.py.
 
 These lock in two things that are easy to regress:
   * basic_analysis() computes the expected descriptive stats and handles the
@@ -15,7 +15,7 @@ import math
 
 import pandas as pd
 
-from extra import DataAnalyzer, df_cleanup
+from engine import DataAnalyzer, df_cleanup
 
 
 def test_basic_analysis_numeric_column():
@@ -69,7 +69,7 @@ def test_df_cleanup_keeps_missing_as_nan():
     assert cleaned["x"].isna().sum() == 1  # the "n/a" cell, not imputed with the mean
 
 
-def test_missing_values_dropped_not_imputed():
+def test_basic_analysis_drops_missing_not_imputed():
     """Missing cells are dropped before stats, so they don't distort variance/n.
 
     Values 1..9 (mean 5) plus one missing cell. Dropping the gap gives the

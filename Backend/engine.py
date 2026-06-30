@@ -1,9 +1,17 @@
-import string
+"""
+engine.py -- the backend stats engine.
+
+Pure data logic, no console I/O: load-time cleaning of the dataframe and the
+descriptive-statistics computations. app.py imports df_cleanup and DataAnalyzer
+from here and exposes them over HTTP; tests/test_engine.py exercises them directly.
+"""
 
 import pandas as pd
 
 
 def df_cleanup(df):
+    """Coerce columns that are >=80% numeric (after stripping $ and ,) to numeric
+    dtype, leaving the rest unchanged."""
     for col in df.columns:
         cleaned = df[col].astype(str).str.replace(r"[$,]", "", regex=True)
         coerced = pd.to_numeric(cleaned, errors="coerce")
@@ -14,42 +22,6 @@ def df_cleanup(df):
             # tool reports. basic_analysis() drops these NaNs before summarizing.
             df[col] = coerced
     return df
-
-
-def df_stats(df):
-    print(df.head())
-    df.info()
-    print(df.shape)
-    print(" | ".join(df.columns))
-
-
-def prompt_for_column(df):
-    while True:
-        column_name = input("Which column do you want to analyze? ").strip()
-        column_name = column_name.translate(str.maketrans("", "", string.punctuation))
-
-        if column_name not in df.columns:
-            print(f"{column_name} is not an available column. \nPlease try again.")
-            print("AVAILABLE COLUMNS:")
-            print(" | ".join(df.columns))
-            continue
-
-        print(f"Selected the column {column_name} ...")
-        return column_name
-
-
-def print_series_stats(series):
-    modes = series.mode()
-    mode_val = modes.iloc[0] if not modes.empty else float("nan")
-    print(
-        f"Mean: {series.mean():.3f} \n"
-        f"Median: {series.median():.3f} \n"
-        f"Mode: {mode_val:.3f} \n"
-        f"Min: {series.min():.3f} \n"
-        f"Max: {series.max():.3f} \n"
-        f"Standard Deviation: {series.std():.3f} \n"
-        f"Variance: {series.var():.3f}"
-    )
 
 
 class DataAnalyzer:
@@ -85,21 +57,5 @@ class DataAnalyzer:
         pass
 
     def expert_analysis(self):
-        # TODO: Add analysis of medium complexity
+        # TODO: Add analysis of expert complexity
         pass
-
-
-def main():
-    df = pd.read_csv("../Data/data.csv")
-    df_clean = df_cleanup(df)
-
-    df_stats(df_clean)
-
-    analyzer = DataAnalyzer(df_clean)
-    result = analyzer.basic_analysis(column=prompt_for_column(df_clean))
-    print(result)
-    analyzer.medium_analysis()
-
-
-if __name__ == "__main__":
-    main()

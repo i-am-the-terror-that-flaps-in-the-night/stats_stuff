@@ -1,6 +1,6 @@
 # stats-and-more
 
-A small Python project pairing **interactive descriptive statistics** with a minimal
+A small Python project pairing a **descriptive-statistics engine** with a minimal
 **FastAPI web service** and a static web preview. It also retains data assets from an earlier
 [NHANES 2017–2018](https://wwwn.cdc.gov/nchs/nhanes/continuousnhanes/) analysis effort.
 
@@ -9,7 +9,7 @@ A small Python project pairing **interactive descriptive statistics** with a min
 | Component         | Entry point             | What it does                                                            |
 |-------------------|-------------------------|------------------------------------------------------------------------|
 | **Web service**   | `Backend/app.py`        | FastAPI app: `/healthz` probe, a JSON stats API, and serves the `Web/` preview; deploys to Render |
-| **Practice stats**| `Backend/extra.py`      | Descriptive stats on `Data/data.csv` (CLI, and the engine behind the API)  |
+| **Stats engine**  | `Backend/engine.py`     | Descriptive stats on `Data/data.csv`; the engine behind the API            |
 | **Web preview**   | `index.html`            | Static page that calls the API to show column stats                    |
 
 > **Note on history:** earlier versions of this repo included a survey-weighted NHANES
@@ -27,11 +27,10 @@ stats_and_more/
 ├── main.py                # Root deploy entry point: re-exports Backend/app.py (Render's `uvicorn main:app`)
 ├── Backend/
 │   ├── app.py             # FastAPI service: /healthz + serves index.html (the real app)
-│   ├── extra.py           # Interactive descriptive stats on Data/data.csv
-│   └── main.py            # Entry-point alias: re-exports app.py as `main:app`
+│   └── engine.py          # Stats engine: descriptive stats on Data/data.csv (backs the API)
 ├── Data/
 │   ├── data.csv           # Practice dataset (tracked in git)
-│   ├── laptopData.csv     # Secondary practice dataset (tracked in git)
+│   ├── laptopData.csv     # Secondary practice dataset (gitignored)
 │   └── nhanes_analytic.csv  # Prebuilt NHANES analytic table (gitignored)
 ├── extra_data/            # Retained NHANES source files (analysis scripts removed)
 │   ├── csv_data/          # NHANES component CSV files (gitignored)
@@ -76,7 +75,7 @@ cd Backend
 uv run uvicorn app:app --reload
 
 # ...or from the repo root (main.py re-exports the same app):
-uv run uvicorn Backend.main:app --reload
+uv run uvicorn main:app --reload
 ```
 
 Then open <http://127.0.0.1:8000/> and pick a column to analyze. Routes:
@@ -87,7 +86,7 @@ Then open <http://127.0.0.1:8000/> and pick a column to analyze. Routes:
 - `GET /api/stats/{column}` — mean/median/mode/min/max/std/variance for one column
 - `/Web/*` — the `Web/` directory (CSS/JS/favicon), served as static files
 
-The API is backed by `extra.py`: `df_cleanup()` coerces mostly-numeric columns
+The API is backed by `engine.py`: `df_cleanup()` coerces mostly-numeric columns
 (stripping `$`/`,`) and `DataAnalyzer.basic_analysis()` computes the stats.
 
 ### Deploying to Render
@@ -110,23 +109,17 @@ The root `main.py` re-exports the app from `Backend/app.py`, so Render's default
 
 ## Practice dataset
 
-`Data/data.csv` is a small dataset for trying basic descriptive stats interactively:
+`Data/data.csv` is a small dataset for trying basic descriptive stats. `engine.py` is a
+library (no CLI) — `df_cleanup()` loads and coerces mostly-numeric columns (stripping `$`
+and `,`), and `DataAnalyzer.basic_analysis(column)` reports mean, median, mode, min, max,
+standard deviation, and variance.
 
-```bash
-cd Backend
-uv run python extra.py
-```
-
-It loads the CSV, coerces mostly-numeric columns (stripping `$` and `,`), prints a preview,
-then prompts for a column name and reports mean, median, mode, min, max, standard deviation,
-and variance.
-
-The `DataAnalyzer.basic_analysis(column)` method returns those same stats as a dict, which is
-handy for reuse or for serving over the API:
+Exercise it through the web service above, or import it directly. `basic_analysis(column)`
+returns the stats as a dict, handy for reuse or for serving over the API:
 
 ```python
 import pandas as pd
-from extra import DataAnalyzer, df_cleanup
+from engine import DataAnalyzer, df_cleanup
 
 df = df_cleanup(pd.read_csv("../Data/data.csv"))
 DataAnalyzer(df).basic_analysis("price")
@@ -137,8 +130,8 @@ DataAnalyzer(df).basic_analysis("price")
 
 A small static page — `index.html` at the repo root, with CSS/JS under `Web/` — served by the
 FastAPI app. It loads the column list from `/api/columns`, then fetches `/api/stats/{column}`
-and renders the result as a table — a browser front end for the same stats `extra.py` prints
-in the terminal.
+and renders the result as a table — a browser front end for the same stats `engine.py`
+computes.
 
 ```
 index.html            # markup, served at / (loaded by the FastAPI "/" route)
@@ -168,7 +161,7 @@ Run the tests (pytest, dev dependency) from the repo root:
 uv run pytest
 ```
 
-`tests/test_extra.py` covers `basic_analysis()` (numeric column, no-numeric-values,
+`tests/test_engine.py` covers `basic_analysis()` (numeric column, no-numeric-values,
 mode ties) and confirms `df_cleanup()` drops missing values rather than imputing them.
 
 ## Key dependencies

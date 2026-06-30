@@ -10,7 +10,7 @@
 
 <body>
 <main class="card">
-    <h1 id="title">Analysis</h1>
+    <h1 id="title">DataLens</h1>
     <p class="text">Pick a column from <code>data.csv</code> and get its descriptive stats.</p>
 
     <div class="controls">
@@ -19,8 +19,8 @@
         </select>
         <button id="analyze" disabled>Analyze</button>
     </div>
-    
-    <p id="status" class="status"></p>
+
+    <p id="status" class="status" role="status" aria-live="polite"></p>
 
     <table id="results" hidden>
         <tbody></tbody>
