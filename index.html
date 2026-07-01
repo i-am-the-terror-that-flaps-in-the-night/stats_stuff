@@ -9,23 +9,31 @@
 </head>
 
 <body>
-<main class="card">
-    <h1 id="title">DataLens</h1>
-    <p class="text">Pick a column from <code>data.csv</code> and get its descriptive stats.</p>
 
-    <div class="controls">
-        <select id="column" aria-label="Column to analyze">
-            <option value="">Loading columns…</option>
-        </select>
-        <button id="analyze" disabled>Analyze</button>
+    <div class="page">
+        <header class="page-header">
+            <h1>DataLens</h1>
+            <p class="tagline">In-Depth analysis on your data</p>
+        </header>
+
+        <main class="card">
+            <h2 id="title">Basic Analysis</h2>
+            <p class="text">Pick a numerical column from <code>data.csv</code> and get its basic analysis.</p>
+
+            <div class="controls">
+                <select id="column" aria-label="Column to analyze">
+                    <option value="">Loading columns…</option>
+                </select>
+                <button id="analyze" disabled>Analyze</button>
+            </div>
+
+            <p id="status" class="status" role="status" aria-live="polite"></p>
+
+            <table id="results" hidden>
+                <tbody></tbody>
+            </table>
+        </main>
     </div>
-
-    <p id="status" class="status" role="status" aria-live="polite"></p>
-
-    <table id="results" hidden>
-        <tbody></tbody>
-    </table>
-</main>
 
 <script src="Web/JS/script.js"></script>
 </body>

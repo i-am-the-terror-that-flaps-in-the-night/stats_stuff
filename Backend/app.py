@@ -19,8 +19,8 @@ RUNNING IT
 ROUTES
     GET /healthz             -> {"status": "ok"}     liveness probe for Render
     GET /                    -> the static preview (index.html), or info JSON if absent
-    GET /api/columns         -> available columns in Data/data.csv
-    GET /api/stats/{column}  -> descriptive stats for one column
+    GET /api/columns         -> numeric/analyzable columns in Data/data.csv
+    GET /api/stats/{column}  -> descriptive stats for one analyzable column
     /Web/*                   -> the Web/ directory (CSS/JS), served as static files
 """
 
@@ -74,6 +74,17 @@ def load_data() -> pd.DataFrame:
         raise HTTPException(status_code=503, detail=detail) from None
 
 
+@lru_cache(maxsize=1)
+def analyzable_columns() -> frozenset[str]:
+    """Columns with at least one numeric value after coercion (same rule as basic_analysis)."""
+    df = load_data()
+    return frozenset(
+        col
+        for col in df.columns
+        if pd.to_numeric(df[col], errors="coerce").notna().any()
+    )
+
+
 @app.get("/healthz")
 def healthz():
     """Liveness probe -- Render hits this to decide if the service is up."""
@@ -82,21 +93,18 @@ def healthz():
 
 @app.get("/api/columns")
 def list_columns():
-    """List the columns available for analysis in Data/data.csv."""
-    df = load_data()
-    return {"dataset": DATA_CSV.name, "columns": list(df.columns)}
+    """List numeric/analyzable columns in Data/data.csv."""
+    return {"dataset": DATA_CSV.name, "columns": sorted(analyzable_columns())}
 
 
 @app.get("/api/stats/{column}")
 def column_stats(column: str):
-    """Return mean/median/mode/min/max/std/variance for one column."""
-    df = load_data()
-    if column not in df.columns:
+    """Return mean/median/mode/min/max/std/variance for one analyzable column."""
+    if column not in analyzable_columns():
         raise HTTPException(status_code=404, detail=f"Unknown column: {column!r}")
 
-    result = DataAnalyzer(df).basic_analysis(column)
+    result = DataAnalyzer(load_data()).basic_analysis(column)
     if "error" in result:
-        # Column exists but has no numeric values to summarize.
         raise HTTPException(status_code=422, detail=result["error"])
     return result
 

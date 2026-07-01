@@ -59,3 +59,7 @@ class DataAnalyzer:
     def expert_analysis(self):
         # TODO: Add analysis of expert complexity
         pass
+
+    def categorical_analysis(self):
+        # TODO: Add analysis for categorical columns
+        pass
