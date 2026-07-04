@@ -47,7 +47,7 @@ WEB_DIR = ROOT / "Web"
 DATA_CSV = ROOT / "Data" / "data.csv"
 INDEX_HTML = ROOT / "index.html"  # references Web/CSS and Web/JS (served at /Web)
 
-app = FastAPI(title="DataLens")
+app = FastAPI(title="Data Analysis")
 
 # Allow the static page to call the API even when it's opened from a different
 # origin (e.g. a separate dev server or file://). Permissive is fine for a demo.
@@ -114,7 +114,7 @@ def root():
     """Serve the static preview (index.html), falling back to info if it's gone."""
     if INDEX_HTML.is_file():
         return FileResponse(INDEX_HTML)
-    return {"service": "DataLens", "status": "ok", "preview": None}
+    return {"service": "Data Analysis", "status": "ok", "preview": None}
 
 
 # Mount the static frontend last so it can't shadow the routes above. index.html

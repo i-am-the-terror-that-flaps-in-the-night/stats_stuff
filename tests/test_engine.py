@@ -45,17 +45,17 @@ def test_basic_analysis_all_nan_column():
     assert result == {"error": "No numeric values in that column."}
 
 
-def test_basic_analysis_mode_tie_returns_smallest():
-    """When several values tie for the mode, the smallest is reported.
+def test_basic_analysis_mode_tie_returns_all_modes():
+    """When several values tie for the mode, all of them are reported.
 
     pandas' Series.mode() returns the tied values sorted ascending, and
-    basic_analysis() takes the first -- so a 1-vs-2 tie resolves to 1.
+    basic_analysis() returns that full list -- so a 1-vs-2 tie yields [1, 2].
     """
     df = pd.DataFrame({"x": [1, 1, 2, 2, 3]})
 
     result = DataAnalyzer(df).basic_analysis("x")
 
-    assert result["mode"] == 1.0
+    assert result["mode"] == [1, 2]
 
 
 def test_df_cleanup_keeps_missing_as_nan():

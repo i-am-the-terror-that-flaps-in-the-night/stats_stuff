@@ -41,11 +41,17 @@ body {
     background-size: 100% 100%, 24px 24px;
     min-height: 100vh;
     line-height: 1.5;
+    display: flex;
+    flex-direction: column;
 }
 
 .page {
     max-width: 560px;
+    width: 100%;
     margin: 0 auto;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
 }
 
 .page-header {
@@ -68,6 +74,34 @@ h1 {
     margin: 8px 0 0;
     color: var(--text-muted);
     font-size: 0.95rem;
+}
+
+.page-footer {
+    margin-top: auto;
+    padding-top: 28px;
+    text-align: center;
+    color: var(--text-faint);
+    font-size: 0.85rem;
+}
+
+.page-footer p {
+    margin: 4px 0;
+}
+
+.page-footer .footer-meta {
+    font-size: 0.8rem;
+}
+
+.page-footer a {
+    color: var(--text-muted);
+    text-decoration: none;
+    border-bottom: 1px solid transparent;
+    transition: color 0.15s ease, border-color 0.15s ease;
+}
+
+.page-footer a:hover {
+    color: var(--accent-hover);
+    border-bottom-color: var(--accent-hover);
 }
 
 .card {

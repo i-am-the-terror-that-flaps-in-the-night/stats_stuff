@@ -3,37 +3,52 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DataLens</title>
+    <title>Data Analysis</title>
     <link rel="icon" href="Web/favicon.ico" sizes="any">
     <link rel="stylesheet" href="Web/CSS/styles.css">
 </head>
 
 <body>
 
-    <div class="page">
-        <header class="page-header">
-            <h1>DataLens</h1>
-            <p class="tagline">In-Depth analysis on your data</p>
-        </header>
+<div class="page">
+    <header class="page-header">
+        <h1>Data Analysis</h1>
+        <p class="tagline">In-depth analysis on your data</p>
+    </header>
 
-        <main class="card">
-            <h2 id="title">Basic Analysis</h2>
-            <p class="text">Pick a numerical column from <code>data.csv</code> and get its basic analysis.</p>
+    <main class="card">
+        <h2 id="title">Basic Analysis</h2>
+        <p class="text">Pick a numerical column from <code>data.csv</code> and get its basic analysis.</p>
 
-            <div class="controls">
-                <select id="column" aria-label="Column to analyze">
-                    <option value="">Loading columns…</option>
-                </select>
-                <button id="analyze" disabled>Analyze</button>
-            </div>
+        <div class="controls">
+            <select id="column" aria-label="Column to analyze">
+                <option value="">Loading columns…</option>
+            </select>
+            <button id="analyze" disabled>Analyze</button>
+        </div>
 
-            <p id="status" class="status" role="status" aria-live="polite"></p>
+        <p id="status" class="status" role="status" aria-live="polite"></p>
 
-            <table id="results" hidden>
-                <tbody></tbody>
-            </table>
-        </main>
-    </div>
+        <table id="results" hidden>
+            <tbody></tbody>
+        </table>
+    </main>
+
+    <footer class="page-footer">
+        <p>
+            Built with FastAPI, Pandas, and JavaScript
+        </p>
+
+        <p>
+            <a href="/docs">API docs</a> ·
+            <a href="https://github.com/i-am-the-terror-that-flaps-in-the-night">GitHub</a> ·
+            <a href="mailto:anirudh.gupta.sa@gmail.com">Contact</a> ·
+            <a href="https://website-repo.anirudh-gupta-sa.workers.dev">About Me</a>
+        </p>
+
+        <p class="footer-meta">© 2026</p>
+    </footer>
+</div>
 
 <script src="Web/JS/script.js"></script>
 </body>
