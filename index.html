@@ -3,38 +3,121 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Data Analysis</title>
+    <title>Data Analysis — statistical engine by Anirudh Gupta</title>
+    <meta name="author" content="Anirudh Gupta">
+    <meta name="description" content="A descriptive-statistics engine — the companion demo to Anirudh Gupta's Medicine & Health science-fair project.">
     <link rel="icon" href="Web/favicon.ico" sizes="any">
     <link rel="stylesheet" href="Web/CSS/styles.css">
 </head>
 
 <body>
 
+<!-- Loading splash: covers the page on first paint, then Web/JS/script.js fades
+     it out once the app is ready (and after a minimum display time). -->
+<div id="loader" class="loader-overlay" role="status" aria-label="Loading, please wait">
+    <div class="loader-reticle" aria-hidden="true">
+        <div class="loader-ring"></div>
+    </div>
+    <div class="loader-text" aria-hidden="true">
+        <p class="loader-brand">Data Analysis</p>
+        <p class="loader-message" id="loader-message">Warming up the engine…</p>
+    </div>
+</div>
+
 <div class="page">
     <header class="page-header">
+        <p class="eyebrow">Descriptive-statistics engine</p>
         <h1>Data Analysis</h1>
-        <p class="tagline">In-depth analysis on your data</p>
+        <p class="tagline">The analysis engine behind my Medicine &amp; Health science-fair project — try it live below.</p>
+        <p class="byline">By Anirudh Gupta</p>
     </header>
 
-    <main class="card">
-        <h2 id="title">Basic Analysis</h2>
-        <p class="text">Pick a numerical column from <code>data.csv</code> and get its basic analysis.</p>
+    <section class="flow-section" aria-labelledby="analyze-title">
+        <p class="section-eyebrow">Analyze</p>
+        <h2 id="analyze-title" class="section-title">Statistical Analysis</h2>
+        <p class="text">Pick an analysis tier and a column from <code>data.csv</code> — optionally grouped by a category — and the engine computes the rest.</p>
 
-        <div class="controls">
-            <select id="column" aria-label="Column to analyze">
-                <option value="">Loading columns…</option>
-            </select>
-            <button id="analyze" disabled>Analyze</button>
+        <p class="control-label">Tier</p>
+        <ul class="channel-grid" id="tier-grid" role="list" aria-label="Analysis tier"></ul>
+
+        <p class="control-label" id="column-label">Column</p>
+        <ul class="channel-grid" id="channel-grid" role="list" aria-label="Columns">
+            <li class="channel-empty">Loading columns…</li>
+        </ul>
+
+        <div id="group-control" hidden>
+            <p class="control-label">Group by <span class="control-note">optional</span></p>
+            <ul class="channel-grid" id="group-grid" role="list" aria-label="Group by"></ul>
         </div>
 
         <p id="status" class="status" role="status" aria-live="polite"></p>
 
-        <table id="results" hidden>
-            <tbody></tbody>
+        <div id="results" class="results" hidden></div>
+    </section>
+
+    <section class="flow-section" aria-labelledby="tel-title">
+        <p class="section-eyebrow">Dataset</p>
+        <h2 id="tel-title" class="section-title">Dataset Telemetry</h2>
+        <p class="text">Live readout from the source this instrument is wired to.</p>
+        <table>
+            <tbody>
+                <tr><td class="label">Source</td><td class="value" id="tel-source">data.csv</td></tr>
+                <tr><td class="label">Records</td><td class="value" id="tel-rows">50</td></tr>
+                <tr><td class="label">Fields</td><td class="value" id="tel-cols">12</td></tr>
+                <tr><td class="label">Analyzable</td><td class="value" id="tel-numeric">10</td></tr>
+                <tr><td class="label">Categorical</td><td class="value" id="tel-categorical">2</td></tr>
+                <tr><td class="label">Complete <span class="label-note">n=50</span></td><td class="value" id="tel-complete">5</td></tr>
+                <tr><td class="label">Reduced <span class="label-note">n=49</span></td><td class="value" id="tel-reduced">5</td></tr>
+            </tbody>
         </table>
-    </main>
+    </section>
+
+    <section class="flow-section" aria-labelledby="ref-title">
+        <p class="section-eyebrow">Reference</p>
+        <h2 id="ref-title" class="section-title">Statistic Reference</h2>
+        <p class="text">What each figure in the readout means — and how the numbers stay honest.</p>
+        <dl class="legend">
+            <div class="legend-row">
+                <dt class="legend-term">mean</dt>
+                <dd class="legend-def">Arithmetic average of the values. Sensitive to extremes — a single outlier pulls it.</dd>
+            </div>
+            <div class="legend-row">
+                <dt class="legend-term">median</dt>
+                <dd class="legend-def">The middle value once sorted (the 50th percentile). Barely moved by outliers.</dd>
+            </div>
+            <div class="legend-row">
+                <dt class="legend-term">mode</dt>
+                <dd class="legend-def">The most frequent value. Returned as a list, so every tie is shown — Age has four.</dd>
+            </div>
+            <div class="legend-row">
+                <dt class="legend-term">min</dt>
+                <dd class="legend-def">The smallest value observed.</dd>
+            </div>
+            <div class="legend-row">
+                <dt class="legend-term">max</dt>
+                <dd class="legend-def">The largest value observed.</dd>
+            </div>
+            <div class="legend-row">
+                <dt class="legend-term">std <span class="legend-tag">sample · n−1</span></dt>
+                <dd class="legend-def">Standard deviation: the typical distance of a value from the mean.</dd>
+            </div>
+            <div class="legend-row">
+                <dt class="legend-term">variance <span class="legend-tag">= std²</span></dt>
+                <dd class="legend-def">The standard deviation squared — the same spread in squared units.</dd>
+            </div>
+        </dl>
+        <p class="legend-note">
+            <span class="legend-note-key">Missing data</span>
+            Cells that can't be read as a number — a blank, <span class="token">NA</span>,
+            <span class="token">?</span>, or <span class="token">null</span> — are dropped, never
+            filled in. Five of the ten columns each lose exactly one such cell, so their stats
+            summarize 49 values instead of 50. Nothing is invented to close the gap.
+        </p>
+    </section>
 
     <footer class="page-footer">
+        <p class="footer-endpoints"><span class="footer-endpoints-verb">GET</span> /api/columns · /api/analyze/{tier}/{column} · /api/overview · /healthz</p>
+
         <p>
             Built with FastAPI, Pandas, and JavaScript
         </p>
@@ -46,7 +129,7 @@
             <a href="https://website-repo.anirudh-gupta-sa.workers.dev">About Me</a>
         </p>
 
-        <p class="footer-meta">© 2026</p>
+        <p class="footer-meta">© 2026 Anirudh Gupta · Medicine &amp; Health Science Fair</p>
     </footer>
 </div>
 

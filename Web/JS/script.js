@@ -16,21 +16,56 @@
     const API_CANDIDATES = ["", "http://127.0.0.1:8000", "http://localhost:8000"];
     let apiBase = "";
 
-    const columnSelect = document.getElementById("column");
-    const analyzeBtn = document.getElementById("analyze");
     const statusEl = document.getElementById("status");
-    const resultsTable = document.getElementById("results");
-    const resultsBody = resultsTable.querySelector("tbody");
+    const resultsEl = document.getElementById("results");
+    const channelGrid = document.getElementById("channel-grid");
+    const tierGrid = document.getElementById("tier-grid");
+    const groupGrid = document.getElementById("group-grid");
+    const groupControl = document.getElementById("group-control");
+    const loader = document.getElementById("loader");
+    const loaderMessage = document.getElementById("loader-message");
 
-    // Order to display the stats in (keys returned by /api/stats/{column}).
-    const STAT_ROWS = ["mean", "median", "mode", "min", "max", "std", "variance"];
+    // The analysis tiers. basic/medium/advanced/expert run on numeric columns;
+    // categorical runs on label columns (and swaps the column list to match).
+    const TIERS = ["basic", "medium", "advanced", "expert", "categorical"];
+    // Only these tiers do group comparisons, so only they show the group-by picker.
+    const GROUPING_TIERS = new Set(["medium", "advanced", "expert"]);
+
+    // Current selection. group === "" means "no grouping".
+    const state = { tier: "basic", column: null, group: "" };
+
+    // Column lists from /api/columns, filled on load.
+    let numericColumns = [];
+    let categoricalColumns = [];
+
+    // Guard against overlapping analyses from rapid chip clicks.
+    let busy = false;
+
+    // Loading splash: keep it up for at least this long so the intro animation
+    // reads as intentional rather than a flicker. The rotating captions below
+    // give the wait a sense of progress.
+    const LOADER_MIN_MS = 2500;
+    const LOADER_MESSAGES = [
+        "Warming up the engine…",
+        "Loading dataset…",
+        "Crunching the numbers…",
+        "Almost ready…",
+    ];
 
     function setStatus(message, isError = false) {
         statusEl.textContent = message;
         statusEl.classList.toggle("error", isError);
     }
 
-    // Find a backend that answers /api/columns and populate the dropdown.
+    function tierSupportsGroup(tier) {
+        return GROUPING_TIERS.has(tier);
+    }
+
+    function columnsForTier(tier) {
+        return tier === "categorical" ? categoricalColumns : numericColumns;
+    }
+
+    // Find a backend that answers /api/columns and render the selectors.
     async function loadColumns() {
         for (const base of API_CANDIDATES) {
             let res;
@@ -46,56 +81,366 @@
             const data = await res.json();
             apiBase = base;
 
-            columnSelect.innerHTML = "";
-            for (const name of data.columns) {
-                const opt = document.createElement("option");
-                opt.value = name;
-                opt.textContent = name;
-                columnSelect.appendChild(opt);
+            numericColumns = data.columns || [];
+            categoricalColumns = data.categorical || [];
+
+            buildTierButtons();
+            buildColumnButtons(columnsForTier(state.tier));
+            buildGroupButtons(categoricalColumns);
+            updateGroupVisibility();
+
+            // The numeric columns double as the live "Analyzable" telemetry count.
+            const numericEl = document.getElementById("tel-numeric");
+            if (numericEl) {
+                numericEl.textContent = numericColumns.length;
             }
-            analyzeBtn.disabled = false;
-            setStatus(`Loaded ${data.columns.length} columns from ${data.dataset}.`);
+            setStatus(`Loaded ${numericColumns.length} columns from ${data.dataset}. Pick a tier and a column.`);
+            await loadOverview();
             return;
         }
 
         setStatus("Could not reach the backend. Start it with: uvicorn main:app (from the repo root).", true);
     }
 
-    // Fetch stats for the selected column and render them as a table.
-    async function analyze() {
-        const column = columnSelect.value;
-        if (!column) {
+    // ---- Selectors ---------------------------------------------------------
+
+    // Render one chip per tier; the active tier is highlighted.
+    function buildTierButtons() {
+        if (!tierGrid) {
             return;
         }
-
-        analyzeBtn.disabled = true;
-        resultsTable.hidden = true;
-        setStatus(`Analyzing ${column}…`);
-
-        try {
-            const res = await fetch(`${apiBase}/api/stats/${encodeURIComponent(column)}`);
-            const data = await res.json();
-
-            if (res.ok) {
-                resultsBody.innerHTML = "";
-                for (const key of STAT_ROWS) {
-                    const row = document.createElement("tr");
-                    row.innerHTML = `<td class="label">${key}</td><td class="value">${data[key]}</td>`;
-                    resultsBody.appendChild(row);
-                }
-                resultsTable.hidden = false;
-                setStatus(`Stats for ${data.column}:`);
-            } else {
-                const detail = data.detail || `HTTP ${res.status}`;
-                setStatus(`Could not analyze ${column}: ${detail}`, true);
-            }
-        } catch (err) {
-            setStatus(`Could not analyze ${column}: ${err.message}`, true);
-        } finally {
-            analyzeBtn.disabled = false;
+        tierGrid.innerHTML = "";
+        for (const tier of TIERS) {
+            const li = document.createElement("li");
+            const btn = document.createElement("button");
+            btn.type = "button";
+            btn.className = "channel";
+            btn.dataset.tier = tier;
+            btn.setAttribute("aria-pressed", tier === state.tier ? "true" : "false");
+            btn.classList.toggle("is-active", tier === state.tier);
+            btn.textContent = tier;
+            li.appendChild(btn);
+            tierGrid.appendChild(li);
         }
     }
 
-    analyzeBtn.addEventListener("click", analyze);
-    loadColumns();
+    // Render one chip per column for the current tier; clicking one analyzes it.
+    function buildColumnButtons(columns) {
+        if (!channelGrid) {
+            return;
+        }
+        channelGrid.innerHTML = "";
+        if (!columns.length) {
+            const li = document.createElement("li");
+            li.className = "channel-empty";
+            li.textContent = "No columns for this tier.";
+            channelGrid.appendChild(li);
+            return;
+        }
+        for (const name of columns) {
+            const li = document.createElement("li");
+            const btn = document.createElement("button");
+            btn.type = "button";
+            btn.className = "channel";
+            btn.dataset.column = name;
+            btn.setAttribute("aria-label", `Analyze ${name}`);
+            btn.setAttribute("aria-pressed", "false");
+            btn.textContent = name;
+            li.appendChild(btn);
+            channelGrid.appendChild(li);
+        }
+    }
+
+    // Group-by chips: a "None" default plus one per categorical column.
+    function buildGroupButtons(columns) {
+        if (!groupGrid) {
+            return;
+        }
+        groupGrid.innerHTML = "";
+        const options = [{ label: "none", value: "" }].concat(
+            columns.map((c) => ({ label: c, value: c }))
+        );
+        for (const opt of options) {
+            const li = document.createElement("li");
+            const btn = document.createElement("button");
+            btn.type = "button";
+            btn.className = "channel";
+            btn.dataset.group = opt.value;
+            btn.setAttribute("aria-pressed", opt.value === state.group ? "true" : "false");
+            btn.classList.toggle("is-active", opt.value === state.group);
+            btn.textContent = opt.label;
+            li.appendChild(btn);
+            groupGrid.appendChild(li);
+        }
+    }
+
+    // Mark the active chip in a grid (matched on a data-attribute value).
+    function setActive(grid, attr, value) {
+        if (!grid) {
+            return;
+        }
+        for (const btn of grid.querySelectorAll(".channel")) {
+            const active = btn.dataset[attr] === value;
+            btn.classList.toggle("is-active", active);
+            btn.setAttribute("aria-pressed", active ? "true" : "false");
+        }
+    }
+
+    function updateGroupVisibility() {
+        if (groupControl) {
+            groupControl.hidden = !tierSupportsGroup(state.tier);
+        }
+    }
+
+    // ---- Selection handlers ------------------------------------------------
+
+    function selectTier(tier) {
+        if (tier === state.tier) {
+            return;
+        }
+        state.tier = tier;
+        setActive(tierGrid, "tier", tier);
+        updateGroupVisibility();
+
+        // Swap the column list to the tier's column set. If the current column
+        // isn't valid for the new tier, drop it and clear the readout.
+        const columns = columnsForTier(tier);
+        buildColumnButtons(columns);
+        if (state.column && columns.includes(state.column)) {
+            setActive(channelGrid, "column", state.column);
+            analyze();
+        } else {
+            state.column = null;
+            resultsEl.hidden = true;
+            setStatus(`${tier} tier — select a column.`);
+        }
+    }
+
+    function selectColumn(column) {
+        state.column = column;
+        setActive(channelGrid, "column", column);
+        analyze();
+    }
+
+    function selectGroup(group) {
+        state.group = group;
+        setActive(groupGrid, "group", group);
+        if (state.column) {
+            analyze();
+        }
+    }
+
+    // Fill the Dataset Telemetry readout from real, derived numbers. Best-effort:
+    // if the endpoint is unreachable the honest static defaults in the HTML stand.
+    async function loadOverview() {
+        try {
+            const res = await fetch(`${apiBase}/api/overview`);
+            if (!res.ok) {
+                return;
+            }
+            const o = await res.json();
+            const set = (id, val) => {
+                const el = document.getElementById(id);
+                if (el && val !== undefined && val !== null) {
+                    el.textContent = val;
+                }
+            };
+            set("tel-source", o.dataset);
+            set("tel-rows", o.rows);
+            set("tel-cols", o.columns);
+            set("tel-numeric", o.numeric);
+            set("tel-categorical", o.categorical);
+            set("tel-complete", o.complete);
+            set("tel-reduced", o.reduced);
+        } catch {
+            // leave the static defaults in place
+        }
+    }
+
+    // ---- Analysis + rendering ---------------------------------------------
+
+    // Fetch the selected tier/column/group and render the (possibly nested) result.
+    async function analyze() {
+        if (!state.column || busy) {
+            return;
+        }
+
+        busy = true;
+        resultsEl.hidden = true;
+        const grouped = tierSupportsGroup(state.tier) && state.group;
+        const groupLabel = grouped ? ` grouped by ${state.group}` : "";
+        setStatus(`Running ${state.tier} analysis of ${state.column}${groupLabel}…`);
+
+        let url = `${apiBase}/api/analyze/${state.tier}/${encodeURIComponent(state.column)}`;
+        if (grouped) {
+            url += `?group=${encodeURIComponent(state.group)}`;
+        }
+
+        try {
+            const res = await fetch(url);
+            const data = await res.json();
+
+            if (res.ok) {
+                renderResult(data);
+                setStatus(`${state.tier} analysis of ${state.column}${groupLabel}:`);
+            } else {
+                const detail = data.detail || `HTTP ${res.status}`;
+                setStatus(`Could not analyze ${state.column}: ${detail}`, true);
+            }
+        } catch (err) {
+            setStatus(`Could not analyze ${state.column}: ${err.message}`, true);
+        } finally {
+            busy = false;
+        }
+    }
+
+    function isPlainObject(v) {
+        return v !== null && typeof v === "object" && !Array.isArray(v);
+    }
+
+    // Turn "ci_lower" -> "ci lower" (the CSS uppercases the label).
+    function prettify(key) {
+        return String(key).replace(/_/g, " ");
+    }
+
+    // Render a leaf value as a DOM node, with a few readability touches:
+    // booleans become a colored YES/NO verdict, nulls a faint dash, arrays a list.
+    function formatValue(value) {
+        if (value === null || value === undefined) {
+            const s = document.createElement("span");
+            s.className = "value-null";
+            s.textContent = "—";
+            return s;
+        }
+        if (typeof value === "boolean") {
+            const s = document.createElement("span");
+            s.className = "value-flag " + (value ? "is-true" : "is-false");
+            s.textContent = value ? "YES" : "NO";
+            return s;
+        }
+        if (Array.isArray(value)) {
+            return document.createTextNode(value.length ? value.join(", ") : "—");
+        }
+        return document.createTextNode(String(value));
+    }
+
+    function renderRow(key, value) {
+        const tr = document.createElement("tr");
+        const label = document.createElement("td");
+        label.className = "label";
+        label.textContent = prettify(key);
+        const val = document.createElement("td");
+        val.className = "value";
+        val.appendChild(formatValue(value));
+        tr.append(label, val);
+        return tr;
+    }
+
+    // Recursively render a result object: scalar entries collect into a table,
+    // nested objects become titled sub-groups (which recurse). This renders every
+    // tier's shape without hard-coding any one of them.
+    function renderInto(container, obj) {
+        const rows = [];
+        const groups = [];
+        for (const [k, v] of Object.entries(obj)) {
+            if (isPlainObject(v) || (Array.isArray(v) && v.some(isPlainObject))) {
+                groups.push([k, v]);
+            } else {
+                rows.push([k, v]);
+            }
+        }
+
+        if (rows.length) {
+            const table = document.createElement("table");
+            const tbody = document.createElement("tbody");
+            for (const [k, v] of rows) {
+                tbody.appendChild(renderRow(k, v));
+            }
+            table.appendChild(tbody);
+            container.appendChild(table);
+        }
+
+        for (const [k, v] of groups) {
+            const group = document.createElement("div");
+            group.className = "result-group";
+            const title = document.createElement("p");
+            title.className = "result-group-title";
+            title.textContent = prettify(k);
+            group.appendChild(title);
+            if (Array.isArray(v)) {
+                v.forEach((item) => {
+                    if (isPlainObject(item)) {
+                        renderInto(group, item);
+                    }
+                });
+            } else {
+                renderInto(group, v);
+            }
+            container.appendChild(group);
+        }
+    }
+
+    function renderResult(data) {
+        resultsEl.innerHTML = "";
+        renderInto(resultsEl, data);
+        resultsEl.hidden = false;
+    }
+
+    // ---- Wiring ------------------------------------------------------------
+
+    const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+    // Advance the splash caption on an interval; returns the timer id to clear.
+    function cycleLoaderMessages() {
+        let i = 0;
+        return setInterval(() => {
+            i = (i + 1) % LOADER_MESSAGES.length;
+            if (loaderMessage) {
+                loaderMessage.textContent = LOADER_MESSAGES[i];
+            }
+        }, 700);
+    }
+
+    // Show the splash, then reveal the app once BOTH the minimum display time has
+    // passed AND the initial column load has settled. Waiting on the load too
+    // means the splash also covers the real latency of a cold Render start,
+    // instead of uncovering a still-empty dropdown.
+    async function boot() {
+        if (!loader) {
+            loadColumns();
+            return;
+        }
+        const messageTimer = cycleLoaderMessages();
+        await Promise.all([delay(LOADER_MIN_MS), loadColumns()]);
+        clearInterval(messageTimer);
+        loader.classList.add("is-hidden");
+    }
+
+    // Each grid is a selector: a chip click drives the corresponding choice.
+    if (tierGrid) {
+        tierGrid.addEventListener("click", (e) => {
+            const btn = e.target.closest(".channel");
+            if (btn) {
+                selectTier(btn.dataset.tier);
+            }
+        });
+    }
+    if (channelGrid) {
+        channelGrid.addEventListener("click", (e) => {
+            const btn = e.target.closest(".channel");
+            if (btn) {
+                selectColumn(btn.dataset.column);
+            }
+        });
+    }
+    if (groupGrid) {
+        groupGrid.addEventListener("click", (e) => {
+            const btn = e.target.closest(".channel");
+            if (btn) {
+                selectGroup(btn.dataset.group);
+            }
+        });
+    }
+
+    boot();
 })();

@@ -1,28 +1,40 @@
 :root {
     color-scheme: dark;
 
-    --bg: #0b0e15;
-    --grid: #1c2333;
-    --surface: #121826;
-    --surface-2: #171f2f;
-    --border: #232c40;
-    --border-hover: #2d3854;
+    /* Cool near-black base; steel greys carry the structure so the single accent
+       stays rare. */
+    --bg: #070a0e;
+    --grid: #10161f;
+    --surface: #0b111a;
+    --surface-2: #0f1723;
+    --edge: #223041;
+    --edge-hover: #33475d;
 
-    --text: #e5e7eb;
-    --text-muted: #8b93a7;
-    --text-faint: #5b6479;
+    --text: #dfe7ee;
+    /* Body-copy mid-tone: brighter than --text-muted so prose stands out, but
+       still below --text (reserved for headings/values). ~9:1 on the surfaces,
+       clears WCAG-AA/AAA. */
+    --text-body: #aeb9c6;
+    --text-muted: #8493a4;
+    --text-faint: #4c5a6b;
 
-    --accent: #6366f1;
-    --accent-hover: #818cf8;
-    --accent-soft: rgba(99, 102, 241, 0.15);
+    /* Instrument cyan -- used only for interactive/active/key-data, never as fill. */
+    --accent: #22d3ee;
+    --accent-hover: #67e8f9;
+    --accent-soft: rgba(34, 211, 238, 0.14);
+    --accent-line: rgba(34, 211, 238, 0.55);
 
-    --success: #34d399;
-    --error: #f87171;
-    --error-soft: rgba(248, 113, 113, 0.12);
+    --success: #4ade80;
+    --error: #f9736a;
+    --error-soft: rgba(249, 115, 106, 0.12);
 
-    --radius: 14px;
-    --radius-sm: 8px;
-    --shadow: 0 20px 40px -20px rgba(0, 0, 0, 0.6);
+    /* Hard edges: near-zero radius, chamfered panel corners instead of rounding. */
+    --radius-sm: 2px;
+    --chamfer: 14px;
+    --chamfer-sm: 8px;
+
+    --font-mono: ui-monospace, "SF Mono", SFMono-Regular, "JetBrains Mono", "Cascadia Code", Menlo, Consolas, monospace;
+    --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 }
 
 * {
@@ -30,15 +42,18 @@
 }
 
 body {
-    font-family: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+    font-family: var(--font-sans);
     background-color: var(--bg);
     color: var(--text);
     margin: 0;
     padding: 56px 16px;
+    /* Blueprint hairline grid + a faint cool wash up top (low opacity: a hint of
+       glow, not neon). */
     background-image:
-        radial-gradient(circle at 50% -20%, var(--accent-soft), transparent 60%),
-        radial-gradient(var(--grid) 1px, transparent 1px);
-    background-size: 100% 100%, 24px 24px;
+        radial-gradient(circle at 50% -12%, rgba(34, 211, 238, 0.06), transparent 55%),
+        linear-gradient(var(--grid) 1px, transparent 1px),
+        linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+    background-size: 100% 100%, 32px 32px, 32px 32px;
     min-height: 100vh;
     line-height: 1.5;
     display: flex;
@@ -56,40 +71,60 @@ body {
 
 .page-header {
     text-align: center;
-    margin-bottom: 28px;
+    margin-bottom: 32px;
 }
 
 h1 {
     margin: 0;
-    font-size: 2rem;
+    font-family: var(--font-mono);
+    font-size: 1.75rem;
     font-weight: 700;
-    letter-spacing: -0.03em;
-    background: linear-gradient(135deg, #fff, var(--accent-hover));
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
+    text-transform: uppercase;
+    letter-spacing: 0.16em;
+    color: var(--text);
+    /* Faint accent lift, not a glowing wordmark. */
+    text-shadow: 0 0 24px rgba(34, 211, 238, 0.18);
+}
+
+.eyebrow {
+    margin: 0 0 10px;
+    font-family: var(--font-mono);
+    font-size: 0.68rem;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.22em;
+    color: var(--text-muted);
 }
 
 .tagline {
-    margin: 8px 0 0;
+    margin: 10px 0 0;
+    color: var(--text-body);
+    font-size: 0.92rem;
+}
+
+/* Researcher credit -- it's a science-fair entry, so the name is present but quiet. */
+.byline {
+    margin: 16px 0 0;
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
     color: var(--text-muted);
-    font-size: 0.95rem;
 }
 
 .page-footer {
     margin-top: auto;
-    padding-top: 28px;
+    padding-top: 32px;
     text-align: center;
     color: var(--text-faint);
-    font-size: 0.85rem;
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
 }
 
 .page-footer p {
-    margin: 4px 0;
-}
-
-.page-footer .footer-meta {
-    font-size: 0.8rem;
+    margin: 5px 0;
 }
 
 .page-footer a {
@@ -101,97 +136,109 @@ h1 {
 
 .page-footer a:hover {
     color: var(--accent-hover);
-    border-bottom-color: var(--accent-hover);
+    border-bottom-color: var(--accent-line);
 }
 
-.card {
-    background-color: var(--surface);
-    background-image: linear-gradient(180deg, var(--surface-2), var(--surface));
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    padding: 28px;
-    box-shadow: var(--shadow);
+/* ---- Flowing sections -------------------------------------------------- */
+/* No card-boxes: the page is one continuous instrument read top-to-bottom.
+   Sections are separated by breathing room + a hairline rule, and marked by a
+   mono eyebrow with a short cyan tick (the old card's active-tick, unboxed). */
+.flow-section {
+    padding: 30px 0;
 }
 
-#title {
-    margin-top: 0;
-    margin-bottom: 6px;
-    font-size: 1.15rem;
+.flow-section:first-of-type {
+    padding-top: 6px;
+}
+
+.flow-section + .flow-section {
+    border-top: 1px solid var(--edge);
+}
+
+.section-eyebrow {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 0 0 12px;
+    font-family: var(--font-mono);
+    font-size: 0.68rem;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.2em;
+    color: var(--text-muted);
+}
+
+.section-eyebrow::before {
+    content: "";
+    flex: none;
+    width: 18px;
+    height: 2px;
+    background: var(--accent);
+    box-shadow: 0 0 12px var(--accent-soft);
+}
+
+.section-title {
+    margin: 0 0 8px;
+    font-family: var(--font-mono);
+    font-size: 1.05rem;
     font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--text);
 }
 
 .text {
-    color: var(--text-muted);
+    color: var(--text-body);
     margin-top: 0;
-    margin-bottom: 24px;
+    margin-bottom: 26px;
     font-size: 0.9rem;
 }
 
 code {
+    font-family: var(--font-mono);
     background: var(--surface-2);
-    border: 1px solid var(--border);
+    border: 1px solid var(--edge);
     color: var(--accent-hover);
-    padding: 2px 6px;
-    border-radius: 6px;
+    padding: 1px 6px;
+    border-radius: var(--radius-sm);
     font-size: 0.85em;
 }
 
-.controls {
-    display: flex;
-    gap: 10px;
-    margin-bottom: 16px;
-}
-
-select {
-    flex: 1;
-    padding: 10px 12px;
-    border: 1px solid var(--border);
-    border-radius: var(--radius-sm);
-    background-color: var(--surface-2);
-    color: var(--text);
-    font-size: 15px;
-    font-family: inherit;
-    transition: border-color 0.15s ease;
-}
-
-select:hover {
-    border-color: var(--border-hover);
-}
-
-select:focus-visible {
-    outline: none;
-    border-color: var(--accent);
-    box-shadow: 0 0 0 3px var(--accent-soft);
-}
-
 button {
-    padding: 10px 22px;
-    border: none;
-    background: var(--accent);
-    color: white;
-    border-radius: var(--radius-sm);
+    padding: 11px 22px;
+    border: 1px solid var(--accent);
+    background: transparent;
+    color: var(--accent-hover);
+    border-radius: 0;
     cursor: pointer;
-    font-size: 15px;
+    font-size: 13px;
     font-weight: 600;
-    font-family: inherit;
-    transition: background-color 0.15s ease, transform 0.1s ease;
+    font-family: var(--font-mono);
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    /* One cut corner: directional, angular, matches the panel language. */
+    clip-path: polygon(0 0, calc(100% - var(--chamfer-sm)) 0, 100% var(--chamfer-sm), 100% 100%, 0 100%);
+    transition: background-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
 }
 
 button:hover:not(:disabled) {
-    background-color: var(--accent-hover);
+    background-color: var(--accent-soft);
+    color: var(--accent-hover);
+    box-shadow: inset 0 0 0 1px var(--accent);
 }
 
 button:active:not(:disabled) {
-    transform: translateY(1px);
+    background-color: rgba(34, 211, 238, 0.22);
 }
 
 button:focus-visible {
     outline: none;
-    box-shadow: 0 0 0 3px var(--accent-soft);
+    box-shadow: 0 0 0 1px var(--accent);
 }
 
 button:disabled {
-    background-color: var(--surface-2);
+    border-color: var(--edge);
+    background-color: transparent;
     color: var(--text-faint);
     cursor: not-allowed;
 }
@@ -199,7 +246,10 @@ button:disabled {
 .status {
     color: var(--success);
     min-height: 1.2em;
-    font-size: 0.9rem;
+    font-family: var(--font-mono);
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
     margin: 0;
 }
 
@@ -207,12 +257,12 @@ button:disabled {
     color: var(--error);
 }
 
+/* ---- Spec-sheet readout ------------------------------------------------ */
 table {
     width: 100%;
     border-collapse: collapse;
-    margin-top: 8px;
-    overflow: hidden;
-    border-radius: var(--radius-sm);
+    margin-top: 10px;
+    font-family: var(--font-mono);
 }
 
 tr {
@@ -224,8 +274,8 @@ tr:hover {
 }
 
 td {
-    padding: 10px 12px;
-    border-bottom: 1px solid var(--border);
+    padding: 11px 12px;
+    border-bottom: 1px solid var(--edge);
     text-align: left;
 }
 
@@ -235,7 +285,26 @@ tr:last-child td {
 
 td.label {
     color: var(--text-muted);
-    text-transform: capitalize;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    font-size: 0.78rem;
+    /* Leading tick: a small measurement cue on each readout row -- legible at
+       rest (steel), lights cyan on row hover. */
+    border-left: 2px solid var(--edge-hover);
+    padding-left: 12px;
+}
+
+/* Faint qualifier inside a readout label, e.g. "Complete n=50" or "used / total". */
+.label-note {
+    margin-left: 8px;
+    color: var(--text-faint);
+    letter-spacing: 0;
+    text-transform: none;
+}
+
+tr:hover td.label {
+    border-left-color: var(--accent);
+    color: var(--text);
 }
 
 td.value {
@@ -245,16 +314,355 @@ td.value {
     color: var(--text);
 }
 
+/* ---- Analyzable channels ----------------------------------------------- */
+.channel-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 6px 0 18px;
+    padding: 0;
+    list-style: none;
+}
+
+.channel-empty {
+    color: var(--text-muted);
+    font-family: var(--font-mono);
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+}
+
+/* Chip = a small variant of the main button; rests in steel, lights cyan only
+   on hover/focus (the shared button rules supply the rest). */
+.channel {
+    padding: 8px 12px;
+    font-size: 0.74rem;
+    letter-spacing: 0.08em;
+    color: var(--text);
+    background: var(--surface-2);
+    border: 1px solid var(--edge);
+    border-left: 2px solid var(--edge-hover);
+}
+
+.channel:hover:not(:disabled) {
+    border-left-color: var(--accent);
+}
+
+/* The column currently shown in the readout. */
+.channel.is-active {
+    color: var(--accent-hover);
+    background-color: var(--accent-soft);
+    border-color: var(--edge-hover);
+    border-left-color: var(--accent);
+}
+
+/* ---- Control labels (Tier / Column / Group by) ------------------------- */
+.control-label {
+    margin: 18px 0 8px;
+    font-family: var(--font-mono);
+    font-size: 0.66rem;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.2em;
+    color: var(--text-muted);
+}
+
+.control-label:first-of-type {
+    margin-top: 0;
+}
+
+.control-note {
+    margin-left: 6px;
+    color: var(--text-faint);
+    letter-spacing: 0.1em;
+}
+
+/* ---- Tiered result readout --------------------------------------------- */
+/* The higher tiers return nested results; script.js renders them as grouped
+   sub-panels. A group is set off by a cyan-ticked mono heading and a hairline
+   left rule, so nesting reads as depth without boxes. */
+.results[hidden] {
+    display: none;
+}
+
+.results {
+    margin-top: 14px;
+}
+
+.result-group {
+    margin-top: 18px;
+    padding-left: 14px;
+    border-left: 1px solid var(--edge);
+}
+
+.result-group > .result-group {
+    margin-top: 12px;
+}
+
+.result-group-title {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    margin: 0 0 6px;
+    font-family: var(--font-mono);
+    font-size: 0.68rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    color: var(--text-muted);
+}
+
+.result-group-title::before {
+    content: "";
+    flex: none;
+    width: 12px;
+    height: 2px;
+    background: var(--accent-line);
+}
+
+/* Nested tables sit tighter than the top-level spec-sheet table. */
+.result-group table {
+    margin-top: 2px;
+}
+
+/* Boolean verdicts (significant / detected / normal): cyan when true, steel when
+   not -- a quick read of "did this test fire". */
+.value-flag {
+    font-size: 0.72rem;
+    letter-spacing: 0.1em;
+}
+
+.value-flag.is-true {
+    color: var(--accent-hover);
+}
+
+.value-flag.is-false {
+    color: var(--text-faint);
+}
+
+/* A null/absent metric (e.g. a CI that needed more data). */
+.value-null {
+    color: var(--text-faint);
+}
+
+/* ---- Statistic reference ----------------------------------------------- */
+.legend {
+    margin: 22px 0 0;
+}
+
+.legend-row {
+    display: grid;
+    grid-template-columns: 132px 1fr;
+    gap: 18px;
+    align-items: baseline;
+    padding: 12px 0 12px 12px;
+    /* Same leading tick + hairline divider as a readout row. */
+    border-left: 2px solid var(--edge-hover);
+    border-bottom: 1px solid var(--edge);
+    transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.legend-row:last-child {
+    border-bottom: none;
+}
+
+.legend-row:hover {
+    background-color: var(--surface-2);
+    border-left-color: var(--accent);
+}
+
+.legend-term {
+    font-family: var(--font-mono);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--text-muted);
+}
+
+.legend-row:hover .legend-term {
+    color: var(--text);
+}
+
+.legend-tag {
+    display: block;
+    margin-top: 5px;
+    font-size: 0.62rem;
+    letter-spacing: 0.06em;
+    text-transform: none;
+    color: var(--text-faint);
+}
+
+.legend-def {
+    margin: 0;
+    font-size: 0.86rem;
+    line-height: 1.5;
+    color: var(--text-body);
+}
+
+/* Emphasised aside, not a box: a single cyan left rule keeps it in the flow. */
+.legend-note {
+    margin: 24px 0 0;
+    padding: 4px 0 4px 16px;
+    border-left: 2px solid var(--accent-line);
+    font-size: 0.84rem;
+    line-height: 1.55;
+    color: var(--text-body);
+}
+
+.legend-note-key {
+    display: block;
+    margin-bottom: 6px;
+    font-family: var(--font-mono);
+    font-size: 0.68rem;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--text-muted);
+}
+
+/* Raw source literal (NA / ? / null) -- neutral mono, deliberately NOT the cyan code chip. */
+.token {
+    font-family: var(--font-mono);
+    font-size: 0.85em;
+    color: var(--text);
+    background: var(--surface);
+    border: 1px solid var(--edge);
+    border-radius: var(--radius-sm);
+    padding: 0 5px;
+}
+
+/* Real API routes in the footer -- kept lowercase (paths are case-sensitive) and
+   scrollable so the page body never scrolls sideways on narrow screens. */
+.footer-endpoints {
+    margin-bottom: 10px;
+    color: var(--text-faint);
+    text-transform: none;
+    letter-spacing: 0.04em;
+    overflow-x: auto;
+    white-space: nowrap;
+}
+
+.footer-endpoints-verb {
+    color: var(--text-muted);
+    letter-spacing: 0.1em;
+}
+
+@media (max-width: 480px) {
+    .legend-row {
+        grid-template-columns: 1fr;
+        gap: 4px;
+    }
+}
+
+/* ---- Loading reticle --------------------------------------------------- */
+.loader-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 26px;
+    background-color: var(--bg);
+    background-image: radial-gradient(circle at 50% 42%, rgba(34, 211, 238, 0.07), transparent 60%);
+    transition: opacity 0.5s ease, visibility 0.5s ease;
+}
+
+.loader-overlay.is-hidden {
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+}
+
+/* Targeting reticle: four static cyan corner brackets framing a thin spinning
+   ring -- reads as a measurement instrument acquiring a lock. */
+.loader-reticle {
+    position: relative;
+    width: 72px;
+    height: 72px;
+    display: grid;
+    place-items: center;
+    --bl: 14px; /* bracket arm length */
+    --bt: 2px; /* bracket thickness */
+    background:
+        linear-gradient(var(--accent), var(--accent)) 0 0 / var(--bl) var(--bt) no-repeat,
+        linear-gradient(var(--accent), var(--accent)) 0 0 / var(--bt) var(--bl) no-repeat,
+        linear-gradient(var(--accent), var(--accent)) 100% 0 / var(--bl) var(--bt) no-repeat,
+        linear-gradient(var(--accent), var(--accent)) 100% 0 / var(--bt) var(--bl) no-repeat,
+        linear-gradient(var(--accent), var(--accent)) 0 100% / var(--bl) var(--bt) no-repeat,
+        linear-gradient(var(--accent), var(--accent)) 0 100% / var(--bt) var(--bl) no-repeat,
+        linear-gradient(var(--accent), var(--accent)) 100% 100% / var(--bl) var(--bt) no-repeat,
+        linear-gradient(var(--accent), var(--accent)) 100% 100% / var(--bt) var(--bl) no-repeat;
+}
+
+.loader-ring {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: conic-gradient(from 0deg, transparent 30%, var(--accent));
+    -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 0);
+    mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 0);
+    animation: loader-spin 0.9s linear infinite;
+}
+
+@keyframes loader-spin {
+    to {
+        transform: rotate(1turn);
+    }
+}
+
+@keyframes loader-pulse {
+    50% {
+        opacity: 0.3;
+    }
+}
+
+.loader-text {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    text-align: center;
+}
+
+.loader-brand {
+    margin: 0;
+    font-family: var(--font-mono);
+    font-size: 1.15rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.22em;
+    color: var(--text);
+    text-shadow: 0 0 20px rgba(34, 211, 238, 0.2);
+}
+
+.loader-message {
+    margin: 0;
+    min-height: 1.2em;
+    font-family: var(--font-mono);
+    font-size: 0.76rem;
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    color: var(--text-muted);
+}
+
+/* Respect reduced-motion: swap the spin for a gentle pulse and drop the fade. */
+@media (prefers-reduced-motion: reduce) {
+    .loader-ring {
+        animation: loader-pulse 1.4s ease-in-out infinite;
+    }
+
+    .loader-overlay {
+        transition: none;
+    }
+}
+
 @media (max-width: 480px) {
     body {
         padding: 32px 12px;
     }
 
-    .card {
-        padding: 20px;
-    }
-
-    .controls {
-        flex-direction: column;
+    .flow-section {
+        padding: 24px 0;
     }
 }
