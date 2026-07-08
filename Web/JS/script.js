@@ -24,12 +24,14 @@
     const groupControl = document.getElementById("group-control");
     const loader = document.getElementById("loader");
     const loaderMessage = document.getElementById("loader-message");
+    const loaderBarFill = document.getElementById("loader-bar-fill");
+    const loaderPercent = document.getElementById("loader-percent");
 
-    // The analysis tiers. basic/medium/advanced/expert run on numeric columns;
+    // The analysis tiers. basic/medium/advanced run on numeric columns;
     // categorical runs on label columns (and swaps the column list to match).
-    const TIERS = ["basic", "medium", "advanced", "expert", "categorical"];
+    const TIERS = ["basic", "medium", "advanced", "categorical"];
     // Only these tiers do group comparisons, so only they show the group-by picker.
-    const GROUPING_TIERS = new Set(["medium", "advanced", "expert"]);
+    const GROUPING_TIERS = new Set(["medium", "advanced"]);
 
     // Current selection. group === "" means "no grouping".
     const state = { tier: "basic", column: null, group: "" };
@@ -42,15 +44,39 @@
     let busy = false;
 
     // Loading splash: keep it up for at least this long so the intro animation
-    // reads as intentional rather than a flicker. The rotating captions below
-    // give the wait a sense of progress.
-    const LOADER_MIN_MS = 2500;
-    const LOADER_MESSAGES = [
-        "Warming up the engine…",
-        "Loading dataset…",
-        "Crunching the numbers…",
-        "Almost ready…",
+    // reads as intentional rather than a flicker. A progress bar fills while a
+    // fast-scrolling "module log" churns beneath it (see below).
+    const LOADER_MIN_MS = 3000;
+
+    // Boot log played for laughs: a silly present-progressive verb crossed with
+    // an absurd, stats-flavored target. The two pools multiply out to hundreds of
+    // one-line jokes, so cycling them fast reads as a busy engine with a sense of
+    // humor rather than a real build log.
+    const LOADER_VERBS = [
+        "Wrangling", "Herding", "Untangling", "Massaging", "Nudging", "Coaxing",
+        "Cajoling", "Befriending", "Summoning", "Juggling", "Wrestling", "Tickling",
+        "Bamboozling", "Yeeting", "Sprinkling", "Bedazzling", "Turbocharging",
+        "Overthinking", "Double-checking", "Alphabetizing", "Reticulating", "Placating",
     ];
+    const LOADER_TARGETS = [
+        "the spreadsheet gremlins", "a suspicious number of decimals", "the p-values",
+        "several confidence intervals", "the outliers", "one very stubborn CSV",
+        "the bell curves", "a pile of standard deviations", "the correlation matrix",
+        "some artisanal averages", "the median (it's shy)", "3.7 billion imaginary rows",
+        "the null hypothesis", "a rogue semicolon", "the error bars", "every possible histogram",
+        "the data (politely)", "a heap of scatter plots", "the missing values",
+        "the regression line", "the chi-square goblins", "a box plot or two", "the variance",
+        "the z-scores", "the entire alphabet, just in case", "the leftover NaNs",
+        "the quartiles", "the mode (democratically)", "a wild pie chart", "the sample size",
+    ];
+
+    function pick(pool) {
+        return pool[(Math.random() * pool.length) | 0];
+    }
+
+    function randomBootLine() {
+        return `${pick(LOADER_VERBS)} ${pick(LOADER_TARGETS)}…`;
+    }
 
     function setStatus(message, isError = false) {
         statusEl.textContent = message;
@@ -390,15 +416,84 @@
 
     const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-    // Advance the splash caption on an interval; returns the timer id to clear.
-    function cycleLoaderMessages() {
-        let i = 0;
-        return setInterval(() => {
-            i = (i + 1) % LOADER_MESSAGES.length;
+    function setLoaderProgress(pct) {
+        if (loaderBarFill) {
+            loaderBarFill.style.width = `${pct}%`;
+        }
+        if (loaderPercent) {
+            loaderPercent.textContent = `${Math.round(pct)}%`;
+        }
+    }
+
+    // Drive the boot bar: churn the module log fast while easing the fill toward
+    // ~97% (an ease-out that keeps creeping so it never visually stalls). Under
+    // prefers-reduced-motion, skip the strobing log and just fill calmly.
+    // Returns the timer id to clear when the real load settles.
+    function runLoaderSequence() {
+        const reduce = window.matchMedia &&
+            window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+        let progress = 0;
+
+        if (reduce) {
             if (loaderMessage) {
-                loaderMessage.textContent = LOADER_MESSAGES[i];
+                loaderMessage.textContent = "Loading…";
             }
-        }, 700);
+            return setInterval(() => {
+                progress = Math.min(96, progress + 4);
+                setLoaderProgress(progress);
+            }, 120);
+        }
+
+        // Uneven pacing: advance through a handful of checkpoints instead of one
+        // smooth glide. Each surge covers a random slice of the remaining bar at a
+        // bimodal speed (clearly fast or clearly slow), then stalls for a variable
+        // beat before releasing to the next -- so some parts race and some hang,
+        // and no two boots pace the same.
+        let ceiling = 0;
+        let speed = 0;
+        let dwell = 0;
+        const nextCheckpoint = () => {
+            ceiling += (97 - ceiling) * (0.25 + Math.random() * 0.5);
+            speed = Math.random() < 0.5
+                ? 0.18 + Math.random() * 0.14   // fast surge
+                : 0.05 + Math.random() * 0.05;  // slow crawl
+            dwell = Math.random() < 0.55
+                ? (Math.random() * 4) | 0        // barely pauses
+                : (6 + Math.random() * 16) | 0;  // noticeable hang
+        };
+        nextCheckpoint();
+
+        // The bar ticks fast for smooth motion, but the joke line only refreshes
+        // every few ticks so each one lingers long enough to actually read.
+        const TEXT_EVERY = 0.5; // 6 * 45ms ≈ 270ms per line
+        let tick = 0;
+        if (loaderMessage) {
+            loaderMessage.textContent = randomBootLine();
+        }
+
+        return setInterval(() => {
+            if (progress < ceiling - 0.4) {
+                progress = Math.min(97, progress + (ceiling - progress) * speed + 0.25);
+            } else if (dwell > 0) {
+                dwell -= 1; // stall at the checkpoint
+            } else if (ceiling < 96) {
+                nextCheckpoint(); // release into the next surge
+            }
+            setLoaderProgress(progress);
+            tick += 1;
+            if (loaderMessage && tick % TEXT_EVERY === 0) {
+                loaderMessage.textContent = randomBootLine();
+            }
+        }, 45);
+    }
+
+    // Snap the bar to 100% and settle the log on a final line.
+    function finishLoaderSequence(timer) {
+        clearInterval(timer);
+        setLoaderProgress(100);
+        if (loaderMessage) {
+            loaderMessage.textContent = "Done. No data was harmed.";
+        }
     }
 
     // Show the splash, then reveal the app once BOTH the minimum display time has
@@ -410,10 +505,19 @@
             loadColumns();
             return;
         }
-        const messageTimer = cycleLoaderMessages();
+        const timer = runLoaderSequence();
         await Promise.all([delay(LOADER_MIN_MS), loadColumns()]);
-        clearInterval(messageTimer);
-        loader.classList.add("is-hidden");
+        finishLoaderSequence(timer);
+        await delay(200); // hold on "Done." for a beat before the transition
+
+        // Hand off to the cosmetic boot transition (Web/JS/transition.js), which
+        // covers the screen, hides the loader behind it, plays its flourish, then
+        // fades to reveal the app. If the file isn't present, just fade the loader.
+        if (typeof window.playBootTransition === "function") {
+            await window.playBootTransition(loader);
+        } else {
+            loader.classList.add("is-hidden");
+        }
     }
 
     // Each grid is a selector: a chip click drives the corresponding choice.

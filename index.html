@@ -15,12 +15,16 @@
 <!-- Loading splash: covers the page on first paint, then Web/JS/script.js fades
      it out once the app is ready (and after a minimum display time). -->
 <div id="loader" class="loader-overlay" role="status" aria-label="Loading, please wait">
-    <div class="loader-reticle" aria-hidden="true">
-        <div class="loader-ring"></div>
-    </div>
     <div class="loader-text" aria-hidden="true">
         <p class="loader-brand">Data Analysis</p>
-        <p class="loader-message" id="loader-message">Warming up the engine…</p>
+        <p class="loader-sub">Statistical engine</p>
+    </div>
+    <div class="loader-progress" aria-hidden="true">
+        <div class="loader-bar"><span class="loader-bar-fill" id="loader-bar-fill"></span></div>
+        <div class="loader-progress-meta">
+            <p class="loader-message" id="loader-message">Initializing…</p>
+            <span class="loader-percent" id="loader-percent">0%</span>
+        </div>
     </div>
 </div>
 
@@ -133,6 +137,7 @@
     </footer>
 </div>
 
+<script src="Web/JS/transition.js"></script>
 <script src="Web/JS/script.js"></script>
 </body>
 </html>
