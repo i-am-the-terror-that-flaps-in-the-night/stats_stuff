@@ -37,8 +37,9 @@ SPEED ON RENDER
         pre-loads/cleans the CSV off the request path, so even the first /api
         call usually finds the caches already warm -- without delaying readiness.
 
-    Responses are gzip-compressed and static assets carry Cache-Control headers,
-    so less goes over the wire and repeat visits skip re-fetching unchanged CSS/JS.
+    Responses are gzip-compressed, and static assets are served "no-cache" with
+    ETag/Last-Modified so repeat visits revalidate cheaply (a tiny 304 for unchanged
+    CSS/JS) while any redeploy is picked up immediately rather than after a TTL.
 """
 
 from __future__ import annotations
@@ -65,15 +66,21 @@ WEB_DIR = ROOT / "Web"
 DATA_CSV = ROOT / "Data" / "data.csv"
 INDEX_HTML = ROOT / "index.html"  # references Web/CSS and Web/JS (served at /Web)
 
-# Cache-Control for the static frontend. The assets aren't content-hashed, so we
-# use a moderate max-age: long enough that repeat visits skip the network, short
-# enough that a redeploy propagates within the hour. StaticFiles still sends
-# ETag/Last-Modified, so even after it expires the browser revalidates with a
-# cheap 304 rather than re-downloading.
-STATIC_CACHE_CONTROL = "public, max-age=3600"
-# index.html changes more often than its assets and is the entry point, so give
-# it a shorter TTL (it's tiny, and 304s keep re-fetches cheap anyway).
-INDEX_CACHE_CONTROL = "public, max-age=300"
+# Cache-Control for the static frontend. The assets aren't content-hashed and we
+# redeploy them in place, so a long max-age is a trap: after a deploy a returning
+# visitor keeps serving stale JS/CSS for the whole TTL *without revalidating*. Worse,
+# index.html and its assets then fall out of sync -- the HTML (shorter TTL) can
+# update to reference new files while the browser still serves the old ones, so a
+# change spanning several files (e.g. the boot transition: index.html + script.js +
+# styles.css + a new transition.js) loads half-old and silently breaks.
+#
+# "no-cache" fixes that: the browser may store the file but must revalidate before
+# reusing it. StaticFiles sends ETag/Last-Modified, so an unchanged asset comes back
+# as a tiny 304 (no re-download) and a changed one is picked up immediately. Cost is
+# one conditional request per asset per load -- negligible, and it does NOT touch
+# Render's cold-start path (that's the server-side pandas import, not asset fetches).
+STATIC_CACHE_CONTROL = "no-cache"
+INDEX_CACHE_CONTROL = "no-cache"
 
 
 def _load_engine():
