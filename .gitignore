@@ -70,6 +70,12 @@ figures/
 .env.*
 !.env.example
 
+# ---- Security scan output (nuclei etc. -- don't broadcast findings) ----
+nuclei*
+*.nuclei
+.nuclei/
+.nuclei-templates/
+
 # ---- IDE / editors ----
 .idea/
 *.iml
