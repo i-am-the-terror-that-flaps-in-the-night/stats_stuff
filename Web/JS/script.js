@@ -1,4 +1,4 @@
-/* jshint esversion: 9 */
+/* jshint esversion: 11 */
 // Front end for the FastAPI backend (Backend/app.py).
 //
 // This page can be served three ways, and the API lives in different places in
@@ -23,9 +23,9 @@
     const groupGrid = document.getElementById("group-grid");
     const groupControl = document.getElementById("group-control");
     const loader = document.getElementById("loader");
-    const loaderMessage = document.getElementById("loader-message");
-    const loaderBarFill = document.getElementById("loader-bar-fill");
-    const loaderPercent = document.getElementById("loader-percent");
+    const bootChannelsEl = document.getElementById("boot-channels");
+    const bootLogEl = document.getElementById("boot-log");
+    const bootStatusEl = document.getElementById("boot-status");
 
     // The analysis tiers. basic/medium/advanced run on numeric columns;
     // categorical runs on label columns (and swaps the column list to match).
@@ -46,7 +46,7 @@
     // Loading splash: keep it up for at least this long so the intro animation
     // reads as intentional rather than a flicker. A progress bar fills while a
     // fast-scrolling "module log" churns beneath it (see below).
-    const LOADER_MIN_MS = 3000;
+    const LOADER_MIN_MS = 5000;
 
     // Boot log played for laughs: a silly present-progressive verb crossed with
     // an absurd, stats-flavored target. The two pools multiply out to hundreds of
@@ -60,18 +60,28 @@
     ];
     const LOADER_TARGETS = [
         "the spreadsheet gremlins", "a suspicious number of decimals", "the p-values",
-        "several confidence intervals", "the outliers", "one very stubborn CSV",
-        "the bell curves", "a pile of standard deviations", "the correlation matrix",
-        "some artisanal averages", "the median (it's shy)", "3.7 billion imaginary rows",
-        "the null hypothesis", "a rogue semicolon", "the error bars", "every possible histogram",
-        "the data (politely)", "a heap of scatter plots", "the missing values",
-        "the regression line", "the chi-square goblins", "a box plot or two", "the variance",
-        "the z-scores", "the entire alphabet, just in case", "the leftover NaNs",
-        "the quartiles", "the mode (democratically)", "a wild pie chart", "the sample size",
+        "several confidence intervals (95% confident)", "the outliers (they know what they did)",
+        "one very stubborn CSV", "the bell curves", "a pile of standard deviations",
+        "the correlation matrix (correlation ≠ causation ≠ my problem)",
+        "some artisanal, small-batch averages", "the median (it's shy)", "3.7 billion imaginary rows",
+        "the null hypothesis (still no)", "a rogue semicolon", "the error bars past last call",
+        "every possible histogram", "the data (politely, then firmly)", "a heap of scatter plots",
+        "the missing values (last seen in 2019)", "the regression line off a cliff",
+        "the chi-square goblins", "a box plot and its whiskers", "the variance (mildly upset)",
+        "the z-scores", "the entire alphabet, just in case", "the leftover NaNs into a NaN sandwich",
+        "the quartiles (all four, grudgingly)", "the mode (democratically, one vote each)",
+        "a wild pie chart (do not feed)", "the sample size (it's a big ask)",
+        "the decimal point back where it belongs", "one p-value into significance (don't tell anyone)",
+        "the R² until it looks respectable", "a dataset that swears it's normally distributed",
+        "the residuals under the rug", "Bayes' theorem (priors sold separately)",
+        "the t-test, the whole t-test, and nothing but the t-test", "gigabytes of vibes",
+        "the confounding variables into the group chat", "a normal distribution that skipped leg day",
+        "the standard error, apologetically", "the degrees of freedom (currently 3, ideally more)",
+        "an Excel formula nobody remembers writing", "the trend line, wishfully",
     ];
 
     function pick(pool) {
-        return pool[(Math.random() * pool.length) | 0];
+        return pool[Math.floor(Math.random() * pool.length)];
     }
 
     function randomBootLine() {
@@ -394,11 +404,11 @@
             title.textContent = prettify(k);
             group.appendChild(title);
             if (Array.isArray(v)) {
-                v.forEach((item) => {
+                for (const item of v) {
                     if (isPlainObject(item)) {
                         renderInto(group, item);
                     }
-                });
+                }
             } else {
                 renderInto(group, v);
             }
@@ -416,32 +426,159 @@
 
     const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-    function setLoaderProgress(pct) {
-        if (loaderBarFill) {
-            loaderBarFill.style.width = `${pct}%`;
+    // ---- Boot splash: staged channels + console feed + status strip --------
+
+    // Staged progress channels. Each fills as the single overall boot value
+    // crosses its [start, full] window, so subsystems light up in sequence
+    // instead of one bar sliding across.
+    const BOOT_CHANNELS = [
+        { label: "Core Systems", start: 0, full: 46 },
+        { label: "Data Pipeline", start: 12, full: 72 },
+        { label: "Stat Modules", start: 32, full: 90 },
+        { label: "Interface", start: 52, full: 100 },
+    ];
+
+    // Tagged milestone lines, emitted in order as progress passes each `at`.
+    const BOOT_MILESTONES = [
+        { at: 0, tag: "SYS", text: "Boot sequence initiated" },
+        { at: 12, tag: "CORE", text: "Core systems nominal" },
+        { at: 26, tag: "DATA", text: "Dataset interface mounted" },
+        { at: 44, tag: "STAT", text: "Statistical engine online" },
+        { at: 62, tag: "UI", text: "Rendering interface" },
+        { at: 80, tag: "NET", text: "API connection established" },
+    ];
+
+    // Status tokens that flip from "…" to a lit state as boot proceeds.
+    const BOOT_STATUS_STAGES = [
+        { key: "data", at: 28, word: "ONLINE" },
+        { key: "stat", at: 60, word: "READY" },
+        { key: "api", at: 84, word: "CONNECTED" },
+    ];
+
+    // Channel tags for the filler (joke) lines that fill the gaps between
+    // milestones -- keeps the busy-engine churn with a sense of humor.
+    const FILLER_TAGS = ["PROC", "CALC", "DATA", "STAT", "SYS", "MEM"];
+    const BOOT_LOG_MAX = 10;
+
+    const bootChannelNodes = [];
+    let nextMilestone = 0;
+
+    // Build one channel row (label · track · percent) per BOOT_CHANNELS entry.
+    function buildBootChannels() {
+        if (!bootChannelsEl) {
+            return;
         }
-        if (loaderPercent) {
-            loaderPercent.textContent = `${Math.round(pct)}%`;
+        bootChannelsEl.innerHTML = "";
+        bootChannelNodes.length = 0;
+        for (const cfg of BOOT_CHANNELS) {
+            const li = document.createElement("li");
+            li.className = "boot-channel";
+
+            const label = document.createElement("span");
+            label.className = "boot-channel-label";
+            label.textContent = cfg.label;
+
+            const track = document.createElement("span");
+            track.className = "boot-channel-track";
+            const fill = document.createElement("span");
+            fill.className = "boot-channel-fill";
+            track.appendChild(fill);
+
+            const pct = document.createElement("span");
+            pct.className = "boot-channel-pct";
+            pct.textContent = "0%";
+
+            li.append(label, track, pct);
+            bootChannelsEl.appendChild(li);
+            bootChannelNodes.push({ cfg, fill, pct });
         }
     }
 
-    // Drive the boot bar: churn the module log fast while easing the fill toward
-    // ~97% (an ease-out that keeps creeping so it never visually stalls). Under
-    // prefers-reduced-motion, skip the strobing log and just fill calmly.
-    // Returns the timer id to clear when the real load settles.
+    // Append a tagged line to the console feed, trimming the oldest so the feed
+    // scrolls within its fixed window.
+    function addBootLine(tag, text, ok = false) {
+        if (!bootLogEl) {
+            return;
+        }
+        const line = document.createElement("div");
+        line.className = "boot-log-line";
+
+        const t = document.createElement("span");
+        t.className = ok ? "boot-log-tag is-ok" : "boot-log-tag";
+        t.textContent = tag;
+
+        const m = document.createElement("span");
+        m.className = "boot-log-msg";
+        m.textContent = text;
+
+        line.append(t, m);
+        bootLogEl.appendChild(line);
+        while (bootLogEl.children.length > BOOT_LOG_MAX) {
+            bootLogEl.removeChild(bootLogEl.firstChild);
+        }
+    }
+
+    // Emit any milestone lines whose threshold the progress has now crossed.
+    function emitMilestones(overall) {
+        while (
+            nextMilestone < BOOT_MILESTONES.length &&
+            overall >= BOOT_MILESTONES[nextMilestone].at
+        ) {
+            const m = BOOT_MILESTONES[nextMilestone];
+            addBootLine(m.tag, m.text, true);
+            nextMilestone += 1;
+        }
+    }
+
+    // Flip the status tokens as their thresholds are reached.
+    function updateBootStatus(overall) {
+        if (!bootStatusEl) {
+            return;
+        }
+        for (const s of BOOT_STATUS_STAGES) {
+            const item = bootStatusEl.querySelector(`[data-key="${s.key}"]`);
+            if (!item) {
+                continue;
+            }
+            const on = overall >= s.at;
+            item.classList.toggle("is-on", on);
+            const word = item.querySelector("b");
+            if (word) {
+                word.textContent = on ? s.word : "…";
+            }
+        }
+    }
+
+    // Fan the single overall progress value out across the staged channel bars
+    // and the status strip.
+    function setLoaderProgress(overall) {
+        for (const { cfg, fill, pct } of bootChannelNodes) {
+            const span = cfg.full - cfg.start;
+            let p = span > 0 ? ((overall - cfg.start) / span) * 100 : 100;
+            p = Math.max(0, Math.min(100, p));
+            fill.style.width = `${p}%`;
+            fill.classList.toggle("is-full", p >= 99.5);
+            pct.textContent = `${Math.round(p)}%`;
+            pct.classList.toggle("is-on", p >= 99.5);
+        }
+        updateBootStatus(overall);
+    }
+
+    // Drive the boot: ease a single overall value toward ~97%, fanning it out to
+    // the channel bars while milestone + filler lines churn in the console feed.
+    // Under prefers-reduced-motion, skip the strobing filler and just fill calmly
+    // (milestones still post). Returns the timer id to clear when load settles.
     function runLoaderSequence() {
         const reduce = window.matchMedia &&
             window.matchMedia("(prefers-reduced-motion: reduce)").matches;
         let progress = 0;
 
         if (reduce) {
-            if (loaderMessage) {
-                loaderMessage.textContent = "Loading…";
-            }
             return setInterval(() => {
                 progress = Math.min(96, progress + 4);
                 setLoaderProgress(progress);
-            }, 120);
+                emitMilestones(progress);
+            }, 140);
         }
 
         // Uneven pacing: advance through a handful of checkpoints instead of one
@@ -454,22 +591,19 @@
         let dwell = 0;
         const nextCheckpoint = () => {
             ceiling += (97 - ceiling) * (0.25 + Math.random() * 0.5);
-            speed = Math.random() < 0.5
-                ? 0.18 + Math.random() * 0.14   // fast surge
-                : 0.05 + Math.random() * 0.05;  // slow crawl
-            dwell = Math.random() < 0.55
-                ? (Math.random() * 4) | 0        // barely pauses
-                : (6 + Math.random() * 16) | 0;  // noticeable hang
+            speed = Math.random() < 0.5 ?
+                0.18 + Math.random() * 0.14 :   // fast surge
+                0.05 + Math.random() * 0.05;    // slow crawl
+            dwell = Math.random() < 0.55 ?
+                Math.floor(Math.random() * 4) :        // barely pauses
+                Math.floor(6 + Math.random() * 16);    // noticeable hang
         };
         nextCheckpoint();
 
-        // The bar ticks fast for smooth motion, but the joke line only refreshes
+        // The bar ticks fast for smooth motion, but a filler line only posts
         // every few ticks so each one lingers long enough to actually read.
-        const TEXT_EVERY = 0.5; // 6 * 45ms ≈ 270ms per line
+        const FILLER_EVERY = 12; // ~270ms per filler line at 45ms/tick
         let tick = 0;
-        if (loaderMessage) {
-            loaderMessage.textContent = randomBootLine();
-        }
 
         return setInterval(() => {
             if (progress < ceiling - 0.4) {
@@ -480,20 +614,21 @@
                 nextCheckpoint(); // release into the next surge
             }
             setLoaderProgress(progress);
+            emitMilestones(progress);
             tick += 1;
-            if (loaderMessage && tick % TEXT_EVERY === 0) {
-                loaderMessage.textContent = randomBootLine();
+            if (tick % FILLER_EVERY === 0) {
+                addBootLine(pick(FILLER_TAGS), randomBootLine());
             }
         }, 45);
     }
 
-    // Snap the bar to 100% and settle the log on a final line.
+    // Snap all channels to 100%, flush any remaining milestones, and sign off.
     function finishLoaderSequence(timer) {
         clearInterval(timer);
         setLoaderProgress(100);
-        if (loaderMessage) {
-            loaderMessage.textContent = "Done. No data was harmed.";
-        }
+        emitMilestones(100);
+        updateBootStatus(100);
+        addBootLine("SYS", "All systems nominal — no data harmed.", true);
     }
 
     // Show the splash, then reveal the app once BOTH the minimum display time has
@@ -505,6 +640,7 @@
             loadColumns();
             return;
         }
+        buildBootChannels();
         const timer = runLoaderSequence();
         await Promise.all([delay(LOADER_MIN_MS), loadColumns()]);
         finishLoaderSequence(timer);

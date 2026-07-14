@@ -1,19 +1,35 @@
 """
 engine.py -- the backend stats engine.
 
-Pure data logic, no console I/O: load-time cleaning of the dataframe and the
-descriptive-statistics computations. app.py imports df_cleanup and DataAnalyzer
-from here and exposes them over HTTP; tests/test_engine.py exercises them directly.
+Pure data logic, no printing: it cleans up a spreadsheet and computes statistics
+on it. app.py imports df_cleanup and DataAnalyzer from here and serves the
+results over HTTP; tests/test_engine.py calls them directly.
 
-DataAnalyzer keeps a small public surface -- one entry point per level of
-statistical complexity (basic -> medium -> advanced -> expert) plus a categorical
-branch. Each of the higher tiers keeps its own helper routines nested inside it,
-so the machinery for a tier lives with the method that owns it.
+HOW THIS FILE IS ORGANIZED
+    There are five things you can ask DataAnalyzer for, from simplest to hardest:
+
+        basic_analysis()        mean, median, mode, spread
+        medium_analysis()       shape of the data, error bars, group comparisons
+        advanced_analysis()     correlation, regression, confounding
+        expert_analysis()       collinearity, model checks, clinical cutoffs
+        categorical_analysis()  counts and cross-tabs for label columns
+
+    Those five are the ones the rest of the app calls. Everything else in the
+    class is a helper with a name starting in "_", and each helper does exactly
+    one statistical job. Read the five public methods first: each is short and
+    reads like a table of contents for the helpers underneath it.
+
+A NOTE ON MISSING VALUES
+    Real spreadsheets have blanks and typos. Everywhere we turn a column into
+    numbers we use pd.to_numeric(..., errors="coerce"), which turns anything
+    unreadable into NaN ("not a number"), and then we .dropna() those rows.
+    We never fill a blank in with the mean -- that would fake extra data points
+    and make the results look more certain than they are.
 
 IMPORT COST
-    Only pandas and scipy load at module import; the web service uses just the
-    basic tier, so the heavyweights the higher tiers need -- statsmodels and
-    matplotlib -- are imported lazily inside the methods that use them, keeping
+    Only pandas and scipy load when this file is imported. The website only uses
+    the basic tier, so the slow libraries the higher tiers need -- statsmodels
+    and matplotlib -- are imported inside the methods that use them. That keeps
     them off Render's cold-start path (see the "SPEED ON RENDER" note in app.py).
 """
 
@@ -21,701 +37,897 @@ import numpy as np
 import pandas as pd
 import scipy.stats as sp
 
+# A column counts as "numeric" if at least this fraction of its cells parse as
+# numbers. Below that, we treat it as a label column (names, categories, etc.).
+NUMERIC_THRESHOLD = 0.8
+
+# The usual cutoff for calling a result "statistically significant": a p-value
+# under 0.05 means "this pattern would show up by pure chance less than 5% of
+# the time".
+ALPHA = 0.05
+
 
 def df_cleanup(df):
-    """Coerce columns that are >=80% numeric (after stripping $ and ,) to numeric
-    dtype, leaving the rest unchanged."""
+    """Turn mostly-numeric text columns into real number columns.
+
+    A CSV read from disk is all text: "1200" and "$1,200" are both strings.
+    For each column we strip out "$" and "," and try to read the cells as
+    numbers. If at least 80% of them work, we keep the numeric version.
+
+    Cells that still don't parse stay as NaN. We deliberately do NOT fill them
+    in with the column mean: fake data points sitting exactly on the mean would
+    inflate the sample size and shrink the variance and standard deviation --
+    the exact numbers this tool exists to report. The analysis methods drop
+    those NaNs instead.
+    """
     for col in df.columns:
-        cleaned = df[col].astype(str).str.replace(r"[$,]", "", regex=True)
-        coerced = pd.to_numeric(cleaned, errors="coerce")
-        # noinspection SpellCheckingInspection
-        if coerced.notna().mean() >= 0.8:  # mostly numbers -> treat as numeric
-            # Keep the un-parseable cells as NaN rather than imputing them with the
-            # mean. Imputing would silently inflate n and shrink variance/std (the
-            # filled points sit exactly on the mean), distorting the very stats this
-            # tool reports. basic_analysis() drops these NaNs before summarizing.
-            df[col] = coerced
+        text = df[col].astype(str).str.replace(r"[$,]", "", regex=True)
+        numbers = pd.to_numeric(text, errors="coerce")
+        if numbers.notna().mean() >= NUMERIC_THRESHOLD:
+            df[col] = numbers
     return df
 
 
 def _num(x, ndigits=3):
-    """Round to a JSON-friendly float, mapping NaN/inf (and non-numbers) to None.
+    """Round a number so it is safe to send as JSON, or return None if it isn't
+    a usable number.
 
-    Every stat that reaches an HTTP response goes through here so a degenerate
-    input (empty group, zero variance, singular design matrix) surfaces as a
-    clean null instead of a NaN that breaks JSON or a silently wrong number.
+    Statistics on odd input can come back as NaN or infinity (an empty group, a
+    column where every value is identical, a regression that can't be solved).
+    Those break JSON and, worse, can look like real answers. Every statistic
+    that leaves this file goes through here, so a broken calculation shows up as
+    a clean null on the website instead of garbage.
     """
     try:
-        val = float(x)
+        value = float(x)
     except (TypeError, ValueError):
         return None
-    if not np.isfinite(val):
+    if not np.isfinite(value):  # NaN or infinity
         return None
-    return round(val, ndigits)
+    return round(value, ndigits)
+
+
+def _is_significant(p_value, alpha=ALPHA):
+    """True if the p-value is real and below the significance cutoff."""
+    return bool(np.isfinite(p_value) and p_value < alpha)
 
 
 class DataAnalyzer:
+    """Runs statistics on one pandas DataFrame.
+
+    Create it once with a cleaned DataFrame, then call whichever analysis tier
+    you want:
+
+        analyzer = DataAnalyzer(df_cleanup(pd.read_csv("data.csv")))
+        analyzer.basic_analysis("age")
+    """
+
     def __init__(self, df):
         self.df = df
 
-    # --- shared column helpers ------------------------------------------------
+    # ------------------------------------------------------------------
+    # Small shared helpers. Every tier below uses these, so the rule for
+    # "what counts as a number" lives in exactly one place.
+    # ------------------------------------------------------------------
 
-    def _numeric_series(self, column):
-        """The column coerced to numeric with un-parseable/missing cells dropped --
-        the same rule basic_analysis() applies, factored out for the other tiers."""
+    def _numbers(self, column):
+        """One column as numbers, with unreadable and missing cells dropped."""
         return pd.to_numeric(self.df[column], errors="coerce").dropna()
 
+    def _numbers_for(self, *columns):
+        """Several columns as numbers, keeping only rows where they are ALL
+        present. Correlation and regression need matched-up rows, so a row with
+        a gap in any one column has to go."""
+        frame = self.df[list(columns)].apply(pd.to_numeric, errors="coerce")
+        return frame.dropna()
+
+    def _value_and_group(self, value_column, group_column):
+        """The numeric column paired with a label column (age vs. sex, say),
+        keeping only rows where both are present. The group column stays as
+        labels; only the value column is turned into numbers."""
+        data = self.df[[value_column, group_column]].copy()
+        data[value_column] = pd.to_numeric(data[value_column], errors="coerce")
+        return data.dropna()
+
     def _numeric_column_names(self):
-        """Columns that are >=80% numeric after coercion -- the analyzable columns
-        the regression/correlation tiers draw their predictors from."""
+        """Names of the columns that are numeric enough to analyze. These are
+        the candidate predictors for the correlation and regression tiers."""
         return [
-            c
-            for c in self.df.columns
-            if pd.to_numeric(self.df[c], errors="coerce").notna().mean() >= 0.8
+            col
+            for col in self.df.columns
+            if pd.to_numeric(self.df[col], errors="coerce").notna().mean()
+            >= NUMERIC_THRESHOLD
         ]
 
-    def basic_analysis(self, column):
-        series = pd.to_numeric(self.df[column], errors="coerce").dropna()
+    def _other_numeric_columns(self, column):
+        """Every numeric column except the one being analyzed."""
+        return [c for c in self._numeric_column_names() if c != column]
 
+    def _sorted_groups(self, data, group_column):
+        """The distinct group labels in a sensible order.
+
+        The sort key puts numbers before strings, because Python refuses to
+        compare 3 < "adult" and would crash on a mixed column.
+        """
+        return sorted(
+            data[group_column].unique(), key=lambda g: (isinstance(g, str), g)
+        )
+
+    # ==================================================================
+    # TIER 1: BASIC -- the stats everyone knows.
+    # ==================================================================
+
+    def basic_analysis(self, column):
+        """Mean, median, mode, range, and spread for one numeric column."""
+        series = self._numbers(column)
         if series.empty:
             return {"error": "No numeric values in that column."}
 
+        # .mode() can return several values when there is a tie for most common,
+        # so we report the whole list.
         modes = series.mode()
-        mode_vals = modes.tolist() if not modes.empty else float("nan")
+        mode_values = modes.tolist() if not modes.empty else float("nan")
 
         return {
             "column": column,
-            # Sample size actually summarized: the NaN cells were dropped above,
-            # so for a column with an un-parseable cell this is below the row count.
+            # How many values we actually used. Missing cells were dropped above,
+            # so this can be smaller than the number of rows in the file.
             "n": int(series.count()),
             "mean": round(float(series.mean()), 3),
             "median": float(series.median()),
-            "mode": mode_vals,
+            "mode": mode_values,
             "min": float(series.min()),
             "max": float(series.max()),
-            "std": round(float(series.std()), 3),
-            "variance": round(float(series.var()), 3),
+            "std": round(float(series.std()), 3),  # typical distance from the mean
+            "variance": round(float(series.var()), 3),  # std squared
         }
+
+    # ==================================================================
+    # TIER 2: MEDIUM -- the shape of the data, how sure we are, and
+    # whether groups differ.
+    # ==================================================================
 
     def medium_analysis(self, column, group_column=None):
-        """Intermediate tier: distribution shape, uncertainty, and group tests.
+        """Distribution shape, a confidence interval, and (optionally) tests for
+        whether the groups in group_column differ."""
+        series = self._numbers(column)
+        if series.empty:
+            return {"error": "No numeric values in that column."}
 
-        The routines this tier is built from are defined as nested helpers below.
+        result = {
+            "column": column,
+            "distribution": self._distribution_metrics(series),
+            "uncertainty": self._uncertainty_metrics(series),
+        }
+        if group_column is not None:
+            result["groups"] = self._group_tests(column, group_column)
+        return result
+
+    def _distribution_metrics(self, series):
+        """What shape is this data? Quartiles, spread, lopsidedness, outliers."""
+        q1 = series.quantile(0.25)  # 25% of values are below this
+        median = series.median()  # the middle value
+        q3 = series.quantile(0.75)  # 75% of values are below this
+        iqr = q3 - q1  # the middle half of the data
+        skewness = series.skew()  # + = long tail on the right, - = on the left
+        kurtosis = series.kurtosis()  # how heavy the tails are
+
+        # An outlier here means "more than 3 standard deviations from the mean".
+        # We report just the count instead of dumping every one. If every value
+        # is identical the std is 0 and dividing by it gives NaN, so we skip.
+        std = series.std()
+        if std and np.isfinite(std) and std != 0:
+            z_scores = (series - series.mean()) / std
+            outliers = int((z_scores.abs() > 3).sum())
+        else:
+            outliers = 0
+
+        metrics = {
+            "q1": _num(q1),
+            "median": _num(median),
+            "q3": _num(q3),
+            "iqr": _num(iqr),
+            "skewness": _num(skewness),
+            "kurtosis": _num(kurtosis),
+            "outliers": outliers,
+        }
+        metrics["log_transform"] = self._log_transform(series, skewness)
+        return metrics
+
+    def _log_transform(self, series, skewness):
+        """Badly lopsided data (skew above 1 either way) often straightens out if
+        you take the logarithm of every value, which makes other tests behave
+        better. We only try it when every value is positive -- the log of zero or
+        a negative number is undefined and would quietly produce NaN.
         """
+        can_take_log = abs(skewness) > 1 and bool((series > 0).all())
+        if not can_take_log:
+            return {"applied": False, "skewness": None}
+        return {"applied": True, "skewness": _num(np.log(series).skew())}
 
-        # --- Distribution metrics ---
-        def _distribution_metrics(series):
-            # Quartiles, spread, shape, an outlier count, and -- for a skewed,
-            # strictly-positive column -- what a log transform does to the skew.
-            Q1 = series.quantile(0.25)
-            Q2 = series.median()
-            Q3 = series.quantile(0.75)
-            IQR = Q3 - Q1
-            skewness = series.skew()
-            kurtosis = series.kurtosis()
+    def _uncertainty_metrics(self, series):
+        """How precise is our estimate of the mean?
 
-            # z-scores are per-row; report them as a summary (count of |z| > 3)
-            # rather than dumping the whole array. Guard the constant-column case
-            # (std == 0) where every z-score would be NaN.
-            std = series.std()
-            if std and np.isfinite(std) and std != 0:
-                z_scores = (series - series.mean()) / std
-                outliers = int((z_scores.abs() > 3).sum())
-            else:
-                outliers = 0
-
-            metrics: dict[str, object] = {
-                "q1": _num(Q1),
-                "median": _num(Q2),
-                "q3": _num(Q3),
-                "iqr": _num(IQR),
-                "skewness": _num(skewness),
-                "kurtosis": _num(kurtosis),
-                "outliers": outliers,
-            }
-
-            # A right/left skew above ~1 in magnitude often pulls toward normal
-            # under a log. Only valid on strictly-positive data -- np.log of a
-            # zero/negative silently yields -inf/NaN, so we gate on it and flag
-            # when we skipped.
-            if abs(skewness) > 1 and bool((series > 0).all()):
-                metrics["log_transform"] = {
-                    "applied": True,
-                    "skewness": _num(np.log(series).skew()),
-                }
-            else:
-                metrics["log_transform"] = {"applied": False, "skewness": None}
-
-            return metrics
-
-        # --- Uncertainty metrics ---
-        def _uncertainty_metrics(series):
-            # Standard error of the mean and a 95% t-based confidence interval
-            # for the mean.
-            n = int(series.count())
-            if n < 2:
-                # df = n - 1 would be <= 0 and t.ppf returns NaN; report the gap
-                # instead of emitting a NaN interval.
-                return {
-                    "n": n,
-                    "sem": None,
-                    "ci_lower": None,
-                    "ci_upper": None,
-                    "confidence_level": 0.95,
-                    "error": "Need at least 2 values for a confidence interval.",
-                }
-            mean = series.mean()
-            SEM = series.sem()
-            t_crit = sp.t.ppf(0.975, df=n - 1)  # two-tailed 95%
-            margin = t_crit * SEM
+        We report the standard error (how much the mean would bounce around if we
+        collected the data again) and a 95% confidence interval (the range we are
+        95% confident the true mean falls inside).
+        """
+        n = int(series.count())
+        if n < 2:
+            # With one value there is nothing to be uncertain about yet -- the
+            # math would divide by zero. Say so instead of returning NaN.
             return {
                 "n": n,
-                "sem": _num(SEM),
-                "ci_lower": _num(mean - margin),
-                "ci_upper": _num(mean + margin),
+                "sem": None,
+                "ci_lower": None,
+                "ci_upper": None,
                 "confidence_level": 0.95,
+                "error": "Need at least 2 values for a confidence interval.",
             }
 
-        # --- Hypothesis testing ---
-        def _hypothesis_testing(statistic, df=None, alpha=0.05):
-            # Turn a test statistic into a p-value and classify it. With df we
-            # treat the statistic as chi-square (upper tail); without, as a
-            # two-tailed standard normal (z). Used by _group_tests for the
-            # chi-square below.
-            if df is not None:
-                p = float(sp.chi2.sf(statistic, df))
-            else:
-                p = float(2 * sp.norm.sf(abs(statistic)))
-            return {
-                "statistic": _num(statistic),
-                # df arrives from scipy as a numpy int (not JSON-serializable over
-                # HTTP); coerce to a plain int.
-                "df": int(df) if df is not None else None,
-                "p_value": _num(p, 4),
-                "alpha": alpha,
-                "significant": bool(p < alpha),
-            }
+        mean = series.mean()
+        standard_error = series.sem()
+        # The t-distribution's cutoff for 95% confidence. 0.975 (not 0.95)
+        # because we leave 2.5% of the probability in each tail.
+        t_critical = sp.t.ppf(0.975, df=n - 1)
+        margin = t_critical * standard_error
 
-        # --- Group analysis ---
-        def _group_tests(value_column, group_column):
-            # Two complementary tests across the groups:
-            #   * one-way ANOVA -- do the group *means* of the numeric value differ?
-            #   * chi-square of independence -- is being above/below the overall
-            #     median (a derived categorical) associated with the group?
-            data = self.df[[value_column, group_column]].copy()
-            data[value_column] = pd.to_numeric(data[value_column], errors="coerce")
-            data = data.dropna()
-
-            result = {"group_column": group_column}
-            grouped = [
-                g[value_column].to_numpy() for _, g in data.groupby(group_column)
-            ]
-            result["n_groups"] = len(grouped)
-
-            if len(grouped) >= 2 and all(len(g) >= 2 for g in grouped):
-                f_stat, p = sp.f_oneway(*grouped)
-                result["anova"] = {
-                    "f_statistic": _num(f_stat),
-                    "p_value": _num(p, 4),
-                    "significant": bool(np.isfinite(p) and p < 0.05),
-                }
-            else:
-                result["anova"] = {
-                    "error": "Need >= 2 groups with >= 2 values each for ANOVA."
-                }
-
-            # Median-split the value into a high/low label, cross-tab against the
-            # group, and hand the chi-square statistic to _hypothesis_testing.
-            median = data[value_column].median()
-            level = np.where(data[value_column] > median, "high", "low")
-            table = pd.crosstab(level, data[group_column])
-            if table.shape[0] >= 2 and table.shape[1] >= 2:
-                chi2, _p, dof, _exp = sp.chi2_contingency(table)
-                result["chi_square"] = _hypothesis_testing(chi2, df=dof)
-            else:
-                result["chi_square"] = {
-                    "error": "Need a 2xN table (both variables must vary)."
-                }
-            return result
-
-        # --- Orchestrate ---
-        series = self._numeric_series(column)
-        if series.empty:
-            return {"error": "No numeric values in that column."}
-
-        result = {
-            "column": column,
-            "distribution": _distribution_metrics(series),
-            "uncertainty": _uncertainty_metrics(series),
+        return {
+            "n": n,
+            "sem": _num(standard_error),
+            "ci_lower": _num(mean - margin),
+            "ci_upper": _num(mean + margin),
+            "confidence_level": 0.95,
         }
-        if group_column is not None:
-            result["groups"] = _group_tests(column, group_column)
-        return result
+
+    def _group_tests(self, value_column, group_column):
+        """Do the groups actually differ? Two tests that ask it different ways.
+
+        ANOVA asks whether the group AVERAGES differ. Chi-square asks whether
+        being in the top half of the values is ASSOCIATED with the group.
+        """
+        data = self._value_and_group(value_column, group_column)
+        groups = [g[value_column].to_numpy() for _, g in data.groupby(group_column)]
+
+        return {
+            "group_column": group_column,
+            "n_groups": len(groups),
+            "anova": self._anova(groups),
+            "chi_square": self._median_split_chi_square(data, value_column, group_column),
+        }
+
+    def _anova(self, groups):
+        """One-way ANOVA: do the group means differ by more than chance?"""
+        # Needs at least 2 groups, and at least 2 values per group (one value has
+        # no spread, so there is nothing to compare the difference against).
+        if len(groups) < 2 or not all(len(g) >= 2 for g in groups):
+            return {"error": "Need >= 2 groups with >= 2 values each for ANOVA."}
+
+        f_statistic, p_value = sp.f_oneway(*groups)
+        return {
+            "f_statistic": _num(f_statistic),
+            "p_value": _num(p_value, 4),
+            "significant": _is_significant(p_value),
+        }
+
+    def _median_split_chi_square(self, data, value_column, group_column):
+        """Chi-square test of independence.
+
+        Chi-square compares two label columns, so we invent one: tag every row
+        "high" or "low" depending on whether it beats the overall median. Then we
+        count how many highs and lows land in each group and ask whether that
+        split looks the same across groups.
+        """
+        median = data[value_column].median()
+        level = np.where(data[value_column] > median, "high", "low")
+        table = pd.crosstab(level, data[group_column])
+
+        # The test needs both variables to actually vary -- at least 2 rows and
+        # 2 columns in the table.
+        if table.shape[0] < 2 or table.shape[1] < 2:
+            return {"error": "Need a 2xN table (both variables must vary)."}
+
+        chi2, _p, degrees_of_freedom, _expected = sp.chi2_contingency(table)
+        return self._describe_test_statistic(chi2, df=degrees_of_freedom)
+
+    def _describe_test_statistic(self, statistic, df=None, alpha=ALPHA):
+        """Turn a raw test statistic into a p-value and a plain-English verdict.
+
+        If we're given degrees of freedom, the statistic is a chi-square (we want
+        the chance of getting one this big or bigger). Without them, it's a
+        z-score from a normal distribution (we want both tails, so we double).
+        """
+        if df is not None:
+            p_value = float(sp.chi2.sf(statistic, df))
+        else:
+            p_value = float(2 * sp.norm.sf(abs(statistic)))
+
+        return {
+            "statistic": _num(statistic),
+            # scipy hands back a numpy integer, which JSON can't serialize.
+            # Plain int() fixes it.
+            "df": int(df) if df is not None else None,
+            "p_value": _num(p_value, 4),
+            "alpha": alpha,
+            "significant": _is_significant(p_value, alpha),
+        }
+
+    # ==================================================================
+    # TIER 3: ADVANCED -- how columns relate to each other.
+    # ==================================================================
 
     def advanced_analysis(self, column, group_column=None):
-        """Advanced tier: correlation, regression, and confounding.
-
-        The routines this tier is built from are defined as nested helpers below.
-        """
-
-        def _correlation_analysis(column1, column2):
-            # Pearson correlation coefficient (and its p-value) between two numeric
-            # columns, over the rows where both are present.
-            data = (
-                self.df[[column1, column2]]
-                .apply(pd.to_numeric, errors="coerce")
-                .dropna()
-            )
-            if len(data) < 3:
-                return {"error": "Not enough overlapping numeric values."}
-            r, p = sp.pearsonr(data[column1], data[column2])
-            return {
-                "r": _num(r),
-                "p_value": _num(p, 4),
-                "n": int(len(data)),
-                "significant": bool(np.isfinite(p) and p < 0.05),
-            }
-
-        def _regression_models(y_column, x_columns, weights=None):
-            # Ordinary least squares of y on the predictors (weighted least squares
-            # when a weights column is named). Numeric predictors go in as-is;
-            # categorical ones are one-hot / dummy encoded (drop-first). Reports
-            # R-squared and standardized beta coefficients.
-            try:
-                import statsmodels.api as smapi
-
-                y = pd.to_numeric(self.df[y_column], errors="coerce")
-                parts = []
-                for xc in x_columns:
-                    col = self.df[xc]
-                    num = pd.to_numeric(col, errors="coerce")
-                    if num.notna().mean() >= 0.8:  # numeric predictor
-                        parts.append(num.rename(xc))
-                    else:  # categorical predictor -> dummies
-                        parts.append(
-                            pd.get_dummies(col, prefix=xc, drop_first=True, dtype=float)
-                        )
-                design = pd.concat(parts, axis=1)
-                frame = pd.concat([y.rename(y_column), design], axis=1).dropna()
-
-                # When weighting, align the weights to the surviving rows and drop
-                # any row whose weight is itself missing -- a NaN weight silently
-                # turns the whole fit into NaNs.
-                w = None
-                if weights is not None:
-                    w = pd.to_numeric(self.df[weights], errors="coerce").reindex(
-                        frame.index
-                    )
-                    frame = frame[w.notna()]
-                    w = w.dropna()
-
-                predictors = [c for c in frame.columns if c != y_column]
-                if len(frame) <= len(predictors) + 1:
-                    return {"error": "Too few complete rows for this many predictors."}
-
-                y_clean = frame[y_column]
-                X = smapi.add_constant(frame[predictors])
-                if w is not None:
-                    model = smapi.WLS(y_clean, X, weights=w).fit()
-                else:
-                    model = smapi.OLS(y_clean, X).fit()
-
-                # Standardized beta = coef * (std of predictor / std of outcome).
-                sy = y_clean.std()
-                betas = {
-                    name: (_num(coef * X[name].std() / sy) if sy else None)
-                    for name, coef in model.params.items()
-                    if name != "const"
-                }
-
-                return {
-                    "outcome": y_column,
-                    "predictors": predictors,
-                    "n": int(model.nobs),
-                    "r_squared": _num(model.rsquared),
-                    "adj_r_squared": _num(model.rsquared_adj),
-                    "coefficients": {k: _num(v) for k, v in model.params.items()},
-                    "p_values": {k: _num(v, 4) for k, v in model.pvalues.items()},
-                    "standardized_betas": betas,
-                    "weighted": weights is not None,
-                }
-            except Exception as exc:  # singular matrix, all-NaN column, etc.
-                return {"error": f"Regression failed: {exc}"}
-
-        def _confounding_analysis(outcome, exposure, confounders=None, mediator=None):
-            # Confounding: does the exposure->outcome coefficient move once we
-            # adjust for the confounders? (>10% shift is the usual flag.)
-            # Mediation: split the total exposure effect into the part that
-            # survives adjusting for the mediator (direct) and the rest (indirect).
-            try:
-                import statsmodels.api as smapi
-
-                def _fit(y, xs):
-                    frame = (
-                        self.df[[y, *xs]].apply(pd.to_numeric, errors="coerce").dropna()
-                    )
-                    return smapi.OLS(frame[y], smapi.add_constant(frame[xs])).fit()
-
-                crude = _fit(outcome, [exposure]).params[exposure]
-                result = {
-                    "outcome": outcome,
-                    "exposure": exposure,
-                    "crude_effect": _num(crude),
-                }
-
-                if confounders:
-                    adjusted = _fit(outcome, [exposure, *confounders]).params[exposure]
-                    pct = abs((crude - adjusted) / crude) * 100 if crude else None
-                    result["adjusted_effect"] = _num(adjusted)
-                    result["confounders"] = list(confounders)
-                    result["percent_change"] = _num(pct, 1)
-                    result["confounding_detected"] = bool(pct is not None and pct > 10)
-
-                if mediator:
-                    direct = _fit(outcome, [exposure, mediator]).params[exposure]
-                    indirect = crude - direct
-                    result["mediation"] = {
-                        "mediator": mediator,
-                        "total_effect": _num(crude),
-                        "direct_effect": _num(direct),
-                        "indirect_effect": _num(indirect),
-                        "proportion_mediated": (
-                            _num(indirect / crude) if crude else None
-                        ),
-                    }
-                return result
-            except Exception as exc:
-                return {"error": f"Confounding analysis failed: {exc}"}
-
-        def _linear_trend_test(column, group_column):
-            # Order the groups, code them 0,1,2,..., and regress the value on that
-            # code -- a significant slope means a linear trend across the groups.
-            data = self.df[[column, group_column]].copy()
-            data[column] = pd.to_numeric(data[column], errors="coerce")
-            data = data.dropna()
-
-            groups = sorted(
-                data[group_column].unique(), key=lambda g: (isinstance(g, str), g)
-            )
-            if len(data) < 3 or len(groups) < 2:
-                return {"error": "Need >= 2 ordered groups with >= 3 total values."}
-
-            codes = {g: i for i, g in enumerate(groups)}
-            x = data[group_column].map(codes).astype(float)
-            reg = sp.linregress(x, data[column].astype(float))
-            return {
-                "group_column": group_column,
-                "n_groups": len(groups),
-                "group_order": [str(g) for g in groups],
-                "slope": _num(reg.slope),
-                "r": _num(reg.rvalue),
-                "p_value": _num(reg.pvalue, 4),
-                "significant": bool(np.isfinite(reg.pvalue) and reg.pvalue < 0.05),
-            }
-
-        # --- Orchestrate ---
-        series = self._numeric_series(column)
+        """Correlation with the other numeric columns, a regression predicting
+        this column from them, and a check for confounding."""
+        series = self._numbers(column)
         if series.empty:
             return {"error": "No numeric values in that column."}
 
-        others = [c for c in self._numeric_column_names() if c != column]
+        others = self._other_numeric_columns(column)
         result = {
             "column": column,
-            "correlations": {c: _correlation_analysis(column, c) for c in others},
-            "regression": _regression_models(column, others),
+            "correlations": {
+                other: self._correlation(column, other) for other in others
+            },
+            "regression": self._regression(column, others),
         }
-        # Confounding needs an exposure plus at least one confounder. Following the
-        # same auto-pick spirit as the regression above, take the first other
-        # numeric as the exposure and the rest as confounders; the result names
-        # both so the choice is explicit.
+
+        # Confounding needs one "exposure" plus at least one thing to adjust for.
+        # We pick automatically -- first other column is the exposure, the rest
+        # are the confounders -- and name both choices in the output so it's clear
+        # what was compared.
         if len(others) >= 2:
-            result["confounding"] = _confounding_analysis(
-                column, others[0], confounders=others[1:]
+            result["confounding"] = self._confounding(
+                outcome=column, exposure=others[0], confounders=others[1:]
             )
+
         if group_column is not None:
-            result["trend"] = _linear_trend_test(column, group_column)
+            result["trend"] = self._linear_trend(column, group_column)
         return result
 
-    def expert_analysis(self, column, group_column=None):
-        """Expert tier: multicollinearity, diagnostics, and clinical metrics.
+    def _correlation(self, column1, column2):
+        """Pearson correlation: do these two columns move together?
 
-        The routines this tier is built from are defined as nested helpers below.
+        r runs from -1 (perfect opposite) through 0 (unrelated) to +1 (perfect
+        match). The p-value says whether an r that size could just be luck.
         """
+        data = self._numbers_for(column1, column2)
+        if len(data) < 3:
+            return {"error": "Not enough overlapping numeric values."}
 
-        def _multicollinearity(x_columns):
-            # Variance inflation factor per predictor. VIF > 10 is the usual
-            # "this predictor is badly collinear with the others" threshold.
-            try:
-                import statsmodels.api as smapi
-                from statsmodels.stats.outliers_influence import (
-                    variance_inflation_factor,
+        r, p_value = sp.pearsonr(data[column1], data[column2])
+        return {
+            "r": _num(r),
+            "p_value": _num(p_value, 4),
+            "n": int(len(data)),
+            "significant": _is_significant(p_value),
+        }
+
+    def _build_design_matrix(self, x_columns):
+        """Assemble the predictor columns for a regression.
+
+        Numeric predictors go in as they are. A label predictor ("male"/"female")
+        has to become numbers first, so we one-hot encode it: one 0/1 column per
+        category. drop_first=True leaves one category out as the baseline that the
+        others are measured against -- keeping all of them would make the columns
+        add up to a constant and the regression unsolvable.
+        """
+        parts = []
+        for name in x_columns:
+            column = self.df[name]
+            numbers = pd.to_numeric(column, errors="coerce")
+            if numbers.notna().mean() >= NUMERIC_THRESHOLD:
+                parts.append(numbers.rename(name))
+            else:
+                parts.append(
+                    pd.get_dummies(column, prefix=name, drop_first=True, dtype=float)
+                )
+        return pd.concat(parts, axis=1)
+
+    def _regression(self, y_column, x_columns, weights=None):
+        """Predict y_column from the other columns with a straight-line fit.
+
+        Ordinary least squares (OLS) finds the line closest to all the points.
+        Pass a weights column to make some rows count more than others (weighted
+        least squares, which survey data often needs).
+        """
+        try:
+            import statsmodels.api as smapi
+
+            y = pd.to_numeric(self.df[y_column], errors="coerce")
+            design = self._build_design_matrix(x_columns)
+            # Line up outcome and predictors, then keep only complete rows.
+            frame = pd.concat([y.rename(y_column), design], axis=1).dropna()
+
+            # Weights have to be matched to the rows that survived, and a row with
+            # a missing weight has to go -- a single NaN weight turns the entire
+            # fit into NaNs.
+            row_weights = None
+            if weights is not None:
+                row_weights = pd.to_numeric(
+                    self.df[weights], errors="coerce"
+                ).reindex(frame.index)
+                frame = frame[row_weights.notna()]
+                row_weights = row_weights.dropna()
+
+            predictors = [c for c in frame.columns if c != y_column]
+            # You need more data points than things you're estimating, or the fit
+            # is meaningless (it can pass perfectly through every point).
+            if len(frame) <= len(predictors) + 1:
+                return {"error": "Too few complete rows for this many predictors."}
+
+            outcome = frame[y_column]
+            # add_constant adds a column of 1s so the line can have an intercept
+            # instead of being forced through the origin.
+            design_with_intercept = smapi.add_constant(frame[predictors])
+
+            if row_weights is not None:
+                model = smapi.WLS(
+                    outcome, design_with_intercept, weights=row_weights
+                ).fit()
+            else:
+                model = smapi.OLS(outcome, design_with_intercept).fit()
+
+            return {
+                "outcome": y_column,
+                "predictors": predictors,
+                "n": int(model.nobs),
+                # R-squared: the fraction of the outcome's variation the model
+                # explains, from 0 (none) to 1 (all of it).
+                "r_squared": _num(model.rsquared),
+                # Adjusted R-squared penalizes you for adding useless predictors.
+                "adj_r_squared": _num(model.rsquared_adj),
+                "coefficients": {k: _num(v) for k, v in model.params.items()},
+                "p_values": {k: _num(v, 4) for k, v in model.pvalues.items()},
+                "standardized_betas": self._standardized_betas(
+                    model, design_with_intercept, outcome
+                ),
+                "weighted": weights is not None,
+            }
+        except Exception as exc:  # unsolvable matrix, an all-NaN column, etc.
+            return {"error": f"Regression failed: {exc}"}
+
+    def _standardized_betas(self, model, design, outcome):
+        """Coefficients rescaled so they can be compared to each other.
+
+        A raw coefficient is in the predictor's own units, so "per year of age"
+        and "per pound of weight" can't be ranked. Multiplying by (predictor's
+        spread / outcome's spread) puts them all on the same scale, and the
+        biggest one is the most influential predictor.
+        """
+        outcome_std = outcome.std()
+        return {
+            name: (
+                _num(coefficient * design[name].std() / outcome_std)
+                if outcome_std
+                else None
+            )
+            for name, coefficient in model.params.items()
+            if name != "const"  # the intercept isn't a predictor
+        }
+
+    def _confounding(self, outcome, exposure, confounders=None, mediator=None):
+        """Is the exposure's apparent effect real, or explained by something else?
+
+        A CONFOUNDER is a lurking third variable that makes a fake link look real
+        (ice-cream sales "cause" drownings -- both are really caused by summer).
+        Test: measure the exposure's effect alone, then measure it again while
+        holding the confounders constant. If the effect moves by more than 10%,
+        the confounders were doing some of the work.
+
+        A MEDIATOR is a step ON the causal path (exercise -> lower weight -> lower
+        blood pressure). Test: the effect that survives holding the mediator
+        constant is the DIRECT effect; whatever's left travelled through the
+        mediator and is the INDIRECT effect.
+        """
+        try:
+            import statsmodels.api as smapi
+
+            def effect_of_exposure(predictors):
+                """Fit outcome ~ predictors and return the exposure's coefficient."""
+                frame = self._numbers_for(outcome, *predictors)
+                model = smapi.OLS(
+                    frame[outcome], smapi.add_constant(frame[list(predictors)])
+                ).fit()
+                return model.params[exposure]
+
+            # "Crude" = the exposure's effect with nothing else accounted for.
+            crude = effect_of_exposure([exposure])
+            result = {
+                "outcome": outcome,
+                "exposure": exposure,
+                "crude_effect": _num(crude),
+            }
+
+            if confounders:
+                adjusted = effect_of_exposure([exposure, *confounders])
+                # How much did the effect shift once we adjusted? (Guard against
+                # a crude effect of exactly 0, which we can't divide by.)
+                percent_change = abs((crude - adjusted) / crude) * 100 if crude else None
+                result["adjusted_effect"] = _num(adjusted)
+                result["confounders"] = list(confounders)
+                result["percent_change"] = _num(percent_change, 1)
+                result["confounding_detected"] = bool(
+                    percent_change is not None and percent_change > 10
                 )
 
-                frame = (
-                    self.df[x_columns].apply(pd.to_numeric, errors="coerce").dropna()
-                )
-                # add_constant prepends a 'const' column. Work off the raw matrix
-                # and the frame's own labels rather than X.values/X.columns: its
-                # (ndarray | DataFrame) return type has neither attribute for sure.
-                matrix = np.asarray(smapi.add_constant(frame))
-                names = ["const", *frame.columns]
-                vifs = {
-                    name: _num(variance_inflation_factor(matrix, i))
-                    for i, name in enumerate(names)
-                    if name != "const"
+            if mediator:
+                direct = effect_of_exposure([exposure, mediator])
+                indirect = crude - direct
+                result["mediation"] = {
+                    "mediator": mediator,
+                    "total_effect": _num(crude),
+                    "direct_effect": _num(direct),
+                    "indirect_effect": _num(indirect),
+                    "proportion_mediated": _num(indirect / crude) if crude else None,
                 }
-                return {
-                    "n": int(len(frame)),
-                    "vif": vifs,
-                    "high_multicollinearity": [
-                        k for k, v in vifs.items() if v is not None and v > 10
-                    ],
-                }
-            except Exception as exc:
-                return {"error": f"VIF computation failed: {exc}"}
+            return result
+        except Exception as exc:
+            return {"error": f"Confounding analysis failed: {exc}"}
 
-        def _model_diagnostics(residuals):
-            # Checks on a fitted model's residuals. Normality via Shapiro-Wilk;
-            # leverage/influence proper need the hat matrix (not just residuals),
-            # so we proxy influence with the count of standardized residuals whose
-            # magnitude exceeds 3.
-            resid = pd.Series(residuals).dropna().astype(float)
-            n = int(len(resid))
-            out: dict[str, object] = {"n": n, "mean_residual": _num(resid.mean())}
-            if n >= 3:
-                w, p = sp.shapiro(resid)
-                out["normality"] = {
-                    "test": "shapiro-wilk",
-                    "statistic": _num(w),
-                    "p_value": _num(p, 4),
-                    "normal_residuals": bool(np.isfinite(p) and p > 0.05),
-                }
-            std = resid.std()
-            if std and np.isfinite(std) and std != 0:
-                z = (resid - resid.mean()) / std
-                out["influential_points"] = int((z.abs() > 3).sum())
-            return out
+    def _linear_trend(self, column, group_column):
+        """Does the value climb (or fall) steadily as you move across the groups?
 
-        def _clinical_metrics(column, cutoff=None):
-            # Classify the column against a clinical cutoff (how many at/above vs
-            # below), plus the triglyceride-to-HDL ratio when the dataset actually
-            # carries those columns.
-            series = self._numeric_series(column)
-            out = {"column": column, "n": int(series.count())}
+        We put the groups in order, number them 0, 1, 2, ..., and fit a line
+        through (group number, value). A significant slope means a real trend --
+        which is more specific than ANOVA's "the groups differ somehow".
+        """
+        data = self._value_and_group(column, group_column)
+        groups = self._sorted_groups(data, group_column)
+        if len(data) < 3 or len(groups) < 2:
+            return {"error": "Need >= 2 ordered groups with >= 3 total values."}
 
-            if cutoff is not None and not series.empty:
-                at_or_above = int((series >= cutoff).sum())
-                out["cutoff"] = cutoff
-                out["at_or_above"] = at_or_above
-                out["below"] = int((series < cutoff).sum())
-                out["proportion_at_or_above"] = _num(at_or_above / series.count())
+        group_number = {group: i for i, group in enumerate(groups)}
+        x = data[group_column].map(group_number).astype(float)
+        line = sp.linregress(x, data[column].astype(float))
 
-            lower = {c.lower(): c for c in self.df.columns}
-            if "triglycerides" in lower and "hdl" in lower:
-                tg = pd.to_numeric(self.df[lower["triglycerides"]], errors="coerce")
-                hdl = pd.to_numeric(self.df[lower["hdl"]], errors="coerce")
-                ratio = (tg / hdl).replace([np.inf, -np.inf], np.nan).dropna()
-                out["trig_hdl_ratio"] = {
-                    "mean": _num(ratio.mean()),
-                    "n": int(ratio.count()),
-                }
-            return out
+        return {
+            "group_column": group_column,
+            "n_groups": len(groups),
+            "group_order": [str(g) for g in groups],
+            "slope": _num(line.slope),  # change in value per step up the groups
+            "r": _num(line.rvalue),
+            "p_value": _num(line.pvalue, 4),
+            "significant": _is_significant(line.pvalue),
+        }
 
-        def _significance_tests(
-            column, group_column, p_values=None, method="bonferroni"
-        ):
-            # Cochran-Armitage trend in proportions: across ordered groups, does
-            # the share above the median rise/fall linearly? Plus a multiple-
-            # comparison correction of any p-values handed in.
-            out = {}
-            try:
-                data = self.df[[column, group_column]].copy()
-                data[column] = pd.to_numeric(data[column], errors="coerce")
-                data = data.dropna()
+    # ==================================================================
+    # TIER 4: EXPERT -- checking whether the models above can be trusted.
+    # ==================================================================
 
-                groups = sorted(
-                    data[group_column].unique(), key=lambda g: (isinstance(g, str), g)
-                )
-                if len(data) >= 3 and len(groups) >= 2:
-                    success = (data[column] > data[column].median()).astype(int)
-                    scores = pd.Series(range(len(groups)), index=groups, dtype=float)
-                    n_i = data.groupby(group_column).size().reindex(groups).fillna(0)
-                    r_i = (
-                        success.groupby(data[group_column])
-                        .sum()
-                        .reindex(groups)
-                        .fillna(0)
-                    )
-
-                    N = int(n_i.sum())
-                    R = int(r_i.sum())
-                    p_bar = R / N
-                    # Cochran-Armitage trend statistic (asymptotically normal).
-                    T = float((scores * (r_i - n_i * p_bar)).sum())
-                    var = (
-                        p_bar
-                        * (1 - p_bar)
-                        * float((n_i * scores**2).sum() - (n_i * scores).sum() ** 2 / N)
-                    )
-                    if var > 0:
-                        z = T / var**0.5
-                        p = float(2 * sp.norm.sf(abs(z)))
-                        out["cochran_armitage"] = {
-                            "group_order": [str(g) for g in groups],
-                            "z": _num(z),
-                            "p_value": _num(p, 4),
-                            "significant": bool(p < 0.05),
-                        }
-                    else:
-                        out["cochran_armitage"] = {"error": "Zero variance for trend."}
-                else:
-                    out["cochran_armitage"] = {"error": "Need >= 2 ordered groups."}
-            except Exception as exc:
-                out["cochran_armitage"] = {"error": f"Trend test failed: {exc}"}
-
-            if p_values:
-                from statsmodels.stats.multitest import multipletests
-
-                reject, corrected, _, _ = multipletests(p_values, method=method)
-                out["multiple_comparisons"] = {
-                    "method": method,
-                    "corrected_p_values": [_num(x, 4) for x in corrected],
-                    "significant": [bool(x) for x in reject],
-                }
-            return out
-
-        # --- Orchestrate ---
-        series = self._numeric_series(column)
+    def expert_analysis(self, column, group_column=None):
+        """Collinearity between predictors, checks on the regression's residuals,
+        and clinical cutoff counts."""
+        series = self._numbers(column)
         if series.empty:
             return {"error": "No numeric values in that column."}
 
-        others = [c for c in self._numeric_column_names() if c != column]
+        others = self._other_numeric_columns(column)
         result = {"column": column}
 
         if len(others) >= 2:
-            result["multicollinearity"] = _multicollinearity(others)
-            # Diagnostics run on the residuals of column ~ the other numerics.
-            try:
-                import statsmodels.api as smapi
+            result["multicollinearity"] = self._multicollinearity(others)
+            result["diagnostics"] = self._regression_diagnostics(column, others)
 
-                frame = (
-                    self.df[[column, *others]]
-                    .apply(pd.to_numeric, errors="coerce")
-                    .dropna()
-                )
-                if len(frame) > len(others) + 1:
-                    model = smapi.OLS(
-                        frame[column], smapi.add_constant(frame[others])
-                    ).fit()
-                    result["diagnostics"] = _model_diagnostics(model.resid)
-            except Exception as exc:
-                result["diagnostics"] = {"error": f"Diagnostics failed: {exc}"}
-
-        # Default the clinical cutoff to the column's own median so there's always
-        # something to classify against even without a domain threshold supplied.
-        result["clinical"] = _clinical_metrics(column, cutoff=float(series.median()))
+        # With no medical threshold supplied, use the column's own median so
+        # there's always something meaningful to classify against.
+        result["clinical"] = self._clinical_metrics(
+            column, cutoff=float(series.median())
+        )
 
         if group_column is not None:
-            result["trend_tests"] = _significance_tests(column, group_column)
+            result["trend_tests"] = self._trend_in_proportions(column, group_column)
         return result
+
+    def _multicollinearity(self, x_columns):
+        """Are the predictors telling us the same thing twice?
+
+        If height-in-inches and height-in-cm are both predictors, the regression
+        can't tell which one deserves the credit and its numbers get unstable.
+        The variance inflation factor (VIF) measures this per predictor; above 10
+        is the usual "this one is redundant" alarm.
+        """
+        try:
+            import statsmodels.api as smapi
+            from statsmodels.stats.outliers_influence import variance_inflation_factor
+
+            frame = self._numbers_for(*x_columns)
+            # add_constant sticks a "const" column of 1s on the front, so the
+            # names line up as ["const", then the real columns].
+            matrix = np.asarray(smapi.add_constant(frame))
+            names = ["const", *frame.columns]
+
+            vifs = {
+                name: _num(variance_inflation_factor(matrix, i))
+                for i, name in enumerate(names)
+                if name != "const"  # the intercept has no VIF worth reporting
+            }
+            return {
+                "n": int(len(frame)),
+                "vif": vifs,
+                "high_multicollinearity": [
+                    name for name, vif in vifs.items() if vif is not None and vif > 10
+                ],
+            }
+        except Exception as exc:
+            return {"error": f"VIF computation failed: {exc}"}
+
+    def _regression_diagnostics(self, column, others):
+        """Fit column ~ the other numeric columns and inspect what's left over.
+
+        The residuals are the model's misses (actual minus predicted). If the
+        model is any good, the misses should be small, centered on zero, and
+        randomly scattered -- not patterned.
+        """
+        try:
+            import statsmodels.api as smapi
+
+            frame = self._numbers_for(column, *others)
+            if len(frame) <= len(others) + 1:  # not enough rows to fit
+                return None
+            model = smapi.OLS(frame[column], smapi.add_constant(frame[others])).fit()
+            return self._residual_checks(model.resid)
+        except Exception as exc:
+            return {"error": f"Diagnostics failed: {exc}"}
+
+    def _residual_checks(self, residuals):
+        """Are the model's leftover errors well-behaved?
+
+        Shapiro-Wilk tests whether they follow a normal bell curve -- here a HIGH
+        p-value is the good news (no evidence they're abnormal). We also count
+        the badly-missed points: residuals more than 3 standard deviations out.
+        """
+        resid = pd.Series(residuals).dropna().astype(float)
+        n = int(len(resid))
+        checks = {"n": n, "mean_residual": _num(resid.mean())}
+
+        if n >= 3:  # Shapiro-Wilk's minimum sample size
+            statistic, p_value = sp.shapiro(resid)
+            checks["normality"] = {
+                "test": "shapiro-wilk",
+                "statistic": _num(statistic),
+                "p_value": _num(p_value, 4),
+                # Note the flipped logic: p > 0.05 means we FAILED to prove the
+                # residuals are abnormal, which is what we want.
+                "normal_residuals": bool(np.isfinite(p_value) and p_value > ALPHA),
+            }
+
+        std = resid.std()
+        if std and np.isfinite(std) and std != 0:
+            z_scores = (resid - resid.mean()) / std
+            checks["influential_points"] = int((z_scores.abs() > 3).sum())
+        return checks
+
+    def _clinical_metrics(self, column, cutoff=None):
+        """Split the column at a medical threshold and count each side.
+
+        Also reports the triglyceride-to-HDL ratio (a heart-risk marker) when the
+        dataset happens to carry both of those columns.
+        """
+        series = self._numbers(column)
+        metrics = {"column": column, "n": int(series.count())}
+
+        if cutoff is not None and not series.empty:
+            at_or_above = int((series >= cutoff).sum())
+            metrics["cutoff"] = cutoff
+            metrics["at_or_above"] = at_or_above
+            metrics["below"] = int((series < cutoff).sum())
+            metrics["proportion_at_or_above"] = _num(at_or_above / series.count())
+
+        # Match column names case-insensitively -- files spell it "HDL", "hdl", ...
+        by_lowercase_name = {c.lower(): c for c in self.df.columns}
+        if "triglycerides" in by_lowercase_name and "hdl" in by_lowercase_name:
+            triglycerides = pd.to_numeric(
+                self.df[by_lowercase_name["triglycerides"]], errors="coerce"
+            )
+            hdl = pd.to_numeric(self.df[by_lowercase_name["hdl"]], errors="coerce")
+            # An HDL of 0 would divide to infinity; throw those rows out.
+            ratio = (triglycerides / hdl).replace([np.inf, -np.inf], np.nan).dropna()
+            metrics["trig_hdl_ratio"] = {
+                "mean": _num(ratio.mean()),
+                "n": int(ratio.count()),
+            }
+        return metrics
+
+    def _trend_in_proportions(self, column, group_column, p_values=None,
+                              method="bonferroni"):
+        """Cochran-Armitage trend test, plus an optional multiple-comparison fix.
+
+        _linear_trend (advanced tier) asks whether the AVERAGE climbs across the
+        groups. This asks whether the PERCENTAGE above the median climbs -- the
+        same question about a yes/no outcome instead of a number.
+        """
+        result = {"cochran_armitage": self._cochran_armitage(column, group_column)}
+        if p_values:
+            result["multiple_comparisons"] = self._correct_p_values(p_values, method)
+        return result
+
+    def _cochran_armitage(self, column, group_column):
+        """Does the share of "high" values rise steadily across ordered groups?
+
+        Group them in order, label each row high/low by the median, then compare
+        each group's actual number of highs to the number you'd expect if the
+        groups were all identical. Weight those gaps by the group's position and
+        add them up: a big total means the highs pile up at one end.
+        """
+        try:
+            data = self._value_and_group(column, group_column)
+            groups = self._sorted_groups(data, group_column)
+            if len(data) < 3 or len(groups) < 2:
+                return {"error": "Need >= 2 ordered groups."}
+
+            is_high = (data[column] > data[column].median()).astype(int)
+            # Position of each group: 0, 1, 2, ...
+            score = pd.Series(range(len(groups)), index=groups, dtype=float)
+            # Rows per group, and "high" rows per group.
+            group_size = data.groupby(group_column).size().reindex(groups).fillna(0)
+            group_highs = (
+                is_high.groupby(data[group_column]).sum().reindex(groups).fillna(0)
+            )
+
+            total_rows = int(group_size.sum())
+            overall_high_rate = int(group_highs.sum()) / total_rows
+
+            # Expected highs if the rate were the same everywhere, versus actual.
+            expected_highs = group_size * overall_high_rate
+            trend_statistic = float((score * (group_highs - expected_highs)).sum())
+
+            # How much that statistic would wobble by chance alone.
+            spread_of_scores = float(
+                (group_size * score**2).sum()
+                - (group_size * score).sum() ** 2 / total_rows
+            )
+            variance = overall_high_rate * (1 - overall_high_rate) * spread_of_scores
+            if variance <= 0:
+                # Every row high, every row low, or only one group has data --
+                # there is no trend to measure.
+                return {"error": "Zero variance for trend."}
+
+            # Standardize into a z-score, then read off the two-tailed p-value.
+            z = trend_statistic / variance**0.5
+            p_value = float(2 * sp.norm.sf(abs(z)))
+            return {
+                "group_order": [str(g) for g in groups],
+                "z": _num(z),
+                "p_value": _num(p_value, 4),
+                "significant": _is_significant(p_value),
+            }
+        except Exception as exc:
+            return {"error": f"Trend test failed: {exc}"}
+
+    def _correct_p_values(self, p_values, method="bonferroni"):
+        """Run 20 tests and one will look "significant" by luck alone. This raises
+        the bar to compensate for how many tests were run."""
+        from statsmodels.stats.multitest import multipletests
+
+        rejected, corrected, _, _ = multipletests(p_values, method=method)
+        return {
+            "method": method,
+            "corrected_p_values": [_num(p, 4) for p in corrected],
+            "significant": [bool(r) for r in rejected],
+        }
+
+    # ==================================================================
+    # CATEGORICAL -- for label columns (sex, region, brand) rather than
+    # numbers. You can't take the mean of "male", so these get counts.
+    # ==================================================================
 
     def categorical_analysis(self, column):
-        """Categorical branch: summaries and cross-tabulations for label columns.
+        """Counts and proportions for a label column, cross-tabulated against the
+        next label column if the dataset has one."""
+        result = {"summary": self._category_counts(column)}
 
-        The routines this branch is built from are defined as nested helpers below.
-        """
-
-        def _categorical_summary(column):
-            # Per-category counts and proportions for a label column.
-            s = self.df[column].dropna().astype(str)
-            counts = s.value_counts()
-            total = int(counts.sum())
-            if total == 0:
-                return {"column": column, "n": 0, "unique": 0, "counts": {}}
-            return {
-                "column": column,
-                "n": total,
-                "unique": int(counts.size),
-                "counts": {k: int(v) for k, v in counts.items()},
-                "proportions": {k: _num(v / total) for k, v in counts.items()},
-            }
-
-        def _contingency_table(column1, column2):
-            # Cross-tabulate two label columns and test them for independence.
-            data = self.df[[column1, column2]].dropna().astype(str)
-            table = pd.crosstab(data[column1], data[column2])
-            # Read cells off the raw count matrix: table.loc[r, c] is typed as a
-            # broad Scalar (could be complex) that int() rejects; the ndarray cell
-            # is a plain integer count.
-            counts = np.asarray(table)
-            row_labels = [str(r) for r in table.index]
-            col_labels = [str(c) for c in table.columns]
-            result: dict[str, object] = {
-                "columns": [column1, column2],
-                "table": {
-                    row_labels[i]: {
-                        col_labels[j]: int(counts[i, j])
-                        for j in range(len(col_labels))
-                    }
-                    for i in range(len(row_labels))
-                },
-            }
-            if table.shape[0] >= 2 and table.shape[1] >= 2:
-                chi2, p, dof, _ = sp.chi2_contingency(table)
-                result["chi_square"] = {
-                    "statistic": _num(chi2),
-                    "p_value": _num(p, 4),
-                    "df": int(dof),
-                    "significant": bool(np.isfinite(p) and p < 0.05),
-                }
-            return result
-
-        # --- Orchestrate ---
-        result = {"summary": _categorical_summary(column)}
-        # Cross-tab against the first *other* categorical column if there is one.
         numeric = set(self._numeric_column_names())
-        others = [c for c in self.df.columns if c != column and c not in numeric]
-        if others:
-            result["contingency"] = _contingency_table(column, others[0])
+        other_labels = [
+            c for c in self.df.columns if c != column and c not in numeric
+        ]
+        if other_labels:
+            result["contingency"] = self._contingency_table(column, other_labels[0])
         return result
 
-    def figure_production(self, output_dir=None):
-        """Render a histogram + boxplot per numeric column, saved as PDF (for
-        download) and SVG (for the website). Returns {column: {"pdf", "svg"}}.
+    def _category_counts(self, column):
+        """How many rows in each category, and what share of the total."""
+        values = self.df[column].dropna().astype(str)
+        counts = values.value_counts()
+        total = int(counts.sum())
 
-        matplotlib is imported here (not at module top) and forced onto the
-        headless Agg backend so this runs on a server with no display and stays
-        off the cold-start import path."""
+        if total == 0:
+            return {"column": column, "n": 0, "unique": 0, "counts": {}}
+
+        return {
+            "column": column,
+            "n": total,
+            "unique": int(counts.size),  # how many distinct categories
+            "counts": {name: int(count) for name, count in counts.items()},
+            "proportions": {
+                name: _num(count / total) for name, count in counts.items()
+            },
+        }
+
+    def _contingency_table(self, column1, column2):
+        """Cross-tabulate two label columns and test them for independence.
+
+        The table counts every combination (how many rows are male AND smokers?).
+        Chi-square then asks whether the two labels are related, or whether the
+        counts are just what you'd expect if they had nothing to do with each other.
+        """
+        data = self.df[[column1, column2]].dropna().astype(str)
+        table = pd.crosstab(data[column1], data[column2])
+
+        # Read counts off the raw numpy array. Going through table.loc[r, c]
+        # returns a broadly-typed scalar the type checker won't let us pass to
+        # int(); the array cell is a plain integer.
+        counts = np.asarray(table)
+        row_labels = [str(r) for r in table.index]
+        col_labels = [str(c) for c in table.columns]
+
+        result = {
+            "columns": [column1, column2],
+            "table": {
+                row: {col: int(counts[i, j]) for j, col in enumerate(col_labels)}
+                for i, row in enumerate(row_labels)
+            },
+        }
+
+        # Both labels have to actually vary for the test to mean anything.
+        if table.shape[0] >= 2 and table.shape[1] >= 2:
+            chi2, p_value, degrees_of_freedom, _expected = sp.chi2_contingency(table)
+            result["chi_square"] = {
+                "statistic": _num(chi2),
+                "p_value": _num(p_value, 4),
+                "df": int(degrees_of_freedom),
+                "significant": _is_significant(p_value),
+            }
+        return result
+
+    # ==================================================================
+    # FIGURES
+    # ==================================================================
+
+    def figure_production(self, output_dir=None):
+        """Draw a histogram and a boxplot for every numeric column.
+
+        Each pair is saved twice: PDF (crisp for printing and downloads) and SVG
+        (what the website displays). Returns {column: {"pdf": path, "svg": path}}.
+
+        matplotlib is imported here rather than at the top of the file, and forced
+        onto the "Agg" backend, which draws straight to a file instead of opening
+        a window -- a server has no screen to open one on. Importing it here also
+        keeps it off the startup path, so the site boots fast.
+        """
         import matplotlib
 
         matplotlib.use("Agg")
         import matplotlib.pyplot as plt
         from pathlib import Path
 
-        out = (
-            Path(output_dir)
-            if output_dir is not None
-            else Path(__file__).resolve().parent.parent / "Data" / "figures"
-        )
+        if output_dir is not None:
+            out = Path(output_dir)
+        else:
+            out = Path(__file__).resolve().parent.parent / "Data" / "figures"
         out.mkdir(parents=True, exist_ok=True)
 
         produced = {}
-        for col in self._numeric_column_names():
-            series = self._numeric_series(col)
+        for column in self._numeric_column_names():
+            series = self._numbers(column)
             if series.empty:
                 continue
-            fig, (ax_hist, ax_box) = plt.subplots(1, 2, figsize=(8, 3))
-            ax_hist.hist(series, bins="auto", edgecolor="white")
-            ax_hist.set_title(f"{col} — distribution")
-            ax_box.boxplot(series, orientation="vertical")
-            ax_box.set_title(f"{col} — spread")
-            ax_box.set_xticks([])
-            fig.tight_layout()
 
-            pdf_path = out / f"{col}.pdf"
-            svg_path = out / f"{col}.svg"
-            fig.savefig(pdf_path)
-            fig.savefig(svg_path)
-            plt.close(fig)
-            produced[col] = {"pdf": str(pdf_path), "svg": str(svg_path)}
+            # One figure, two side-by-side plots: the histogram shows the shape,
+            # the boxplot shows the middle half and the outliers.
+            figure, (histogram, boxplot) = plt.subplots(1, 2, figsize=(8, 3))
+            histogram.hist(series, bins="auto", edgecolor="white")
+            histogram.set_title(f"{column} — distribution")
+            boxplot.boxplot(series, orientation="vertical")
+            boxplot.set_title(f"{column} — spread")
+            boxplot.set_xticks([])
+            figure.tight_layout()
+
+            pdf_path = out / f"{column}.pdf"
+            svg_path = out / f"{column}.svg"
+            figure.savefig(pdf_path)
+            figure.savefig(svg_path)
+            plt.close(figure)  # free the memory; we're done with this figure
+
+            produced[column] = {"pdf": str(pdf_path), "svg": str(svg_path)}
         return produced

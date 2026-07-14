@@ -15,16 +15,25 @@
 <!-- Loading splash: covers the page on first paint, then Web/JS/script.js fades
      it out once the app is ready (and after a minimum display time). -->
 <div id="loader" class="loader-overlay" role="status" aria-label="Loading, please wait">
-    <div class="loader-text" aria-hidden="true">
-        <p class="loader-brand">Data Analysis</p>
-        <p class="loader-sub">Statistical engine</p>
-    </div>
-    <div class="loader-progress" aria-hidden="true">
-        <div class="loader-bar"><span class="loader-bar-fill" id="loader-bar-fill"></span></div>
-        <div class="loader-progress-meta">
-            <p class="loader-message" id="loader-message">Initializing…</p>
-            <span class="loader-percent" id="loader-percent">0%</span>
-        </div>
+    <div class="loader-panel" aria-hidden="true">
+        <header class="loader-head">
+            <p class="loader-brand">Data Analysis Engine</p>
+            <p class="loader-sub">Statistical Engine · v1.0.0</p>
+            <p class="loader-build">Build 2026.07.09 · FastAPI Core · Statistics Module</p>
+        </header>
+
+        <!-- Staged channel bars: each subsystem fills as boot progress crosses
+             its window (driven by Web/JS/script.js). -->
+        <ul class="boot-channels" id="boot-channels"></ul>
+
+        <!-- Scrolling console feed: tagged boot lines appended and trimmed. -->
+        <div class="boot-log" id="boot-log"></div>
+
+        <p class="boot-status" id="boot-status">
+            <span class="boot-status-item" data-key="data">Data Channels <b>…</b></span>
+            <span class="boot-status-item" data-key="stat">Stat Modules <b>…</b></span>
+            <span class="boot-status-item" data-key="api">API Link <b>…</b></span>
+        </p>
     </div>
 </div>
 
@@ -120,8 +129,6 @@
     </section>
 
     <footer class="page-footer">
-        <p class="footer-endpoints"><span class="footer-endpoints-verb">GET</span> /api/columns · /api/analyze/{tier}/{column} · /api/overview · /healthz</p>
-
         <p>
             Built with FastAPI, Pandas, and JavaScript
         </p>
@@ -133,7 +140,7 @@
             <a href="https://website-repo.anirudh-gupta-sa.workers.dev">About Me</a>
         </p>
 
-        <p class="footer-meta">© 2026 Anirudh Gupta · Medicine &amp; Health Science Fair</p>
+        <p class="footer-meta">© 2026 Anirudh Gupta</p>
     </footer>
 </div>
 

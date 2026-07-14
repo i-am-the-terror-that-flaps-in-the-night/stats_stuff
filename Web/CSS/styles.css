@@ -1,6 +1,10 @@
 :root {
     color-scheme: dark;
 
+    /* Base scale for the whole instrument -- most sizes are rem, so nudging this
+       lifts headings, prose, labels, and readouts together. (Default is 16px.) */
+    font-size: 17px;
+
     /* Cool near-black base; steel greys carry the structure so the single accent
        stays rare. */
     --bg: #070a0e;
@@ -55,13 +59,13 @@ body {
         linear-gradient(90deg, var(--grid) 1px, transparent 1px);
     background-size: 100% 100%, 32px 32px, 32px 32px;
     min-height: 100vh;
-    line-height: 1.5;
+    line-height: 1.6;
     display: flex;
     flex-direction: column;
 }
 
 .page {
-    max-width: 560px;
+    max-width: 860px;
     width: 100%;
     margin: 0 auto;
     flex: 1;
@@ -99,7 +103,7 @@ h1 {
 .tagline {
     margin: 10px 0 0;
     color: var(--text-body);
-    font-size: 0.92rem;
+    font-size: 0.98rem;
 }
 
 /* Researcher credit -- it's a science-fair entry, so the name is present but quiet. */
@@ -191,7 +195,10 @@ h1 {
     color: var(--text-body);
     margin-top: 0;
     margin-bottom: 26px;
-    font-size: 0.9rem;
+    font-size: 0.98rem;
+    line-height: 1.6;
+    /* Cap prose line length so the wider column doesn't hurt readability. */
+    max-width: 60ch;
 }
 
 code {
@@ -274,9 +281,10 @@ tr:hover {
 }
 
 td {
-    padding: 11px 12px;
+    padding: 13px 14px;
     border-bottom: 1px solid var(--edge);
     text-align: left;
+    font-size: 0.88rem;
 }
 
 tr:last-child td {
@@ -287,7 +295,7 @@ td.label {
     color: var(--text-muted);
     text-transform: uppercase;
     letter-spacing: 0.1em;
-    font-size: 0.78rem;
+    font-size: 0.82rem;
     /* Leading tick: a small measurement cue on each readout row -- legible at
        rest (steel), lights cyan on row hover. */
     border-left: 2px solid var(--edge-hover);
@@ -311,6 +319,7 @@ td.value {
     text-align: right;
     font-variant-numeric: tabular-nums;
     font-weight: 600;
+    font-size: 0.9rem;
     color: var(--text);
 }
 
@@ -379,8 +388,11 @@ td.value {
 
 /* ---- Tiered result readout --------------------------------------------- */
 /* The higher tiers return nested results; script.js renders them as grouped
-   sub-panels. A group is set off by a cyan-ticked mono heading and a hairline
-   left rule, so nesting reads as depth without boxes. */
+   sub-modules. Each group reads as a titled instrument module: a vertical rail
+   (cyan at the head, fading to steel) anchors it, a node marker sits where the
+   title meets the rail, and the title carries a trailing fade-rule across the
+   line. A faint surface tint deepens with nesting so levels read at a glance --
+   depth without hard boxes. */
 .results[hidden] {
     display: none;
 }
@@ -390,45 +402,83 @@ td.value {
 }
 
 .result-group {
-    margin-top: 18px;
-    padding-left: 14px;
-    border-left: 1px solid var(--edge);
+    position: relative;
+    margin-top: 20px;
+    padding: 4px 0 4px 20px;
+    /* Faint module fill; deeper groups tint a touch more (see nesting below). */
+    background: linear-gradient(90deg, rgba(15, 23, 35, 0.5), transparent 70%);
+}
+
+/* Left rail: a cyan head bleeding down into steel, so each module hangs off a
+   lit anchor point at its title and settles to a quiet hairline below. */
+.result-group::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 1px;
+    background: linear-gradient(var(--accent), var(--edge) 40px);
 }
 
 .result-group > .result-group {
-    margin-top: 12px;
+    margin-top: 14px;
+    /* Nested modules read one shade deeper. */
+    background: linear-gradient(90deg, rgba(20, 30, 45, 0.55), transparent 70%);
 }
 
 .result-group-title {
+    position: relative;
     display: flex;
     align-items: center;
-    gap: 9px;
-    margin: 0 0 6px;
+    gap: 12px;
+    margin: 0 0 10px;
     font-family: var(--font-mono);
-    font-size: 0.68rem;
+    font-size: 0.74rem;
     font-weight: 600;
     text-transform: uppercase;
-    letter-spacing: 0.14em;
-    color: var(--text-muted);
+    letter-spacing: 0.16em;
+    /* Brightened vs. body labels -- a title signals a new module. */
+    color: var(--accent-hover);
 }
 
+/* Node marker: a small cyan square seated on the rail at the title line. */
 .result-group-title::before {
     content: "";
-    flex: none;
-    width: 12px;
-    height: 2px;
-    background: var(--accent-line);
+    position: absolute;
+    left: -24px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 7px;
+    height: 7px;
+    background: var(--accent);
+    box-shadow: 0 0 8px var(--accent-line);
+    /* Chamfered corner echoes the panel/button language. */
+    clip-path: polygon(0 0, 100% 0, 100% 65%, 65% 100%, 0 100%);
 }
 
-/* Nested tables sit tighter than the top-level spec-sheet table. */
+/* Trailing fade-rule fills out the header line to the module's right edge. */
+.result-group-title::after {
+    content: "";
+    flex: 1;
+    height: 1px;
+    background: linear-gradient(90deg, var(--edge), transparent);
+}
+
+/* Nested tables sit tighter than the top-level spec-sheet table, and lose the
+   heavy row padding so a dense module stays compact. */
 .result-group table {
     margin-top: 2px;
+}
+
+.result-group td {
+    padding: 9px 12px;
 }
 
 /* Boolean verdicts (significant / detected / normal): cyan when true, steel when
    not -- a quick read of "did this test fire". */
 .value-flag {
-    font-size: 0.72rem;
+    font-size: 0.78rem;
     letter-spacing: 0.1em;
 }
 
@@ -452,10 +502,10 @@ td.value {
 
 .legend-row {
     display: grid;
-    grid-template-columns: 132px 1fr;
-    gap: 18px;
+    grid-template-columns: 150px 1fr;
+    gap: 24px;
     align-items: baseline;
-    padding: 12px 0 12px 12px;
+    padding: 14px 0 14px 12px;
     /* Same leading tick + hairline divider as a readout row. */
     border-left: 2px solid var(--edge-hover);
     border-bottom: 1px solid var(--edge);
@@ -495,8 +545,8 @@ td.value {
 
 .legend-def {
     margin: 0;
-    font-size: 0.86rem;
-    line-height: 1.5;
+    font-size: 0.94rem;
+    line-height: 1.6;
     color: var(--text-body);
 }
 
@@ -505,8 +555,8 @@ td.value {
     margin: 24px 0 0;
     padding: 4px 0 4px 16px;
     border-left: 2px solid var(--accent-line);
-    font-size: 0.84rem;
-    line-height: 1.55;
+    font-size: 0.92rem;
+    line-height: 1.65;
     color: var(--text-body);
 }
 
@@ -575,7 +625,7 @@ td.value {
     pointer-events: none;
 }
 
-.loader-text {
+.loader-head {
     display: flex;
     flex-direction: column;
     gap: 6px;
@@ -598,64 +648,166 @@ td.value {
     font-family: var(--font-mono);
     font-size: 0.66rem;
     text-transform: uppercase;
-    letter-spacing: 0.34em;
+    letter-spacing: 0.2em;
+    color: var(--text-muted);
+}
+
+/* Build identifier: quiet metadata under the wordmark -- makes the splash read
+   like software booting rather than a page loading. */
+.loader-build {
+    margin: 2px 0 0;
+    font-family: var(--font-mono);
+    font-size: 0.58rem;
+    text-transform: uppercase;
+    letter-spacing: 0.22em;
     color: var(--text-faint);
 }
 
-/* Boot progress: a thin instrument bar over a fast-scrolling module log, so the
-   splash reads like a large engine linking itself at startup. */
-.loader-progress {
-    width: min(440px, 82vw);
+/* Boot panel: stacks the header, staged channel bars, the scrolling console
+   feed, and the status strip, so the splash reads like a large engine linking
+   itself up at startup. */
+.loader-panel {
+    width: min(468px, 88vw);
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: 22px;
 }
 
-.loader-bar {
+/* ---- Staged channel bars ---- */
+.boot-channels {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 9px;
+}
+
+.boot-channel {
+    display: grid;
+    grid-template-columns: 104px 1fr 34px;
+    align-items: center;
+    gap: 12px;
+    font-family: var(--font-mono);
+}
+
+.boot-channel-label {
+    font-size: 0.6rem;
+    text-transform: uppercase;
+    letter-spacing: 0.13em;
+    color: var(--text-muted);
+    white-space: nowrap;
+}
+
+.boot-channel-track {
     position: relative;
     height: 3px;
-    width: 100%;
     background: var(--surface-2);
     border: 1px solid var(--edge);
     overflow: hidden;
 }
 
-.loader-bar-fill {
+.boot-channel-fill {
     display: block;
     height: 100%;
     width: 0%;
     background: var(--accent);
     box-shadow: 0 0 10px var(--accent-line);
-    transition: width 0.12s linear;
+    transition: width 0.14s linear, background-color 0.2s ease;
 }
 
-.loader-progress-meta {
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    gap: 16px;
-    font-family: var(--font-mono);
-    font-size: 0.72rem;
-    letter-spacing: 0.08em;
+/* A finished channel brightens -- the "locked in" read. */
+.boot-channel-fill.is-full {
+    background: var(--accent-hover);
 }
 
-/* The scrolling import line: fixed to one line and clipped so churning entries
-   never reflow the layout. */
-.loader-message {
-    margin: 0;
-    flex: 1;
-    min-width: 0;
+.boot-channel-pct {
+    font-size: 0.62rem;
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+    color: var(--text-muted);
+    transition: color 0.2s ease;
+}
+
+.boot-channel-pct.is-on {
+    color: var(--accent);
+}
+
+/* ---- Console feed ---- */
+/* Fixed window, newest line pinned to the bottom; older lines scroll up and
+   clip. Lines fade in as they're appended. */
+.boot-log {
+    height: 190px;
     overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    gap: 3px;
+    padding: 10px 12px;
+    background: rgba(10, 16, 24, 0.55);
+    border: 1px solid var(--edge);
+    border-left: 2px solid var(--edge-hover);
+    font-family: var(--font-mono);
+    font-size: 0.66rem;
+    line-height: 1.5;
+}
+
+.boot-log-line {
+    display: grid;
+    grid-template-columns: 42px 1fr;
+    gap: 10px;
     white-space: nowrap;
+    animation: boot-log-in 0.18s ease both;
+}
+
+@keyframes boot-log-in {
+    from { opacity: 0; transform: translateY(3px); }
+    to { opacity: 1; transform: none; }
+}
+
+.boot-log-tag {
+    color: var(--text-faint);
+    letter-spacing: 0.1em;
+}
+
+/* Milestone lines carry a lit tag; filler (joke) lines stay steel. */
+.boot-log-tag.is-ok {
+    color: var(--accent);
+}
+
+.boot-log-msg {
+    overflow: hidden;
     text-overflow: ellipsis;
-    text-align: left;
+    color: var(--text-body);
+}
+
+/* ---- Status strip ---- */
+.boot-status {
+    margin: 0;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 6px 16px;
+    font-family: var(--font-mono);
+    font-size: 0.58rem;
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    color: var(--text-faint);
+}
+
+.boot-status-item b {
+    font-weight: 600;
+    color: var(--text-faint);
+    transition: color 0.2s ease;
+}
+
+.boot-status-item.is-on {
     color: var(--text-muted);
 }
 
-.loader-percent {
-    flex: none;
-    font-variant-numeric: tabular-nums;
+.boot-status-item.is-on b {
     color: var(--accent);
+    text-shadow: 0 0 8px var(--accent-line);
 }
 
 /* Respect reduced-motion: the JS already slows the churn to a calm fill; just
@@ -665,8 +817,12 @@ td.value {
         transition: none;
     }
 
-    .loader-bar-fill {
+    .boot-channel-fill {
         transition: none;
+    }
+
+    .boot-log-line {
+        animation: none;
     }
 }
 
