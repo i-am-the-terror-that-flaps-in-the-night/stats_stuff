@@ -33,6 +33,8 @@ IMPORT COST
     them off Render's cold-start path (see the "SPEED ON RENDER" note in app.py).
 """
 
+from typing import Any
+
 import numpy as np
 import pandas as pd
 import scipy.stats as sp
@@ -136,7 +138,7 @@ class DataAnalyzer:
             col
             for col in self.df.columns
             if pd.to_numeric(self.df[col], errors="coerce").notna().mean()
-            >= NUMERIC_THRESHOLD
+               >= NUMERIC_THRESHOLD
         ]
 
     def _other_numeric_columns(self, column):
@@ -194,7 +196,7 @@ class DataAnalyzer:
         if series.empty:
             return {"error": "No numeric values in that column."}
 
-        result = {
+        result: dict[str, Any] = {
             "column": column,
             "distribution": self._distribution_metrics(series),
             "uncertainty": self._uncertainty_metrics(series),
@@ -222,16 +224,9 @@ class DataAnalyzer:
         else:
             outliers = 0
 
-        metrics = {
-            "q1": _num(q1),
-            "median": _num(median),
-            "q3": _num(q3),
-            "iqr": _num(iqr),
-            "skewness": _num(skewness),
-            "kurtosis": _num(kurtosis),
-            "outliers": outliers,
-        }
-        metrics["log_transform"] = self._log_transform(series, skewness)
+        metrics = {"q1": _num(q1), "median": _num(median), "q3": _num(q3), "iqr": _num(iqr), "skewness": _num(skewness),
+                   "kurtosis": _num(kurtosis), "outliers": outliers,
+                   "log_transform": self._log_transform(series, skewness)}
         return metrics
 
     def _log_transform(self, series, skewness):
@@ -265,8 +260,8 @@ class DataAnalyzer:
                 "error": "Need at least 2 values for a confidence interval.",
             }
 
-        mean = series.mean()
-        standard_error = series.sem()
+        mean = float(series.mean())
+        standard_error = float(series.sem())
         # The t-distribution's cutoff for 95% confidence. 0.975 (not 0.95)
         # because we leave 2.5% of the probability in each tail.
         t_critical = sp.t.ppf(0.975, df=n - 1)
@@ -364,7 +359,7 @@ class DataAnalyzer:
             return {"error": "No numeric values in that column."}
 
         others = self._other_numeric_columns(column)
-        result = {
+        result: dict[str, Any] = {
             "column": column,
             "correlations": {
                 other: self._correlation(column, other) for other in others
@@ -471,7 +466,9 @@ class DataAnalyzer:
             return {
                 "outcome": y_column,
                 "predictors": predictors,
-                "n": int(model.nobs),
+                # nobs is just the rows that survived filtering above; len(outcome)
+                # is the same count and stays a plain int the type checker accepts.
+                "n": int(len(outcome)),
                 # R-squared: the fraction of the outcome's variation the model
                 # explains, from 0 (none) to 1 (all of it).
                 "r_squared": _num(model.rsquared),
@@ -533,7 +530,7 @@ class DataAnalyzer:
 
             # "Crude" = the exposure's effect with nothing else accounted for.
             crude = effect_of_exposure([exposure])
-            result = {
+            result: dict[str, Any] = {
                 "outcome": outcome,
                 "exposure": exposure,
                 "crude_effect": _num(crude),
@@ -603,7 +600,7 @@ class DataAnalyzer:
             return {"error": "No numeric values in that column."}
 
         others = self._other_numeric_columns(column)
-        result = {"column": column}
+        result: dict[str, Any] = {"column": column}
 
         if len(others) >= 2:
             result["multicollinearity"] = self._multicollinearity(others)
@@ -679,7 +676,7 @@ class DataAnalyzer:
         """
         resid = pd.Series(residuals).dropna().astype(float)
         n = int(len(resid))
-        checks = {"n": n, "mean_residual": _num(resid.mean())}
+        checks: dict[str, Any] = {"n": n, "mean_residual": _num(resid.mean())}
 
         if n >= 3:  # Shapiro-Wilk's minimum sample size
             statistic, p_value = sp.shapiro(resid)
@@ -705,7 +702,7 @@ class DataAnalyzer:
         dataset happens to carry both of those columns.
         """
         series = self._numbers(column)
-        metrics = {"column": column, "n": int(series.count())}
+        metrics: dict[str, Any] = {"column": column, "n": int(series.count())}
 
         if cutoff is not None and not series.empty:
             at_or_above = int((series >= cutoff).sum())
@@ -737,7 +734,9 @@ class DataAnalyzer:
         groups. This asks whether the PERCENTAGE above the median climbs -- the
         same question about a yes/no outcome instead of a number.
         """
-        result = {"cochran_armitage": self._cochran_armitage(column, group_column)}
+        result: dict[str, Any] = {
+            "cochran_armitage": self._cochran_armitage(column, group_column)
+        }
         if p_values:
             result["multiple_comparisons"] = self._correct_p_values(p_values, method)
         return result
@@ -774,7 +773,7 @@ class DataAnalyzer:
 
             # How much that statistic would wobble by chance alone.
             spread_of_scores = float(
-                (group_size * score**2).sum()
+                (group_size * score ** 2).sum()
                 - (group_size * score).sum() ** 2 / total_rows
             )
             variance = overall_high_rate * (1 - overall_high_rate) * spread_of_scores
@@ -784,7 +783,7 @@ class DataAnalyzer:
                 return {"error": "Zero variance for trend."}
 
             # Standardize into a z-score, then read off the two-tailed p-value.
-            z = trend_statistic / variance**0.5
+            z = trend_statistic / variance ** 0.5
             p_value = float(2 * sp.norm.sf(abs(z)))
             return {
                 "group_order": [str(g) for g in groups],
@@ -815,7 +814,7 @@ class DataAnalyzer:
     def categorical_analysis(self, column):
         """Counts and proportions for a label column, cross-tabulated against the
         next label column if the dataset has one."""
-        result = {"summary": self._category_counts(column)}
+        result: dict[str, Any] = {"summary": self._category_counts(column)}
 
         numeric = set(self._numeric_column_names())
         other_labels = [
@@ -861,7 +860,7 @@ class DataAnalyzer:
         row_labels = [str(r) for r in table.index]
         col_labels = [str(c) for c in table.columns]
 
-        result = {
+        result: dict[str, Any] = {
             "columns": [column1, column2],
             "table": {
                 row: {col: int(counts[i, j]) for j, col in enumerate(col_labels)}
@@ -931,3 +930,88 @@ class DataAnalyzer:
 
             produced[column] = {"pdf": str(pdf_path), "svg": str(svg_path)}
         return produced
+
+
+# ======================================================================
+# COMMAND-LINE ENTRY POINT -- for poking at the engine during development.
+# ======================================================================
+
+# Which DataAnalyzer method each tier name maps to. app.py has the same routing
+# for its JSON API (see run_analysis there); this is the terminal-side twin so a
+# dev can exercise the exact same tiers without booting the web server.
+_TIERS = {
+    "basic": lambda analyzer, column, group: analyzer.basic_analysis(column),
+    "medium": lambda analyzer, column, group: analyzer.medium_analysis(column, group),
+    "advanced": lambda analyzer, column, group: analyzer.advanced_analysis(column, group),
+    "expert": lambda analyzer, column, group: analyzer.expert_analysis(column, group),
+    "categorical": lambda analyzer, column, group: analyzer.categorical_analysis(column),
+}
+
+
+def main(argv=None):
+    """Run any analysis tier straight from the terminal and print it as JSON.
+
+    app.py is the real front door, but booting a web server just to see what
+    advanced_analysis() returns is slow. This loads a CSV the same way the app
+    does (Data/data.csv by default), runs a tier, and prints the result:
+
+        python Backend/engine.py                              # basic, every numeric column
+        python Backend/engine.py --tier advanced --column Age
+        python Backend/engine.py --tier medium --column Score --group Gender
+        python Backend/engine.py --csv Data/laptopData.csv --tier categorical
+
+    With no --column it runs the tier on every column that fits: the numeric
+    columns for the number tiers, the label columns for the categorical tier.
+
+    Kept off the module's import path (argparse/json/pathlib load here, not at the
+    top) so importing engine.py stays cheap for Render's cold start.
+    """
+    import argparse
+    import json
+    from pathlib import Path
+
+    default_csv = Path(__file__).resolve().parent.parent / "Data" / "nhanes_analytic.csv"
+
+    parser = argparse.ArgumentParser(
+        description="Run the stats engine on a CSV from the terminal."
+    )
+    parser.add_argument(
+        "--csv", type=Path, default=default_csv,
+        help="CSV file to analyze (default: Data/data.csv).",
+    )
+    parser.add_argument(
+        "--tier", default="basic", choices=list(_TIERS),
+        help="Which analysis tier to run (default: basic).",
+    )
+    parser.add_argument(
+        "--column",
+        help="Column to analyze. Omit to run the tier on every applicable column.",
+    )
+    parser.add_argument(
+        "--group",
+        help="Optional grouping column for the medium/advanced/expert tiers.",
+    )
+    args = parser.parse_args(argv)
+
+    df = df_cleanup(pd.read_csv(args.csv))
+    analyzer = DataAnalyzer(df)
+    run_tier = _TIERS[args.tier]
+
+    # One named column, or every column that fits the tier: numeric columns for
+    # the number tiers, the leftover label columns for the categorical tier.
+    if args.column:
+        columns = [args.column]
+    elif args.tier == "categorical":
+        numeric = set(analyzer._numeric_column_names())
+        columns = [c for c in df.columns if c not in numeric]
+    else:
+        columns = analyzer._numeric_column_names()
+
+    output = {column: run_tier(analyzer, column, args.group) for column in columns}
+    # default=str is a safety net for any stray numpy/pandas scalar; _num() has
+    # already turned the statistics themselves into plain floats and Nones.
+    print(json.dumps(output, indent=2, default=str))
+
+
+if __name__ == "__main__":
+    main()
