@@ -1,0 +1,89 @@
+{#
+Shared shell for the studio pages.
+
+Assets are linked ABSOLUTELY (/Web/CSS/styles.css), not relatively: from
+/studio/analyze/basic/x/ a relative link would resolve to a path that doesn't
+exist. FastAPI serves /Web, so these pages share the dashboard's stylesheet and
+need no separate static step.
+
+URLs are written as plain absolute paths rather than reversed from route names.
+They are short and stable, and hardcoding them avoids generating absolute
+http:// links behind Render's TLS-terminating proxy. Path segments that can hold
+spaces (tier/column) go through |urlencode.
+
+The scoped block below only adds layout for markup styles.css doesn't know
+about, and it borrows that file's custom properties so the two stay in step.
+#}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}Studio{% endblock %} &middot; Data Analysis</title>
+<link rel="icon" href="/Web/favicon.ico" sizes="any">
+<link rel="stylesheet" href="/Web/CSS/styles.css">
+<style>
+  .studio { max-width: 1100px; margin: 0 auto; padding: 28px 20px 64px; }
+  .studio-bar { display: flex; align-items: baseline; gap: 18px; flex-wrap: wrap;
+    border-bottom: 1px solid var(--line-strong, #9aa7bd); padding-bottom: 10px; margin-bottom: 4px; }
+  .studio-bar h1 { font-size: 1.05rem; letter-spacing: .14em; text-transform: uppercase;
+    margin: 0; color: var(--ink, #0b1324); }
+  .studio-bar nav { display: flex; gap: 14px; margin-left: auto; }
+  .studio-bar nav a { font-size: .78rem; letter-spacing: .1em; text-transform: uppercase;
+    color: var(--ink-3, #55637a); text-decoration: none; padding-bottom: 2px; }
+  .studio-bar nav a:hover, .studio-bar nav a[aria-current] {
+    color: var(--accent, #1f4fff); border-bottom: 2px solid var(--accent, #1f4fff); }
+  .rgb-rule { height: 2px; background: var(--rgb, #4d6bff); margin-bottom: 22px; }
+  .studio h2 { font-size: .74rem; letter-spacing: .16em; text-transform: uppercase;
+    color: var(--ink-3, #55637a); margin: 28px 0 8px; font-weight: 600; }
+  .ledger { width: 100%; border-collapse: collapse; font-size: .86rem; }
+  .ledger th, .ledger td { text-align: left; padding: 6px 10px;
+    border-bottom: 1px solid var(--line, #d3dae7); }
+  .ledger th { font-size: .68rem; letter-spacing: .12em; text-transform: uppercase;
+    color: var(--ink-faint, #8894a8); font-weight: 600; }
+  .ledger tbody tr:nth-child(even) { background: var(--surface-2, #f4f6fb); }
+  .ledger td.num { text-align: right; font-variant-numeric: tabular-nums; color: var(--ink, #0b1324); }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chips a { font-size: .8rem; padding: 3px 9px; text-decoration: none;
+    border: 1px solid var(--line, #d3dae7); color: var(--ink-2, #29374f);
+    background: var(--surface, #fff); }
+  .chips a:hover { border-color: var(--accent, #1f4fff); color: var(--accent, #1f4fff); }
+  .meta { font-size: .78rem; color: var(--ink-3, #55637a); }
+  .flag { font-size: .68rem; letter-spacing: .08em; text-transform: uppercase; padding: 1px 6px; }
+  .flag.on { background: var(--ok-soft, #e2f5ec); color: var(--ok, #0a8f57); }
+  .flag.off { background: var(--surface-3, #eaeef6); color: var(--ink-faint, #8894a8); }
+  .notice { border-left: 3px solid var(--err, #d21f3c); background: var(--err-soft, #fdeaed);
+    padding: 9px 12px; font-size: .84rem; color: var(--ink-2, #29374f); }
+  .btn { font: inherit; font-size: .78rem; letter-spacing: .08em; text-transform: uppercase;
+    border: 1px solid var(--accent, #1f4fff); background: var(--accent, #1f4fff); color: #fff;
+    padding: 6px 14px; cursor: pointer; }
+  .btn:hover { background: var(--accent-strong, #1636d6); }
+</style>
+</head>
+<body>
+<div class="studio">
+  <div class="studio-bar">
+    <h1>Studio</h1>
+    <nav>
+      <a href="/">Dashboard</a>
+      <a href="/studio/">Studio</a>
+      <a href="/studio/runs/">Runs</a>
+      <a href="/guide/">Guide</a>
+    </nav>
+  </div>
+  <div class="rgb-rule"></div>
+  {% block body %}{% endblock %}
+
+  <footer class="page-footer">
+    <p>Built with FastAPI, Pandas, and JavaScript</p>
+    <p>
+      <a href="https://fastapi.tiangolo.com/">API docs</a> &middot;
+      <a href="https://github.com/i-am-the-terror-that-flaps-in-the-night">GitHub</a> &middot;
+      <a href="mailto:anirudh.gupta.sa@gmail.com">Contact</a> &middot;
+      <a href="https://404-page-62v.pages.dev/">About Me</a>
+    </p>
+    <p class="footer-meta">&copy; 2026 Anirudh Gupta</p>
+  </footer>
+</div>
+</body>
+</html>

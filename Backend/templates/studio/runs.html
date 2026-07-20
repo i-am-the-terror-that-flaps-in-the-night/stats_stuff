@@ -1,0 +1,35 @@
+{% extends "studio/base.html" %}
+{% block title %}Runs{% endblock %}
+
+{% block body %}
+<h2>Run log</h2>
+<p class="meta">
+  Saved analyses, newest first. This log lives in a local SQLite file &mdash; the
+  free hosting tier has no persistent disk, so it's a lab notebook for your own
+  machine, not shared state the site depends on.
+</p>
+
+{% if runs %}
+  <table class="ledger">
+    <thead>
+      <tr><th>When</th><th>Tier</th><th>Column</th><th>Group</th><th>Dataset</th><th>ms</th></tr>
+    </thead>
+    <tbody>
+      {% for run in runs %}
+        <tr>
+          <td class="meta">{{ run.when_long }}</td>
+          <td>{{ run.tier }}</td>
+          <td>
+            <a href="/studio/analyze/{{ run.tier|urlencode }}/{{ run.column|urlencode }}/">{{ run.column }}</a>
+          </td>
+          <td class="meta">{{ run.group or "&mdash;"|safe }}</td>
+          <td class="meta">{{ run.dataset }}</td>
+          <td class="num">{{ run.duration_ms }}</td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% else %}
+  <p class="meta">Nothing saved yet.</p>
+{% endif %}
+{% endblock %}

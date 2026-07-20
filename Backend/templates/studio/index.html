@@ -1,0 +1,74 @@
+{% extends "studio/base.html" %}
+{% block title %}Studio{% endblock %}
+
+{% block body %}
+{% if not data %}
+  <p class="notice">The dataset could not be loaded, so the engine has nothing to report.</p>
+{% else %}
+  <h2>Dataset</h2>
+  <table class="ledger">
+    <tbody>
+      <tr><th>File</th><td>{{ data.overview.dataset }}</td></tr>
+      <tr><th>Rows</th><td class="num">{{ data.overview.rows }}</td></tr>
+      <tr><th>Columns</th><td class="num">{{ data.overview.columns }}</td></tr>
+      <tr><th>Numeric</th><td class="num">{{ data.overview.numeric }}</td></tr>
+      <tr><th>Categorical</th><td class="num">{{ data.overview.categorical }}</td></tr>
+      <tr><th>Complete</th><td class="num">{{ data.overview.complete }}</td></tr>
+      <tr><th>Reduced</th><td class="num">{{ data.overview.reduced }}</td></tr>
+    </tbody>
+  </table>
+
+  {% for tier in tiers %}
+    <h2>{{ tier }} tier</h2>
+    <div class="chips">
+      {% for column in data.numeric %}
+        <a href="/studio/analyze/{{ tier|urlencode }}/{{ column|urlencode }}/">{{ column }}</a>
+      {% endfor %}
+    </div>
+  {% endfor %}
+
+  {% if data.categorical %}
+    <h2>Categorical tier</h2>
+    <div class="chips">
+      {% for column in data.categorical %}
+        <a href="/studio/analyze/categorical/{{ column|urlencode }}/">{{ column }}</a>
+      {% endfor %}
+    </div>
+  {% endif %}
+{% endif %}
+
+<h2>Datasets</h2>
+<table class="ledger">
+  <thead><tr><th>Name</th><th>Status</th><th>Notes</th></tr></thead>
+  <tbody>
+    {% for d in datasets %}
+      <tr>
+        <td>{{ d.label }}</td>
+        <td>
+          {% if d.available %}<span class="flag on">present</span>
+          {% else %}<span class="flag off">absent</span>{% endif %}
+        </td>
+        <td class="meta">{{ d.blurb }}</td>
+      </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<h2>Recent runs</h2>
+{% if recent %}
+  <table class="ledger">
+    <thead><tr><th>When</th><th>Analysis</th><th>ms</th></tr></thead>
+    <tbody>
+      {% for run in recent %}
+        <tr>
+          <td class="meta">{{ run.when_short }}</td>
+          <td>{{ run.label }}</td>
+          <td class="num">{{ run.duration_ms }}</td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% else %}
+  <p class="meta">No runs saved yet. Run an analysis and save it to start the log.</p>
+{% endif %}
+{% endblock %}

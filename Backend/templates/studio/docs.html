@@ -1,0 +1,88 @@
+{% extends "studio/base.html" %}
+{% block title %}Guide{% endblock %}
+
+{% block body %}
+<h2>How this project is built</h2>
+<p class="meta">
+  One FastAPI server does everything: the dashboard, the JSON stats API, the
+  static assets and these pages. The pages call the API's own cached functions
+  directly &mdash; same process, same memory &mdash; so no request ever leaves
+  the server to draw a table.
+</p>
+
+<h2>Where each URL goes</h2>
+<table class="ledger">
+  <thead><tr><th>URL</th><th>What it is</th></tr></thead>
+  <tbody>
+    <tr><td>/</td><td class="meta">The interactive dashboard.</td></tr>
+    <tr><td>/api/&hellip;</td><td class="meta">JSON stats endpoints the dashboard calls.</td></tr>
+    <tr><td>/Web/&hellip;</td><td class="meta">CSS, JS and the icon &mdash; including this page's stylesheet.</td></tr>
+    <tr><td>/docs</td><td class="meta">Auto-generated API reference.</td></tr>
+    <tr><td>/healthz</td><td class="meta">Uptime probe, pinged every 10 minutes.</td></tr>
+    <tr><td>/studio/&hellip;</td><td class="meta">Analysis browser and run log.</td></tr>
+    <tr><td>/guide/</td><td class="meta">This write-up.</td></tr>
+  </tbody>
+</table>
+
+<h2>The three layers</h2>
+<table class="ledger">
+  <thead><tr><th>Layer</th><th>File</th><th>Job</th></tr></thead>
+  <tbody>
+    <tr>
+      <th>Stats engine</th><td>Backend/engine.py</td>
+      <td class="meta">Pure statistics on a dataframe. Imports only numpy, pandas and
+        scipy &mdash; it knows nothing about the web, so everything above it can
+        reuse it and nothing above it can break it.</td>
+    </tr>
+    <tr>
+      <th>API</th><td>Backend/app.py</td>
+      <td class="meta">Wraps the engine in HTTP endpoints and caches every answer,
+        so repeat questions are free.</td>
+    </tr>
+    <tr>
+      <th>Site</th><td>Backend/studio.py</td>
+      <td class="meta">These pages. FastAPI routes that render Jinja2 templates and
+        call the API's cached functions directly &mdash; same process, same memory.</td>
+    </tr>
+  </tbody>
+</table>
+
+<h2>Analysis tiers</h2>
+<table class="ledger">
+  <thead><tr><th>Tier</th><th>What it answers</th></tr></thead>
+  <tbody>
+    <tr><th>basic</th><td class="meta">Centre and spread: mean, median, mode, range, variance, standard deviation.</td></tr>
+    <tr><th>medium</th><td class="meta">Shape and comparison &mdash; adds group-by splits.</td></tr>
+    <tr><th>advanced</th><td class="meta">Relationships and significance testing.</td></tr>
+    <tr><th>categorical</th><td class="meta">Counts and proportions for label columns.</td></tr>
+  </tbody>
+</table>
+
+<h2>Datasets</h2>
+<table class="ledger">
+  <thead><tr><th>Name</th><th>Status</th><th>Notes</th></tr></thead>
+  <tbody>
+    {% for d in datasets %}
+      <tr>
+        <td>{{ d.label }}</td>
+        <td>
+          {% if d.available %}<span class="flag on">present</span>
+          {% else %}<span class="flag off">absent</span>{% endif %}
+        </td>
+        <td class="meta">{{ d.blurb }}</td>
+      </tr>
+    {% endfor %}
+  </tbody>
+</table>
+<p class="meta">
+  Only the practice dataset ships with the project; the larger research files stay
+  on the lab machine, so "absent" is expected when you're reading this online.
+</p>
+
+<h2>How missing data is handled</h2>
+<p class="meta">
+  Missing values are dropped, never invented. A cell that can't be read as a number
+  stays missing rather than being replaced with a zero or an average, so a gap in
+  the data never quietly turns into a data point that pulls the mean around.
+</p>
+{% endblock %}

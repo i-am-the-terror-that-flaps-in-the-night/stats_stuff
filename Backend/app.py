@@ -338,6 +338,17 @@ def root():
     return {"service": "Data Analysis", "status": "ok", "preview": None}
 
 
+# The /studio/ and /guide/ pages. Included here at the bottom -- after every
+# helper above is defined -- because studio.py calls back into this module for
+# the cached engine functions; importing it earlier would be a circular import.
+# These routes are registered before the /Web mount so the mount can't shadow
+# them, and after "/" so nothing here changes the API's default behaviour.
+try:
+    from studio import router as studio_router
+except ModuleNotFoundError:
+    from Backend.studio import router as studio_router
+app.include_router(studio_router)
+
 # Mount the static frontend last so it can't shadow the routes above. index.html
 # lives at the repo root (served by "/") and pulls its CSS/JS from /Web, so we
 # mount Web/ at /Web to match the page's Web/CSS and Web/JS links.

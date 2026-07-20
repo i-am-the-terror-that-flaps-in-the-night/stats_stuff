@@ -1,621 +1,1340 @@
+/* Data Analysis Engine — "Terminal Ledger" theme.
+ *
+ * A LIGHT, dense, angular data-console. No floating cards: the whole page is one
+ * framed instrument, its structure carried by hairline rules and a faint
+ * graph-paper backdrop rather than elevation. Everything is square (zero radius),
+ * the type is all sans (no monospace — data columns align via tabular-nums), and
+ * the palette is high-contrast near-black-on-white so it stays readable on cheap
+ * laptop panels. The only color that shouts is a thin neon R-G-B signature line
+ * plus a few tiny status pips — a LITTLE neon, deliberately rationed.
+ *
+ * Web/JS/script.js and transition.js drive this markup, so every hook is kept:
+ * .channel/.is-active chips, the .result-group readout, the boot loader
+ * (.boot-channel*, .boot-log*, .boot-status*) and the .boot-transition overlay.
+ */
+
 :root {
-    color-scheme: dark;
+    color-scheme: light;
+    font-size: 16px;
 
-    /* Base scale for the whole instrument -- most sizes are rem, so nudging this
-       lifts headings, prose, labels, and readouts together. (Default is 16px.) */
-    font-size: 17px;
+    /* ---- Paper & structure ---- */
+    --bg: #e9edf4;             /* page mat, behind the console */
+    --grid-line: rgba(20, 45, 120, 0.07);
+    --surface: #ffffff;        /* console interior */
+    --surface-2: #f4f6fb;      /* zebra rows, insets, head fills */
+    --surface-3: #eaeef6;      /* deeper insets, tracks */
+    --line: #d3dae7;           /* hairlines */
+    --line-strong: #9aa7bd;    /* major rules, frame */
 
-    /* Cool near-black base; steel greys carry the structure so the single accent
-       stays rare. */
-    --bg: #070a0e;
-    --grid: #10161f;
-    --surface: #0b111a;
-    --surface-2: #0f1723;
-    --edge: #223041;
-    --edge-hover: #33475d;
+    /* ---- Ink (all high-contrast on white) ---- */
+    --ink: #0b1324;            /* headings, data values */
+    --ink-2: #29374f;          /* body copy */
+    --ink-3: #55637a;          /* labels, secondary */
+    --ink-faint: #8894a8;      /* metadata, disabled */
 
-    --text: #dfe7ee;
-    /* Body-copy mid-tone: brighter than --text-muted so prose stands out, but
-       still below --text (reserved for headings/values). ~9:1 on the surfaces,
-       clears WCAG-AA/AAA. */
-    --text-body: #aeb9c6;
-    --text-muted: #8493a4;
-    --text-faint: #4c5a6b;
+    /* ---- Interactive accent: electric-but-readable blue ---- */
+    --accent: #1f4fff;
+    --accent-strong: #1636d6;
+    --accent-soft: #e7edff;
+    --accent-line: rgba(31, 79, 255, 0.5);
 
-    /* Instrument cyan -- used only for interactive/active/key-data, never as fill. */
-    --accent: #22d3ee;
-    --accent-hover: #67e8f9;
-    --accent-soft: rgba(34, 211, 238, 0.14);
-    --accent-line: rgba(34, 211, 238, 0.55);
+    /* ---- Gamer neon: a vivid RGB spectrum that BLOOMS and slowly cycles hue,
+       like RGB peripheral lighting. Rationed to the signature rule, ticks,
+       logo and status pips — a little, but it glows. ---- */
+    --neon-1: #ff2bd6;   /* magenta */
+    --neon-2: #8b5cf6;   /* violet  */
+    --neon-3: #22d3ee;   /* cyan    */
+    --rgb: linear-gradient(90deg, #ff2bd6 0%, #b429ff 26%, #4d6bff 54%, #22d3ee 80%, #24ffc7 100%);
+    --rgb-glow: 0 0 8px rgba(255, 43, 214, 0.8), 0 0 22px rgba(34, 211, 238, 0.65);
+    --rgb-glow-sm: 0 0 6px rgba(180, 41, 255, 0.75), 0 0 14px rgba(34, 211, 238, 0.6);
 
-    --success: #4ade80;
-    --error: #f9736a;
-    --error-soft: rgba(249, 115, 106, 0.12);
+    --ok: #0a8f57;
+    --ok-soft: #e2f5ec;
+    --err: #d21f3c;
+    --err-soft: #fdeaed;
 
-    /* Hard edges: near-zero radius, chamfered panel corners instead of rounding. */
-    --radius-sm: 2px;
-    --chamfer: 14px;
-    --chamfer-sm: 8px;
+    --font: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 
-    --font-mono: ui-monospace, "SF Mono", SFMono-Regular, "JetBrains Mono", "Cascadia Code", Menlo, Consolas, monospace;
-    --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    /* ---- Softer, less-terminal surfacing ---- */
+    --radius: 16px;      /* page frame */
+    --radius-md: 12px;   /* modules, result/compute panels, telemetry grid */
+    --radius-sm: 9px;    /* chips, buttons, badges, status */
+    --shadow-card: 0 26px 60px -30px rgba(18, 38, 88, 0.34),
+        0 6px 18px -10px rgba(18, 38, 88, 0.16);
+    --shadow-soft: 0 12px 30px -16px rgba(18, 38, 88, 0.24);
+    --hero-wash: linear-gradient(135deg, #f8faff 0%, #edf1fe 52%, #f5f0ff 100%);
 }
 
 * {
     box-sizing: border-box;
 }
 
-body {
-    font-family: var(--font-sans);
-    background-color: var(--bg);
-    color: var(--text);
-    margin: 0;
-    padding: 56px 16px;
-    /* Blueprint hairline grid + a faint cool wash up top (low opacity: a hint of
-       glow, not neon). */
-    background-image:
-        radial-gradient(circle at 50% -12%, rgba(34, 211, 238, 0.06), transparent 55%),
-        linear-gradient(var(--grid) 1px, transparent 1px),
-        linear-gradient(90deg, var(--grid) 1px, transparent 1px);
-    background-size: 100% 100%, 32px 32px, 32px 32px;
-    min-height: 100vh;
-    line-height: 1.6;
-    display: flex;
-    flex-direction: column;
+[hidden] {
+    display: none !important;
 }
 
+body {
+    margin: 0;
+    min-height: 100vh;
+    font-family: var(--font);
+    font-size: 1rem;
+    line-height: 1.6;
+    color: var(--ink-2);
+    background-color: var(--bg);
+    /* Graph-paper grid: busy, technical texture in the margins. The console sits
+       opaque on top, so text never fights it. */
+    background-image:
+        linear-gradient(var(--grid-line) 1px, transparent 1px),
+        linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+    background-size: 26px 26px;
+    -webkit-font-smoothing: antialiased;
+    display: flex;
+    flex-direction: column;
+    padding: 26px 22px 46px;
+}
+
+/* ---- The console frame ------------------------------------------------- */
 .page {
-    max-width: 860px;
     width: 100%;
+    max-width: 1080px;
     margin: 0 auto;
     flex: 1;
-    display: flex;
-    flex-direction: column;
+    background: var(--surface);
+    border: 1px solid var(--line-strong);
+    /* Rounded frame with a soft, lifted shadow — a card, not a brutalist slab. */
+    border-radius: var(--radius);
+    overflow: hidden;
+    box-shadow: var(--shadow-card);
 }
 
-.page-header {
-    text-align: center;
-    margin-bottom: 32px;
+/* ---- Top status bar ---------------------------------------------------- */
+.console-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px 16px;
+    padding: 11px 18px;
+    border-bottom: 1px solid var(--line);
+    background: var(--surface-2);
+}
+
+.brand {
+    display: flex;
+    align-items: center;
+    gap: 11px;
+    min-width: 0;
+}
+
+/* Logo mark: a dark square tile with three ascending neon bars that glow and
+   slowly cycle hue — the gamer-RGB signature, doubling as a bar-chart glyph. */
+.brand-mark {
+    flex: none;
+    display: grid;
+    place-items: center;
+    width: 30px;
+    height: 30px;
+    background: var(--ink);
+    border: 1px solid #000;
+    animation: rgb-cycle 9s linear infinite;
+}
+
+.brand-mark svg,
+.loader-mark svg,
+.boot-transition-mark svg {
+    width: 19px;
+    height: 19px;
+    display: block;
+    /* Neon bloom around the bars, so they read as backlit on the dark tile. */
+    filter: drop-shadow(0 0 2px rgba(255, 43, 214, 0.85)) drop-shadow(0 0 3px rgba(34, 211, 238, 0.6));
+}
+
+/* Gamer-RGB on two tempos in one 9s loop: the hue spins FAST (three full turns
+   = 360°/3s, the quick color-cycle) while the bloom BREATHES SLOW (saturation +
+   brightness swell just once over the 9s). linear keeps the hue speed steady. */
+@keyframes rgb-cycle {
+    0%   { filter: hue-rotate(0deg)    saturate(1.6) brightness(1.05); }
+    50%  { filter: hue-rotate(540deg)  saturate(2)   brightness(1.6); }
+    100% { filter: hue-rotate(1080deg) saturate(1.6) brightness(1.05); }
+}
+
+.brand-name {
+    font-weight: 800;
+    font-size: 0.9rem;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    color: var(--ink);
+    white-space: nowrap;
+}
+
+.brand-ver {
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    color: var(--ink-3);
+    padding: 2px 7px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+}
+
+.bar-meta {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    font-size: 0.68rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    white-space: nowrap;
+}
+
+/* Extra nameplate meta: hidden on narrow screens, revealed on desktop to add
+   the "busy console" density without crowding phones. */
+.bar-meta-item {
+    display: none;
+}
+
+@media (min-width: 760px) {
+    .bar-meta-item {
+        display: inline-flex;
+        align-items: center;
+    }
+}
+
+/* Neon status pips — a glowing "RGB lighting" cluster that shimmers through the
+   spectrum. */
+.pips {
+    display: inline-flex;
+    gap: 6px;
+    animation: rgb-cycle 9s linear infinite;
+}
+
+.pips i {
+    width: 8px;
+    height: 8px;
+    display: block;
+    /* Pulse in sequence -- a small activity scanner, so the cluster reads as a
+       running signal rather than three static dots. */
+    animation: pip-scan 1.5s ease-in-out infinite;
+}
+
+.pips i:nth-child(1) { background: var(--neon-1); box-shadow: 0 0 5px var(--neon-1), 0 0 10px var(--neon-1); animation-delay: 0s; }
+.pips i:nth-child(2) { background: var(--neon-2); box-shadow: 0 0 5px var(--neon-2), 0 0 10px var(--neon-2); animation-delay: 0.2s; }
+.pips i:nth-child(3) { background: var(--neon-3); box-shadow: 0 0 5px var(--neon-3), 0 0 10px var(--neon-3); animation-delay: 0.4s; }
+
+@keyframes pip-scan {
+    0%, 100% { opacity: 0.35; transform: scale(0.72); }
+    45% { opacity: 1; transform: scale(1); }
+}
+
+/* Live link-latency chip: a real, measured API round-trip, filled by
+   Web/JS/script.js. Empty (no backend, e.g. static preview) -> hidden. */
+.bar-live:empty {
+    display: none;
+}
+
+.bar-live b {
+    color: var(--accent);
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+}
+
+.live {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    color: var(--ok);
+}
+
+.live::before {
+    content: "";
+    width: 8px;
+    height: 8px;
+    background: var(--ok);
+    box-shadow: 0 0 0 0 rgba(10, 143, 87, 0.5);
+    animation: live-pulse 2.2s ease-out infinite;
+}
+
+@keyframes live-pulse {
+    0% { box-shadow: 0 0 0 0 rgba(10, 143, 87, 0.45); }
+    70%, 100% { box-shadow: 0 0 0 6px rgba(10, 143, 87, 0); }
+}
+
+/* Live dot on the masthead nameplate's status value -- the same heartbeat as
+   the top-bar "Live" indicator, so the instrument reads as up on every glance. */
+.spec-live {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    color: var(--ok);
+}
+
+.spec-live::before {
+    content: "";
+    width: 7px;
+    height: 7px;
+    flex: none;
+    background: var(--ok);
+    box-shadow: 0 0 0 0 rgba(10, 143, 87, 0.5);
+    animation: live-pulse 2.2s ease-out infinite;
+}
+
+/* ---- Signature neon R-G-B rule ---------------------------------------- */
+.rgb-rule {
+    height: 3px;
+    background: var(--rgb);
+    box-shadow: var(--rgb-glow);
+    animation: rgb-cycle 9s linear infinite;
+}
+
+/* ---- Masthead (hero + spec panel) ------------------------------------- */
+.masthead {
+    display: grid;
+    grid-template-columns: 1fr 288px;
+    align-items: stretch;
+    border-bottom: 1px solid var(--line-strong);
+    /* Soft product-hero wash instead of flat console white. */
+    background: var(--hero-wash);
+}
+
+.masthead-main {
+    padding: 30px 26px 26px;
+}
+
+.eyebrow {
+    margin: 0 0 12px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.2em;
+    color: var(--accent-strong);
 }
 
 h1 {
     margin: 0;
-    font-family: var(--font-mono);
-    font-size: 1.75rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.16em;
-    color: var(--text);
-    /* Faint accent lift, not a glowing wordmark. */
-    text-shadow: 0 0 24px rgba(34, 211, 238, 0.18);
-}
-
-.eyebrow {
-    margin: 0 0 10px;
-    font-family: var(--font-mono);
-    font-size: 0.68rem;
-    font-weight: 500;
-    text-transform: uppercase;
-    letter-spacing: 0.22em;
-    color: var(--text-muted);
+    font-size: clamp(2.1rem, 1.3rem + 3.2vw, 3.3rem);
+    font-weight: 800;
+    line-height: 1.02;
+    letter-spacing: -0.025em;
+    /* Title case, not shouting caps — reads as a product, not a console. */
+    text-transform: none;
+    color: var(--ink);
 }
 
 .tagline {
-    margin: 10px 0 0;
-    color: var(--text-body);
-    font-size: 0.98rem;
+    margin: 16px 0 0;
+    max-width: 46ch;
+    font-size: 1.05rem;
+    color: var(--ink-2);
 }
 
-/* Researcher credit -- it's a science-fair entry, so the name is present but quiet. */
 .byline {
     margin: 16px 0 0;
-    font-family: var(--font-mono);
-    font-size: 0.72rem;
-    text-transform: uppercase;
-    letter-spacing: 0.18em;
-    color: var(--text-muted);
-}
-
-.page-footer {
-    margin-top: auto;
-    padding-top: 32px;
-    text-align: center;
-    color: var(--text-faint);
-    font-family: var(--font-mono);
-    font-size: 0.72rem;
-    text-transform: uppercase;
-    letter-spacing: 0.12em;
-}
-
-.page-footer p {
-    margin: 5px 0;
-}
-
-.page-footer a {
-    color: var(--text-muted);
-    text-decoration: none;
-    border-bottom: 1px solid transparent;
-    transition: color 0.15s ease, border-color 0.15s ease;
-}
-
-.page-footer a:hover {
-    color: var(--accent-hover);
-    border-bottom-color: var(--accent-line);
-}
-
-/* ---- Flowing sections -------------------------------------------------- */
-/* No card-boxes: the page is one continuous instrument read top-to-bottom.
-   Sections are separated by breathing room + a hairline rule, and marked by a
-   mono eyebrow with a short cyan tick (the old card's active-tick, unboxed). */
-.flow-section {
-    padding: 30px 0;
-}
-
-.flow-section:first-of-type {
-    padding-top: 6px;
-}
-
-.flow-section + .flow-section {
-    border-top: 1px solid var(--edge);
-}
-
-.section-eyebrow {
-    display: flex;
+    display: inline-flex;
     align-items: center;
-    gap: 10px;
-    margin: 0 0 12px;
-    font-family: var(--font-mono);
-    font-size: 0.68rem;
-    font-weight: 500;
-    text-transform: uppercase;
-    letter-spacing: 0.2em;
-    color: var(--text-muted);
-}
-
-.section-eyebrow::before {
-    content: "";
-    flex: none;
-    width: 18px;
-    height: 2px;
-    background: var(--accent);
-    box-shadow: 0 0 12px var(--accent-soft);
-}
-
-.section-title {
-    margin: 0 0 8px;
-    font-family: var(--font-mono);
-    font-size: 1.05rem;
+    gap: 9px;
+    font-size: 0.76rem;
     font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.12em;
-    color: var(--text);
-}
-
-.text {
-    color: var(--text-body);
-    margin-top: 0;
-    margin-bottom: 26px;
-    font-size: 0.98rem;
-    line-height: 1.6;
-    /* Cap prose line length so the wider column doesn't hurt readability. */
-    max-width: 60ch;
-}
-
-code {
-    font-family: var(--font-mono);
-    background: var(--surface-2);
-    border: 1px solid var(--edge);
-    color: var(--accent-hover);
-    padding: 1px 6px;
-    border-radius: var(--radius-sm);
-    font-size: 0.85em;
-}
-
-button {
-    padding: 11px 22px;
-    border: 1px solid var(--accent);
-    background: transparent;
-    color: var(--accent-hover);
-    border-radius: 0;
-    cursor: pointer;
-    font-size: 13px;
-    font-weight: 600;
-    font-family: var(--font-mono);
-    text-transform: uppercase;
-    letter-spacing: 0.14em;
-    /* One cut corner: directional, angular, matches the panel language. */
-    clip-path: polygon(0 0, calc(100% - var(--chamfer-sm)) 0, 100% var(--chamfer-sm), 100% 100%, 0 100%);
-    transition: background-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
-}
-
-button:hover:not(:disabled) {
-    background-color: var(--accent-soft);
-    color: var(--accent-hover);
-    box-shadow: inset 0 0 0 1px var(--accent);
-}
-
-button:active:not(:disabled) {
-    background-color: rgba(34, 211, 238, 0.22);
-}
-
-button:focus-visible {
-    outline: none;
-    box-shadow: 0 0 0 1px var(--accent);
-}
-
-button:disabled {
-    border-color: var(--edge);
-    background-color: transparent;
-    color: var(--text-faint);
-    cursor: not-allowed;
-}
-
-.status {
-    color: var(--success);
-    min-height: 1.2em;
-    font-family: var(--font-mono);
-    font-size: 0.78rem;
-    text-transform: uppercase;
     letter-spacing: 0.08em;
-    margin: 0;
+    text-transform: uppercase;
+    color: var(--ink-3);
 }
 
-.status.error {
-    color: var(--error);
+.byline::before {
+    content: "";
+    width: 24px;
+    height: 3px;
+    background: var(--rgb);
+    box-shadow: var(--rgb-glow-sm);
 }
 
-/* ---- Spec-sheet readout ------------------------------------------------ */
-table {
-    width: 100%;
-    border-collapse: collapse;
-    margin-top: 10px;
-    font-family: var(--font-mono);
+/* Spec panel: a dense key/value block that fills the hero's right side — real
+   engine metadata, and busywork that reads as an instrument nameplate. */
+.masthead-spec {
+    border-left: 1px solid var(--line);
+    background: var(--surface-2);
+    display: flex;
+    flex-direction: column;
 }
 
-tr {
-    transition: background-color 0.15s ease;
+.spec-row {
+    display: grid;
+    grid-template-columns: 82px 1fr;
+    gap: 10px;
+    padding: 11px 18px;
+    border-bottom: 1px solid var(--line);
+    font-size: 0.78rem;
 }
 
-tr:hover {
-    background-color: var(--surface-2);
-}
-
-td {
-    padding: 13px 14px;
-    border-bottom: 1px solid var(--edge);
-    text-align: left;
-    font-size: 0.88rem;
-}
-
-tr:last-child td {
+.spec-row:last-child {
     border-bottom: none;
 }
 
-td.label {
-    color: var(--text-muted);
+.spec-k {
+    font-weight: 700;
+    letter-spacing: 0.09em;
     text-transform: uppercase;
-    letter-spacing: 0.1em;
-    font-size: 0.82rem;
-    /* Leading tick: a small measurement cue on each readout row -- legible at
-       rest (steel), lights cyan on row hover. */
-    border-left: 2px solid var(--edge-hover);
-    padding-left: 12px;
+    font-size: 0.66rem;
+    color: var(--ink-3);
+    align-self: center;
 }
 
-/* Faint qualifier inside a readout label, e.g. "Complete n=50" or "used / total". */
-.label-note {
-    margin-left: 8px;
-    color: var(--text-faint);
-    letter-spacing: 0;
+.spec-v {
+    font-weight: 600;
+    color: var(--ink);
+    font-variant-numeric: tabular-nums;
+}
+
+/* ---- Modules ----------------------------------------------------------- */
+.module + .module {
+    border-top: 1px solid var(--line-strong);
+}
+
+.module-head {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px 12px;
+    padding: 12px 18px;
+    border-bottom: 1px solid var(--line);
+    background: var(--surface-2);
+}
+
+/* Numbered module tag — this page IS a stack of instrument modules, so the
+   index is a real address, not decoration. */
+.module-index {
+    flex: none;
+    font-size: 0.68rem;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    color: var(--accent-strong);
+    padding: 3px 9px;
+    background: var(--accent-soft);
+    border: 1px solid var(--accent-line);
+    border-radius: var(--radius-sm);
+}
+
+.module-tick {
+    flex: none;
+    width: 20px;
+    height: 4px;
+    background: var(--rgb);
+    box-shadow: var(--rgb-glow-sm);
+}
+
+.module-title {
+    margin: 0;
+    min-width: 0;
+    font-size: 1.1rem;
+    font-weight: 800;
+    letter-spacing: -0.01em;
+    text-transform: none;
+    color: var(--ink);
+}
+
+.module-meta {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    color: var(--ink-3);
+    white-space: nowrap;
+}
+
+.module-meta code {
+    font-family: var(--font);
+    font-weight: 700;
+    color: var(--accent-strong);
+    background: var(--accent-soft);
+    border: 1px solid var(--accent-line);
+    border-radius: 6px;
+    padding: 1px 7px;
+}
+
+.module-body {
+    padding: 22px 26px;
+}
+
+.text {
+    margin: 0 0 20px;
+    max-width: 64ch;
+    color: var(--ink-2);
+    font-size: 0.98rem;
+}
+
+code {
+    font-family: var(--font);
+    font-weight: 700;
+    font-size: 0.92em;
+    color: var(--accent-strong);
+    background: var(--accent-soft);
+    border: 1px solid var(--accent-line);
+    padding: 0 5px;
+}
+
+/* ---- Control fields (ledger rows) ------------------------------------- */
+.fields {
+    border-top: 1px solid var(--line);
+}
+
+.field {
+    display: grid;
+    grid-template-columns: 104px 1fr;
+    gap: 18px;
+    align-items: start;
+    padding: 14px 0;
+    border-bottom: 1px solid var(--line);
+}
+
+.field-label {
+    padding-top: 7px;
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--ink-3);
+}
+
+.field-note {
+    display: block;
+    margin-top: 3px;
+    font-weight: 500;
+    letter-spacing: 0.04em;
+    color: var(--ink-faint);
     text-transform: none;
 }
 
-tr:hover td.label {
-    border-left-color: var(--accent);
-    color: var(--text);
+button {
+    font-family: inherit;
+    cursor: pointer;
 }
 
-td.value {
-    text-align: right;
-    font-variant-numeric: tabular-nums;
-    font-weight: 600;
-    font-size: 0.9rem;
-    color: var(--text);
-}
-
-/* ---- Analyzable channels ----------------------------------------------- */
 .channel-grid {
     display: flex;
     flex-wrap: wrap;
-    gap: 8px;
-    margin: 6px 0 18px;
+    gap: 7px;
+    margin: 0;
     padding: 0;
     list-style: none;
 }
 
 .channel-empty {
-    color: var(--text-muted);
-    font-family: var(--font-mono);
-    font-size: 0.78rem;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
+    padding-top: 7px;
+    font-size: 0.82rem;
+    color: var(--ink-3);
 }
 
-/* Chip = a small variant of the main button; rests in steel, lights cyan only
-   on hover/focus (the shared button rules supply the rest). */
+/* Chip: a soft, rounded control. White at rest; hover lifts with a tinted fill;
+   active fills solid accent with a gentle drop shadow (no neon glare). */
 .channel {
-    padding: 8px 12px;
-    font-size: 0.74rem;
-    letter-spacing: 0.08em;
-    color: var(--text);
-    background: var(--surface-2);
-    border: 1px solid var(--edge);
-    border-left: 2px solid var(--edge-hover);
+    padding: 8px 15px;
+    font-size: 0.84rem;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    color: var(--ink-2);
+    background: var(--surface);
+    border: 1px solid var(--line-strong);
+    border-radius: var(--radius-sm);
+    transition: color 0.16s ease, background-color 0.16s ease,
+        border-color 0.16s ease, box-shadow 0.16s ease, transform 0.12s ease;
 }
 
 .channel:hover:not(:disabled) {
-    border-left-color: var(--accent);
+    color: var(--accent-strong);
+    border-color: var(--accent);
+    background: var(--accent-soft);
+    box-shadow: var(--shadow-soft);
+    transform: translateY(-1px);
 }
 
-/* The column currently shown in the readout. */
 .channel.is-active {
-    color: var(--accent-hover);
-    background-color: var(--accent-soft);
-    border-color: var(--edge-hover);
-    border-left-color: var(--accent);
+    color: #fff;
+    background: var(--accent);
+    border-color: var(--accent);
+    box-shadow: 0 8px 18px -7px rgba(31, 79, 255, 0.6);
 }
 
-/* ---- Control labels (Tier / Column / Group by) ------------------------- */
-.control-label {
-    margin: 18px 0 8px;
-    font-family: var(--font-mono);
-    font-size: 0.66rem;
-    font-weight: 500;
-    text-transform: uppercase;
-    letter-spacing: 0.2em;
-    color: var(--text-muted);
+.channel.is-active:hover {
+    background: var(--accent-strong);
+    border-color: var(--accent-strong);
+    color: #fff;
+    transform: translateY(-1px);
 }
 
-.control-label:first-of-type {
-    margin-top: 0;
+.channel:disabled {
+    color: var(--ink-faint);
+    background: var(--surface-2);
+    border-color: var(--line);
+    cursor: not-allowed;
 }
 
-.control-note {
-    margin-left: 6px;
-    color: var(--text-faint);
-    letter-spacing: 0.1em;
+:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
 }
 
-/* ---- Tiered result readout --------------------------------------------- */
-/* The higher tiers return nested results; script.js renders them as grouped
-   sub-modules. Each group reads as a titled instrument module: a vertical rail
-   (cyan at the head, fading to steel) anchors it, a node marker sits where the
-   title meets the rail, and the title carries a trailing fade-rule across the
-   line. A faint surface tint deepens with nesting so levels read at a glance --
-   depth without hard boxes. */
-.results[hidden] {
+/* ---- Status line ------------------------------------------------------- */
+.status {
+    margin: 16px 0 0;
+    min-height: 1.2em;
+    padding: 10px 14px;
+    border-left: 3px solid var(--accent);
+    border-radius: var(--radius-sm);
+    background: var(--surface-2);
+    font-size: 0.86rem;
+    font-weight: 600;
+    color: var(--ink-2);
+}
+
+.status:empty {
     display: none;
 }
 
+.status.error {
+    color: var(--err);
+    border-left-color: var(--err);
+    background: var(--err-soft);
+}
+
+/* ---- Result readout (soft card) --------------------------------------- */
 .results {
-    margin-top: 14px;
-}
-
-.result-group {
     position: relative;
-    margin-top: 20px;
-    padding: 4px 0 4px 20px;
-    /* Faint module fill; deeper groups tint a touch more (see nesting below). */
-    background: linear-gradient(90deg, rgba(15, 23, 35, 0.5), transparent 70%);
+    margin-top: 18px;
+    border: 1px solid var(--line-strong);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    box-shadow: var(--shadow-soft);
 }
 
-/* Left rail: a cyan head bleeding down into steel, so each module hangs off a
-   lit anchor point at its title and settles to a quiet hairline below. */
-.result-group::before {
+/* Glowing RGB rule capping the computed output — marks where results begin. */
+.results::before {
     content: "";
     position: absolute;
-    left: 0;
-    top: 0;
-    bottom: 0;
-    width: 1px;
-    background: linear-gradient(var(--accent), var(--edge) 40px);
+    top: -1px;
+    left: -1px;
+    right: -1px;
+    height: 3px;
+    background: var(--rgb);
+    box-shadow: var(--rgb-glow);
+    animation: rgb-cycle 9s linear infinite;
+    pointer-events: none;
+    z-index: 2;
 }
 
-.result-group > .result-group {
-    margin-top: 14px;
-    /* Nested modules read one shade deeper. */
-    background: linear-gradient(90deg, rgba(20, 30, 45, 0.55), transparent 70%);
+/* ---- Compute pipeline (perceived work) --------------------------------- */
+/* A running readout of the stages the engine walks for the selected tier:
+   a progress track, a live millisecond timer, and stage rows that light up in
+   sequence. Angular, hairline-ruled, one neon fill -- same instrument language
+   as the boot loader. */
+.compute {
+    padding: 15px 18px 16px;
 }
 
-.result-group-title {
+.compute-head {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+
+.compute-title {
+    font-size: 0.72rem;
+    font-weight: 800;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--ink-2);
+}
+
+.compute-tier {
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--accent);
+}
+
+.compute-spacer {
+    flex: 1 1 auto;
+}
+
+.compute-ms {
+    font-size: 0.82rem;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+    color: var(--ink);
+}
+
+.compute-pct {
+    min-width: 3.2em;
+    text-align: right;
+    font-size: 0.72rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    color: var(--ink-3);
+}
+
+.compute-track {
     position: relative;
+    height: 5px;
+    margin-bottom: 14px;
+    background: var(--surface-3);
+    border-radius: 999px;
+    overflow: hidden;
+}
+
+.compute-fill {
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: 0;
+    background: var(--rgb);
+    border-radius: 999px;
+    box-shadow: var(--rgb-glow-sm);
+}
+
+.compute-stages {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.compute-stage {
     display: flex;
     align-items: center;
-    gap: 12px;
-    margin: 0 0 10px;
-    font-family: var(--font-mono);
-    font-size: 0.74rem;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.16em;
-    /* Brightened vs. body labels -- a title signals a new module. */
-    color: var(--accent-hover);
+    gap: 11px;
+    padding: 7px 0;
+    font-size: 0.85rem;
+    color: var(--ink-faint);
+    border-bottom: 1px solid var(--line);
+    transition: color 0.18s ease;
 }
 
-/* Node marker: a small cyan square seated on the rail at the title line. */
-.result-group-title::before {
-    content: "";
-    position: absolute;
-    left: -24px;
-    top: 50%;
-    transform: translateY(-50%);
-    width: 7px;
-    height: 7px;
-    background: var(--accent);
-    box-shadow: 0 0 8px var(--accent-line);
-    /* Chamfered corner echoes the panel/button language. */
-    clip-path: polygon(0 0, 100% 0, 100% 65%, 65% 100%, 0 100%);
-}
-
-/* Trailing fade-rule fills out the header line to the module's right edge. */
-.result-group-title::after {
-    content: "";
-    flex: 1;
-    height: 1px;
-    background: linear-gradient(90deg, var(--edge), transparent);
-}
-
-/* Nested tables sit tighter than the top-level spec-sheet table, and lose the
-   heavy row padding so a dense module stays compact. */
-.result-group table {
-    margin-top: 2px;
-}
-
-.result-group td {
-    padding: 9px 12px;
-}
-
-/* Boolean verdicts (significant / detected / normal): cyan when true, steel when
-   not -- a quick read of "did this test fire". */
-.value-flag {
-    font-size: 0.78rem;
-    letter-spacing: 0.1em;
-}
-
-.value-flag.is-true {
-    color: var(--accent-hover);
-}
-
-.value-flag.is-false {
-    color: var(--text-faint);
-}
-
-/* A null/absent metric (e.g. a CI that needed more data). */
-.value-null {
-    color: var(--text-faint);
-}
-
-/* ---- Statistic reference ----------------------------------------------- */
-.legend {
-    margin: 22px 0 0;
-}
-
-.legend-row {
-    display: grid;
-    grid-template-columns: 150px 1fr;
-    gap: 24px;
-    align-items: baseline;
-    padding: 14px 0 14px 12px;
-    /* Same leading tick + hairline divider as a readout row. */
-    border-left: 2px solid var(--edge-hover);
-    border-bottom: 1px solid var(--edge);
-    transition: background-color 0.15s ease, border-color 0.15s ease;
-}
-
-.legend-row:last-child {
+.compute-stage:last-child {
     border-bottom: none;
 }
 
+.compute-glyph {
+    position: relative;
+    flex: none;
+    width: 14px;
+    height: 14px;
+    border: 1.5px solid var(--line-strong);
+}
+
+.compute-stage.is-active,
+.compute-stage.is-done {
+    color: var(--ink-2);
+}
+
+.compute-stage.is-active .compute-glyph {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 1px var(--accent-line), 0 0 10px -2px var(--accent);
+}
+
+.compute-stage.is-active .compute-glyph::after {
+    content: "";
+    position: absolute;
+    inset: 2px;
+    background: var(--accent);
+    animation: compute-pulse 0.7s ease-in-out infinite;
+}
+
+.compute-stage.is-done .compute-glyph {
+    border-color: var(--ok);
+    background: var(--ok);
+}
+
+/* A crisp checkmark once a stage settles. */
+.compute-stage.is-done .compute-glyph::after {
+    content: "";
+    position: absolute;
+    left: 4px;
+    top: 0.5px;
+    width: 4px;
+    height: 8px;
+    border: solid #fff;
+    border-width: 0 2px 2px 0;
+    transform: rotate(45deg);
+}
+
+.compute-name {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.compute-state {
+    flex: none;
+    font-size: 0.66rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+}
+
+.compute-stage.is-active .compute-state {
+    color: var(--accent);
+}
+
+.compute-stage.is-done .compute-state {
+    color: var(--ok);
+}
+
+.compute-foot {
+    margin: 13px 0 0;
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    color: var(--ink-faint);
+    font-variant-numeric: tabular-nums;
+}
+
+@keyframes compute-pulse {
+    0%, 100% { opacity: 0.3; }
+    50% { opacity: 1; }
+}
+
+/* ---- Result header (what ran · how long) ------------------------------- */
+.results-head {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    padding: 11px 16px;
+    border-bottom: 1px solid var(--line-strong);
+    background: var(--surface-2);
+}
+
+.results-head-k {
+    font-size: 0.72rem;
+    font-weight: 800;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--ink-2);
+}
+
+.results-head-tier {
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--accent);
+}
+
+.results-head-ms {
+    margin-left: auto;
+    padding: 2px 10px;
+    font-size: 0.72rem;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+    border-radius: 999px;
+    color: var(--ok);
+    background: var(--ok-soft);
+}
+
+/* ---- Fresh-result reveal: a short staggered rise, restarted each run --- */
+@media (prefers-reduced-motion: no-preference) {
+    .results.is-fresh > * {
+        animation: result-in 0.34s cubic-bezier(0.22, 0.61, 0.36, 1) both;
+    }
+    .results.is-fresh > *:nth-child(2) { animation-delay: 0.04s; }
+    .results.is-fresh > *:nth-child(3) { animation-delay: 0.09s; }
+    .results.is-fresh > *:nth-child(4) { animation-delay: 0.14s; }
+    .results.is-fresh > *:nth-child(n+5) { animation-delay: 0.18s; }
+}
+
+@keyframes result-in {
+    from { opacity: 0; transform: translateY(7px); }
+    to { opacity: 1; transform: none; }
+}
+
+.results table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.results tbody tr:nth-child(even) {
+    background: var(--surface-2);
+}
+
+.results tbody tr:hover {
+    background: var(--accent-soft);
+}
+
+.results td {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--line);
+    font-size: 0.9rem;
+}
+
+.results tr:last-child td {
+    border-bottom: none;
+}
+
+.results td.label {
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    font-size: 0.78rem;
+    color: var(--ink-2);
+}
+
+.results td.value {
+    text-align: right;
+    font-weight: 800;
+    font-size: 0.95rem;
+    font-variant-numeric: tabular-nums;
+    color: var(--ink);
+}
+
+/* Scalar statistics as a dense grid of label–value cells (ledger cells, not
+   cards): each value sits right beside its label, so the eye never has to track
+   a lone label across a wide, empty row to the number at the far edge. The grid
+   fills the available width and reflows to fewer columns on smaller screens. */
+.results .stat-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(184px, 1fr));
+    border-top: 1px solid var(--line);
+    border-left: 1px solid var(--line);
+}
+
+.results .stat {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 14px;
+    min-width: 0;
+    padding: 11px 14px;
+    border-right: 1px solid var(--line);
+    border-bottom: 1px solid var(--line);
+}
+
+.results .stat:hover {
+    background: var(--accent-soft);
+}
+
+.results .stat-k {
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--ink-3);
+    white-space: nowrap;
+}
+
+.results .stat-v {
+    text-align: right;
+    font-weight: 800;
+    font-size: 1rem;
+    font-variant-numeric: tabular-nums;
+    color: var(--ink);
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+/* A list-valued stat (predictors, confounders, group order) takes the whole
+   row, label above, so the value flows across the full width and wraps a few
+   items per line instead of stacking one token per line in a narrow column. */
+.results .stat.is-wide {
+    grid-column: 1 / -1;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 5px;
+}
+
+.results .stat.is-wide .stat-v {
+    text-align: left;
+    font-size: 0.9rem;
+    font-weight: 700;
+    line-height: 1.55;
+    white-space: normal;
+}
+
+/* Nested tier output: an indented module hung off a strong rail with a neon
+   tick at the title. Top-level sections get real air between them so the rail
+   reads as a stack of distinct blocks, not one unbroken line down the page. */
+.result-group {
+    margin: 0;
+    padding: 0 0 0 20px;
+    border-top: 1px solid var(--line-strong);
+    border-left: 3px solid var(--accent);
+}
+
+.results > .result-group {
+    margin-top: 30px;
+}
+
+.result-group > .result-group {
+    margin-top: 22px;
+}
+
+.result-group > .result-group {
+    border-left-color: var(--line-strong);
+}
+
+/* Air between a group's own content and a nested sub-group that follows it. */
+.result-group > * + .result-group,
+.result-group > table + .results-scroll,
+.results > table + .results-scroll,
+.result-group > .results-scroll + table {
+    margin-top: 6px;
+}
+
+/* Section header: a full-width band (pulled flush to the group's rail) so each
+   group reads as a titled section rather than another line of text. */
+.result-group-title {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 0 0 12px -20px;
+    padding: 12px 16px 12px 20px;
+    background: var(--surface-2);
+    border-bottom: 1px solid var(--line);
+    font-size: 0.82rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--accent-strong);
+}
+
+.result-group-title::before {
+    content: "";
+    flex: none;
+    width: 12px;
+    height: 3px;
+    background: var(--rgb);
+    box-shadow: var(--rgb-glow-sm);
+}
+
+.result-group table {
+    border-top: 1px solid var(--line);
+}
+
+.result-group td {
+    padding: 11px 14px;
+}
+
+/* Boolean verdicts as square badges; nulls a faint dash. */
+.value-flag {
+    display: inline-block;
+    font-size: 0.68rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    padding: 2px 8px;
+    border: 1px solid transparent;
+}
+
+.value-flag.is-true {
+    color: var(--ok);
+    background: var(--ok-soft);
+    border-color: rgba(10, 143, 87, 0.35);
+}
+
+.value-flag.is-false {
+    color: var(--ink-3);
+    background: var(--surface-3);
+    border-color: var(--line);
+}
+
+.value-null {
+    color: var(--ink-faint);
+}
+
+/* ---- Comparison matrix (same-shaped sibling records) ------------------- */
+/* Rows = each result (a column, a group…), columns = the shared metrics. Scrolls
+   sideways when wide; the row-label column is sticky so it stays anchored. */
+.results-scroll {
+    overflow-x: auto;
+}
+
+.matrix {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.matrix thead th {
+    padding: 12px 18px;
+    text-align: right;
+    white-space: nowrap;
+    font-size: 0.72rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--ink);
+    background: var(--surface-3);
+    border-bottom: 2px solid var(--accent);
+}
+
+.matrix tbody tr:nth-child(even) {
+    background: var(--surface-2);
+}
+
+.matrix tbody tr:hover {
+    background: var(--accent-soft);
+}
+
+.matrix td,
+.matrix .matrix-row-label {
+    padding: 12px 18px;
+    border-bottom: 1px solid var(--line);
+    font-size: 0.9rem;
+}
+
+.matrix tbody tr:last-child td,
+.matrix tbody tr:last-child .matrix-row-label {
+    border-bottom: none;
+}
+
+.matrix td.value {
+    text-align: right;
+    white-space: nowrap;
+    font-weight: 800;
+    font-size: 0.95rem;
+    font-variant-numeric: tabular-nums;
+    color: var(--ink);
+}
+
+/* Sticky first column: the group/row identifier, accent-strong with a glowing
+   RGB tick so each row reads as its own thing. */
+.matrix .matrix-corner,
+.matrix .matrix-row-label {
+    position: sticky;
+    left: 0;
+    text-align: left;
+    white-space: nowrap;
+}
+
+.matrix .matrix-corner {
+    background: var(--surface-3);
+    border-bottom: 2px solid var(--accent);
+    z-index: 1;
+}
+
+.matrix .matrix-row-label {
+    padding-left: 30px;
+    background: var(--surface);
+    font-size: 0.76rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--accent-strong);
+}
+
+.matrix tbody tr:nth-child(even) .matrix-row-label {
+    background: var(--surface-2);
+}
+
+.matrix tbody tr:hover .matrix-row-label {
+    background: var(--accent-soft);
+}
+
+.matrix .matrix-row-label::before {
+    content: "";
+    position: absolute;
+    left: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 10px;
+    height: 3px;
+    background: var(--rgb);
+    box-shadow: var(--rgb-glow-sm);
+}
+
+/* ---- Telemetry: ruled stat grid --------------------------------------- */
+.stat-grid {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    border-top: 1px solid var(--line-strong);
+    border-left: 1px solid var(--line-strong);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    box-shadow: var(--shadow-soft);
+}
+
+.stat-cell {
+    padding: 14px 16px;
+    border-right: 1px solid var(--line-strong);
+    border-bottom: 1px solid var(--line-strong);
+    background: var(--surface);
+    transition: background-color 0.14s ease;
+}
+
+.stat-cell:hover {
+    background: var(--accent-soft);
+}
+
+.stat-k {
+    margin: 0 0 9px;
+    font-size: 0.66rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.09em;
+    color: var(--ink-3);
+}
+
+.stat-note {
+    margin-left: 5px;
+    font-weight: 500;
+    letter-spacing: 0.02em;
+    color: var(--ink-faint);
+    text-transform: none;
+}
+
+.stat-v {
+    margin: 0;
+    font-size: 1.7rem;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+    color: var(--ink);
+}
+
+/* ---- Statistic reference (two-column grid) ---------------------------- */
+.legend {
+    margin: 0;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    border-top: 1px solid var(--line-strong);
+    border-left: 1px solid var(--line-strong);
+}
+
+.legend-row {
+    padding: 14px 16px;
+    border-right: 1px solid var(--line-strong);
+    border-bottom: 1px solid var(--line-strong);
+    transition: background-color 0.14s ease;
+}
+
 .legend-row:hover {
-    background-color: var(--surface-2);
-    border-left-color: var(--accent);
+    background: var(--surface-2);
 }
 
 .legend-term {
-    font-family: var(--font-mono);
+    display: block;
+    margin-bottom: 6px;
+    font-size: 0.82rem;
+    font-weight: 800;
     text-transform: uppercase;
-    letter-spacing: 0.1em;
-    font-size: 0.78rem;
-    font-weight: 600;
-    color: var(--text-muted);
-}
-
-.legend-row:hover .legend-term {
-    color: var(--text);
+    letter-spacing: 0.05em;
+    color: var(--accent-strong);
 }
 
 .legend-tag {
-    display: block;
-    margin-top: 5px;
+    margin-left: 8px;
     font-size: 0.62rem;
-    letter-spacing: 0.06em;
+    font-weight: 600;
+    letter-spacing: 0.02em;
     text-transform: none;
-    color: var(--text-faint);
+    color: var(--ink-faint);
 }
 
 .legend-def {
     margin: 0;
-    font-size: 0.94rem;
-    line-height: 1.6;
-    color: var(--text-body);
+    font-size: 0.93rem;
+    color: var(--ink-2);
 }
 
-/* Emphasised aside, not a box: a single cyan left rule keeps it in the flow. */
+/* Missing-data note: a full-width callout bar, not a card. */
 .legend-note {
-    margin: 24px 0 0;
-    padding: 4px 0 4px 16px;
-    border-left: 2px solid var(--accent-line);
+    margin: 0;
+    padding: 16px 18px;
+    border-top: 1px solid var(--line-strong);
+    border-left: 3px solid var(--accent);
+    background: var(--accent-soft);
     font-size: 0.92rem;
-    line-height: 1.65;
-    color: var(--text-body);
+    line-height: 1.6;
+    color: var(--ink-2);
 }
 
 .legend-note-key {
     display: block;
     margin-bottom: 6px;
-    font-family: var(--font-mono);
-    font-size: 0.68rem;
+    font-size: 0.7rem;
+    font-weight: 800;
     text-transform: uppercase;
-    letter-spacing: 0.12em;
-    color: var(--text-muted);
+    letter-spacing: 0.08em;
+    color: var(--accent-strong);
 }
 
-/* Raw source literal (NA / ? / null) -- neutral mono, deliberately NOT the cyan code chip. */
 .token {
-    font-family: var(--font-mono);
-    font-size: 0.85em;
-    color: var(--text);
+    font-family: var(--font);
+    font-weight: 700;
+    font-size: 0.9em;
+    color: var(--ink);
     background: var(--surface);
-    border: 1px solid var(--edge);
-    border-radius: var(--radius-sm);
+    border: 1px solid var(--line-strong);
     padding: 0 5px;
 }
 
-/* Real API routes in the footer -- kept lowercase (paths are case-sensitive) and
-   scrollable so the page body never scrolls sideways on narrow screens. */
-.footer-endpoints {
-    margin-bottom: 10px;
-    color: var(--text-faint);
-    text-transform: none;
+/* ---- Footer bar -------------------------------------------------------- */
+.page-footer {
+    position: relative;
+    border-top: 1px solid var(--line-strong);
+    background: var(--surface-2);
+    padding: 16px 18px;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px 18px;
+    font-size: 0.76rem;
+    color: var(--ink-3);
+}
+
+/* Glowing RGB rule capping the footer — bookends the signature rule up top. */
+.page-footer::before {
+    content: "";
+    position: absolute;
+    top: -1px;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: var(--rgb);
+    box-shadow: var(--rgb-glow);
+    animation: rgb-cycle 9s linear infinite;
+    pointer-events: none;
+}
+
+.page-footer p {
+    margin: 0;
+}
+
+.page-footer a {
+    color: var(--ink-2);
+    font-weight: 600;
+    text-decoration: none;
+    border-bottom: 1px solid var(--line-strong);
+    transition: color 0.14s ease, border-color 0.14s ease;
+}
+
+.page-footer a:hover {
+    color: var(--accent-strong);
+    border-bottom-color: var(--accent);
+}
+
+.footer-meta {
+    color: var(--ink-faint);
     letter-spacing: 0.04em;
-    overflow-x: auto;
-    white-space: nowrap;
 }
 
-.footer-endpoints-verb {
-    color: var(--text-muted);
-    letter-spacing: 0.1em;
-}
-
-@media (max-width: 480px) {
-    .legend-row {
-        grid-template-columns: 1fr;
-        gap: 4px;
-    }
-}
-
-/* ---- Loading reticle --------------------------------------------------- */
+/* ---- Boot loader ------------------------------------------------------- */
+/* Same subsystems, restyled as a framed "initializing" console. It still covers
+   the real cold-start latency; the joke log gives it life. */
 .loader-overlay {
     position: fixed;
     inset: 0;
     z-index: 100;
     display: flex;
-    flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 26px;
+    padding: 24px;
     background-color: var(--bg);
-    background-image: radial-gradient(circle at 50% 42%, rgba(34, 211, 238, 0.07), transparent 60%);
+    background-image:
+        linear-gradient(var(--grid-line) 1px, transparent 1px),
+        linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+    background-size: 26px 26px;
     transition: opacity 0.5s ease, visibility 0.5s ease;
 }
 
@@ -625,85 +1344,98 @@ td.value {
     pointer-events: none;
 }
 
+.loader-card {
+    width: min(480px, 94vw);
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    padding: 26px 24px;
+    background: var(--surface);
+    border: 1px solid var(--line-strong);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-card);
+}
+
 .loader-head {
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    align-items: center;
+    gap: 5px;
     text-align: center;
+    padding-bottom: 18px;
+    border-bottom: 1px solid var(--line);
+}
+
+.loader-mark {
+    margin-bottom: 10px;
+    display: grid;
+    place-items: center;
+    width: 42px;
+    height: 42px;
+    background: var(--ink);
+    border: 1px solid #000;
+    animation: rgb-cycle 9s linear infinite;
+}
+
+.loader-mark svg {
+    width: 26px;
+    height: 26px;
 }
 
 .loader-brand {
     margin: 0;
-    font-family: var(--font-mono);
-    font-size: 1.15rem;
-    font-weight: 700;
+    font-size: 1rem;
+    font-weight: 800;
+    letter-spacing: 0.03em;
     text-transform: uppercase;
-    letter-spacing: 0.22em;
-    color: var(--text);
-    text-shadow: 0 0 20px rgba(34, 211, 238, 0.2);
+    color: var(--ink);
 }
 
 .loader-sub {
     margin: 0;
-    font-family: var(--font-mono);
-    font-size: 0.66rem;
-    text-transform: uppercase;
-    letter-spacing: 0.2em;
-    color: var(--text-muted);
+    font-size: 0.74rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    color: var(--ink-3);
 }
 
-/* Build identifier: quiet metadata under the wordmark -- makes the splash read
-   like software booting rather than a page loading. */
 .loader-build {
     margin: 2px 0 0;
-    font-family: var(--font-mono);
-    font-size: 0.58rem;
-    text-transform: uppercase;
-    letter-spacing: 0.22em;
-    color: var(--text-faint);
+    font-size: 0.66rem;
+    letter-spacing: 0.05em;
+    color: var(--ink-faint);
 }
 
-/* Boot panel: stacks the header, staged channel bars, the scrolling console
-   feed, and the status strip, so the splash reads like a large engine linking
-   itself up at startup. */
-.loader-panel {
-    width: min(468px, 88vw);
-    display: flex;
-    flex-direction: column;
-    gap: 22px;
-}
-
-/* ---- Staged channel bars ---- */
 .boot-channels {
     list-style: none;
     margin: 0;
     padding: 0;
     display: flex;
     flex-direction: column;
-    gap: 9px;
+    gap: 10px;
 }
 
 .boot-channel {
     display: grid;
-    grid-template-columns: 104px 1fr 34px;
+    grid-template-columns: 108px 1fr 40px;
     align-items: center;
     gap: 12px;
-    font-family: var(--font-mono);
 }
 
 .boot-channel-label {
-    font-size: 0.6rem;
+    font-size: 0.66rem;
+    font-weight: 700;
     text-transform: uppercase;
-    letter-spacing: 0.13em;
-    color: var(--text-muted);
+    letter-spacing: 0.08em;
+    color: var(--ink-3);
     white-space: nowrap;
 }
 
 .boot-channel-track {
     position: relative;
-    height: 3px;
-    background: var(--surface-2);
-    border: 1px solid var(--edge);
+    height: 6px;
+    background: var(--surface-3);
+    border: 1px solid var(--line);
     overflow: hidden;
 }
 
@@ -712,49 +1444,47 @@ td.value {
     height: 100%;
     width: 0%;
     background: var(--accent);
-    box-shadow: 0 0 10px var(--accent-line);
-    transition: width 0.14s linear, background-color 0.2s ease;
+    box-shadow: 0 0 8px -1px var(--accent-line);
+    transition: width 0.14s linear, background 0.2s ease;
 }
 
-/* A finished channel brightens -- the "locked in" read. */
+/* A finished channel flips neon-green — the "locked in" read. */
 .boot-channel-fill.is-full {
-    background: var(--accent-hover);
+    background: var(--ok);
+    box-shadow: 0 0 8px -1px rgba(10, 143, 87, 0.6);
 }
 
 .boot-channel-pct {
-    font-size: 0.62rem;
+    font-size: 0.68rem;
+    font-weight: 700;
     font-variant-numeric: tabular-nums;
     text-align: right;
-    color: var(--text-muted);
+    color: var(--ink-3);
     transition: color 0.2s ease;
 }
 
 .boot-channel-pct.is-on {
-    color: var(--accent);
+    color: var(--ok);
 }
 
-/* ---- Console feed ---- */
-/* Fixed window, newest line pinned to the bottom; older lines scroll up and
-   clip. Lines fade in as they're appended. */
+/* Console feed: fixed window, newest line pinned to the bottom. */
 .boot-log {
-    height: 190px;
+    height: 168px;
     overflow: hidden;
     display: flex;
     flex-direction: column;
     justify-content: flex-end;
     gap: 3px;
-    padding: 10px 12px;
-    background: rgba(10, 16, 24, 0.55);
-    border: 1px solid var(--edge);
-    border-left: 2px solid var(--edge-hover);
-    font-family: var(--font-mono);
-    font-size: 0.66rem;
+    padding: 12px 14px;
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    font-size: 0.72rem;
     line-height: 1.5;
 }
 
 .boot-log-line {
     display: grid;
-    grid-template-columns: 42px 1fr;
+    grid-template-columns: 46px 1fr;
     gap: 10px;
     white-space: nowrap;
     animation: boot-log-in 0.18s ease both;
@@ -766,11 +1496,11 @@ td.value {
 }
 
 .boot-log-tag {
-    color: var(--text-faint);
-    letter-spacing: 0.1em;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    color: var(--ink-faint);
 }
 
-/* Milestone lines carry a lit tag; filler (joke) lines stay steel. */
 .boot-log-tag.is-ok {
     color: var(--accent);
 }
@@ -778,147 +1508,562 @@ td.value {
 .boot-log-msg {
     overflow: hidden;
     text-overflow: ellipsis;
-    color: var(--text-body);
+    color: var(--ink-2);
 }
 
-/* ---- Status strip ---- */
 .boot-status {
     margin: 0;
     display: flex;
     flex-wrap: wrap;
     justify-content: center;
-    gap: 6px 16px;
-    font-family: var(--font-mono);
-    font-size: 0.58rem;
+    gap: 6px 18px;
+    font-size: 0.64rem;
+    font-weight: 700;
     text-transform: uppercase;
-    letter-spacing: 0.14em;
-    color: var(--text-faint);
+    letter-spacing: 0.08em;
+    color: var(--ink-faint);
 }
 
 .boot-status-item b {
-    font-weight: 600;
-    color: var(--text-faint);
+    font-weight: 800;
+    color: var(--ink-faint);
     transition: color 0.2s ease;
 }
 
 .boot-status-item.is-on {
-    color: var(--text-muted);
+    color: var(--ink-3);
 }
 
 .boot-status-item.is-on b {
-    color: var(--accent);
-    text-shadow: 0 0 8px var(--accent-line);
+    color: var(--ok);
 }
 
-/* Respect reduced-motion: the JS already slows the churn to a calm fill; just
-   drop the overlay fade. */
-@media (prefers-reduced-motion: reduce) {
-    .loader-overlay {
-        transition: none;
-    }
-
-    .boot-channel-fill {
-        transition: none;
-    }
-
-    .boot-log-line {
-        animation: none;
-    }
-}
-
-/* ---- Boot transition -------------------------------------------------- */
-/* The "engine spin-up" flourish (Web/JS/transition.js) that plays between the
-   loader and the app: a full-screen canvas stacked above the loader, faded out
-   at the end to reveal the page. */
+/* ---- Boot transition --------------------------------------------------- */
+/* Brief handoff (Web/JS/transition.js): a framed light beat with the mark and a
+   neon R-G-B sweep, then a gentle fade + rise. */
 .boot-transition {
     position: fixed;
     inset: 0;
     z-index: 200;
-    background-color: var(--bg);
     display: grid;
     place-items: center;
+    background-color: var(--bg);
+    background-image:
+        linear-gradient(var(--grid-line) 1px, transparent 1px),
+        linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+    background-size: 26px 26px;
     opacity: 1;
-    transform: scale(1);
-    transition: opacity 0.5s ease, transform 0.5s cubic-bezier(0.55, 0, 0.9, 0.25),
-        filter 0.5s ease;
+    transition: opacity 0.5s ease, transform 0.5s ease;
     will-change: opacity, transform;
 }
 
-/* Motion reveal: the flashed scene punches toward the viewer and dissolves,
-   handing off to the page rising in underneath (@keyframes boot-page-enter). */
-.boot-transition.is-revealing {
-    opacity: 0;
-    transform: scale(1.9);
-    filter: brightness(1.7);
+.boot-transition-inner {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 18px;
+    padding: 30px 40px;
+    background: var(--surface);
+    border: 1px solid var(--line-strong);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-card);
 }
 
-/* Calm fallback (reduced-motion / no-canvas): a plain cross-fade. */
+.boot-transition-mark {
+    display: grid;
+    place-items: center;
+    width: 50px;
+    height: 50px;
+    background: var(--ink);
+    border: 1px solid #000;
+}
+
+.boot-transition-mark svg {
+    width: 30px;
+    height: 30px;
+}
+
+.boot-transition-sweep {
+    width: 168px;
+    height: 3px;
+    background: var(--surface-3);
+    overflow: hidden;
+    position: relative;
+}
+
+.boot-transition-sweep::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    transform: translateX(-100%);
+    background: var(--rgb);
+    box-shadow: var(--rgb-glow);
+    animation: boot-sweep 0.9s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+@keyframes boot-sweep {
+    to { transform: translateX(0); }
+}
+
+.boot-transition.is-revealing {
+    opacity: 0;
+    transform: scale(1.015);
+}
+
 .boot-transition.is-fading {
     opacity: 0;
     transition: opacity 0.42s ease;
 }
 
-@keyframes boot-page-enter {
-    from {
-        opacity: 0;
-        transform: translateY(16px) scale(0.985);
-    }
-    to {
-        opacity: 1;
-        transform: none;
-    }
-}
-
-body.boot-page-enter .page {
-    animation: boot-page-enter 0.55s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-.boot-transition canvas {
-    position: absolute;
-    inset: 0;
-    width: 100%;
-    height: 100%;
-}
-
-/* "ENGINE ONLINE" tag: hidden until the JS marks the ring as established, then
-   snaps in and gets washed out by the closing flash. */
 .boot-transition-label {
-    position: relative;
     margin: 0;
-    font-family: var(--font-mono);
-    font-size: 0.82rem;
-    font-weight: 700;
+    font-size: 0.72rem;
+    font-weight: 800;
     text-transform: uppercase;
-    letter-spacing: 0.42em;
-    text-indent: 0.42em; /* balance the trailing letter-spacing */
-    color: var(--accent);
-    text-shadow: 0 0 18px rgba(34, 211, 238, 0.55);
+    letter-spacing: 0.24em;
+    text-indent: 0.24em;
+    color: var(--ink);
     opacity: 0;
-    transform: scale(0.94);
+    transform: translateY(4px);
     transition: opacity 0.25s ease, transform 0.25s ease;
 }
 
 .boot-transition-label.is-shown {
     opacity: 1;
-    transform: scale(1);
+    transform: none;
 }
 
+@keyframes boot-page-enter {
+    from { opacity: 0; transform: translateY(14px); }
+    to { opacity: 1; transform: none; }
+}
+
+body.boot-page-enter .page {
+    animation: boot-page-enter 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* ---- Motion & responsive ---------------------------------------------- */
 @media (prefers-reduced-motion: reduce) {
+    .loader-overlay,
+    .boot-channel-fill,
+    .boot-transition,
     .boot-transition-label {
-        transition: none;
+        transition-duration: 0.01ms;
     }
 
+    .boot-log-line,
+    .live::before,
+    .spec-live::before,
+    .boot-transition-sweep::after,
+    .rgb-rule,
+    .brand-mark,
+    .loader-mark,
+    .pips,
+    .pips i,
+    .results::before,
+    .page-footer::before,
     body.boot-page-enter .page {
         animation: none;
     }
 }
 
-@media (max-width: 480px) {
-    body {
-        padding: 32px 12px;
+@media (max-width: 860px) {
+    .stat-grid {
+        grid-template-columns: repeat(3, 1fr);
+    }
+}
+
+@media (max-width: 720px) {
+    .masthead {
+        grid-template-columns: 1fr;
     }
 
-    .flow-section {
-        padding: 24px 0;
+    .masthead-spec {
+        border-left: none;
+        border-top: 1px solid var(--line);
+        flex-direction: row;
+        flex-wrap: wrap;
+    }
+
+    .spec-row {
+        flex: 1 1 46%;
+        border-bottom: 1px solid var(--line);
+    }
+}
+
+@media (max-width: 560px) {
+    body {
+        padding: 14px 12px 32px;
+    }
+
+    .page {
+        border-radius: var(--radius-md);
+        box-shadow: var(--shadow-soft);
+    }
+
+    .module-body {
+        padding: 18px 16px;
+    }
+
+    .bar-meta {
+        gap: 10px;
+    }
+
+    .stat-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .masthead-spec {
+        flex-direction: column;
+    }
+
+    .spec-row {
+        flex: 1 1 auto;
+    }
+
+    .legend {
+        grid-template-columns: 1fr;
+    }
+
+    .field {
+        grid-template-columns: 1fr;
+        gap: 8px;
+    }
+
+    .field-label {
+        padding-top: 0;
+    }
+}
+
+/* =========================================================================
+   MULTI-PAGE CHROME
+   Added when the console grew from one screen into a small site: a primary
+   nav that rides under the status bar on every page, plus the components the
+   new pages are built from (capability ribbon, breadcrumb, document sheet,
+   release timeline, status tags). Everything below reuses the tokens above,
+   so the extra pages read as the same instrument, not a bolted-on section.
+   ========================================================================= */
+
+/* ---- Primary navigation ------------------------------------------------- */
+.mainnav {
+    display: flex;
+    align-items: stretch;
+    padding: 0 8px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--line);
+    /* One line on narrow panels: swipe sideways rather than wrap into a block. */
+    overflow-x: auto;
+    scrollbar-width: none;
+}
+
+.mainnav::-webkit-scrollbar {
+    display: none;
+}
+
+.mainnav-link {
+    position: relative;
+    flex: none;
+    padding: 11px 15px 9px;
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    text-decoration: none;
+    white-space: nowrap;
+    border-bottom: 2px solid transparent;
+    transition: color 0.15s ease;
+}
+
+.mainnav-link:hover {
+    color: var(--ink);
+}
+
+.mainnav-link[aria-current] {
+    color: var(--accent);
+}
+
+/* The neon signature reused as the active-tab underline. */
+.mainnav-link[aria-current]::after {
+    content: "";
+    position: absolute;
+    left: 15px;
+    right: 15px;
+    bottom: 0;
+    height: 2px;
+    background: var(--rgb);
+    box-shadow: var(--rgb-glow-sm);
+}
+
+/* An external destination (the Studio/Docs consoles) gets a small ↗ mark. */
+.mainnav-link[data-ext]::before {
+    content: "↗";
+    margin-right: 5px;
+    font-size: 0.62rem;
+    color: var(--ink-faint);
+}
+
+/* ---- Capability ribbon (the marquee figures under a masthead) ----------- */
+.ribbon {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    border-top: 1px solid var(--line);
+    border-bottom: 1px solid var(--line);
+    background: var(--surface-2);
+}
+
+.ribbon-cell {
+    padding: 14px 18px;
+    border-left: 1px solid var(--line);
+}
+
+.ribbon-cell:first-child {
+    border-left: none;
+}
+
+.ribbon-v {
+    font-size: 1.45rem;
+    font-weight: 800;
+    line-height: 1.1;
+    color: var(--ink);
+    letter-spacing: -0.01em;
+    font-variant-numeric: tabular-nums;
+}
+
+.ribbon-v small {
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: var(--ink-3);
+    letter-spacing: 0;
+}
+
+.ribbon-k {
+    margin-top: 3px;
+    font-size: 0.63rem;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+}
+
+/* ---- Breadcrumb --------------------------------------------------------- */
+.crumbs {
+    padding: 13px 18px 0;
+    font-size: 0.67rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+}
+
+.crumbs a {
+    color: var(--ink-3);
+    text-decoration: none;
+}
+
+.crumbs a:hover {
+    color: var(--accent);
+}
+
+.crumbs b {
+    color: var(--ink);
+    font-weight: 700;
+}
+
+.crumbs .sep {
+    margin: 0 7px;
+    color: var(--line-strong);
+}
+
+/* ---- Document sheet: a plain data table for the prose pages ------------- */
+.sheet {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.86rem;
+    margin: 4px 0 2px;
+}
+
+.sheet caption {
+    text-align: left;
+    font-size: 0.63rem;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    padding-bottom: 8px;
+}
+
+.sheet th,
+.sheet td {
+    text-align: left;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--line);
+    vertical-align: top;
+}
+
+.sheet thead th {
+    font-size: 0.63rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    font-weight: 700;
+    background: var(--surface-2);
+    border-bottom: 1px solid var(--line-strong);
+}
+
+.sheet tbody tr:nth-child(even) {
+    background: var(--surface-2);
+}
+
+.sheet td.num,
+.sheet th.num {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    color: var(--ink);
+}
+
+.sheet .rowkey {
+    font-weight: 700;
+    color: var(--ink);
+    white-space: nowrap;
+}
+
+/* A restrained inline formula token — sans, boxed, not a monospace break. */
+.expr {
+    display: inline-block;
+    padding: 1px 7px;
+    background: var(--surface-3);
+    border: 1px solid var(--line);
+    color: var(--ink);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.01em;
+    white-space: nowrap;
+}
+
+/* ---- Status tags -------------------------------------------------------- */
+.tag {
+    display: inline-block;
+    font-size: 0.6rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    padding: 2px 7px;
+    border: 1px solid var(--line);
+    color: var(--ink-3);
+    background: var(--surface);
+    vertical-align: middle;
+}
+
+.tag--now {
+    color: var(--ok);
+    border-color: rgba(10, 143, 87, 0.4);
+    background: var(--ok-soft);
+}
+
+.tag--next {
+    color: var(--accent);
+    border-color: var(--accent-line);
+    background: var(--accent-soft);
+}
+
+/* ---- Release timeline (changelog) --------------------------------------- */
+.timeline {
+    margin: 6px 0 0;
+    padding: 0;
+    list-style: none;
+}
+
+.release {
+    position: relative;
+    padding: 0 0 22px 22px;
+    border-left: 2px solid var(--line);
+}
+
+.release:last-child {
+    border-left-color: transparent;
+    padding-bottom: 0;
+}
+
+/* The node: a square tile on the spine, neon for the current release. */
+.release::before {
+    content: "";
+    position: absolute;
+    left: -6px;
+    top: 3px;
+    width: 10px;
+    height: 10px;
+    background: var(--surface);
+    border: 2px solid var(--line-strong);
+}
+
+.release--now::before {
+    background: var(--rgb);
+    border-color: transparent;
+    box-shadow: var(--rgb-glow-sm);
+}
+
+.release-head {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.release-ver {
+    font-size: 1rem;
+    font-weight: 800;
+    color: var(--ink);
+    letter-spacing: 0.01em;
+}
+
+.release-date {
+    font-size: 0.68rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+}
+
+.release-list {
+    margin: 8px 0 0;
+    padding-left: 18px;
+    color: var(--ink-2);
+    font-size: 0.9rem;
+}
+
+.release-list li {
+    margin: 3px 0;
+}
+
+.release-list b {
+    color: var(--ink);
+    font-weight: 700;
+}
+
+/* ---- Prose block spacing for the document pages ------------------------- */
+.prose + .prose {
+    margin-top: 14px;
+}
+
+.prose strong {
+    color: var(--ink);
+    font-weight: 700;
+}
+
+@media (max-width: 720px) {
+    .ribbon {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .ribbon-cell:nth-child(-n + 2) {
+        border-top: none;
+    }
+
+    .ribbon-cell:nth-child(2n + 1) {
+        border-left: none;
+    }
+
+    .ribbon-cell:nth-child(n + 3) {
+        border-top: 1px solid var(--line);
     }
 }

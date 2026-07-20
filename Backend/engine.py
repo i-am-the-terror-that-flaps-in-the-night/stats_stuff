@@ -33,7 +33,7 @@ IMPORT COST
     them off Render's cold-start path (see the "SPEED ON RENDER" note in app.py).
 """
 
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 import pandas as pd
@@ -47,6 +47,27 @@ NUMERIC_THRESHOLD = 0.8
 # under 0.05 means "this pattern would show up by pure chance less than 5% of
 # the time".
 ALPHA = 0.05
+
+# NHANES-style analytic files (Data/nhanes_analytic.csv) don't leave missing
+# cells blank -- they fill them with this one tiny magic number, which is really
+# a stand-in for "no value here", not a real measurement of ~0. Left alone it
+# would sink every mean, crush every variance, and fake tens of thousands of
+# data points -- exactly what the "missing values" note above warns against. So
+# we turn it back into a blank (NaN) on the way in. Real datasets like
+# Data/data.csv never contain it, so this is a no-op for them.
+NHANES_MISSING_FILL = 5.397605346934028e-79
+
+
+def _coerce_numeric(series):
+    """Parse a column as numbers, treating the NHANES fill value as missing.
+
+    Every place in the engine that turns a raw column into numbers goes through
+    here, so that fill value can never sneak into a statistic -- the same reason
+    _num() is the single exit every result leaves by. On datasets that don't use
+    the fill (like Data/data.csv) the .replace() simply finds nothing.
+    """
+    numbers = pd.to_numeric(series, errors="coerce")
+    return numbers.replace(NHANES_MISSING_FILL, np.nan)
 
 
 def df_cleanup(df):
@@ -64,7 +85,10 @@ def df_cleanup(df):
     """
     for col in df.columns:
         text = df[col].astype(str).str.replace(r"[$,]", "", regex=True)
-        numbers = pd.to_numeric(text, errors="coerce")
+        # _coerce_numeric drops the NHANES fill value before we decide anything:
+        # a column that is mostly fill is mostly missing, and shouldn't count as
+        # numeric or feed the statistics.
+        numbers = _coerce_numeric(text)
         if numbers.notna().mean() >= NUMERIC_THRESHOLD:
             df[col] = numbers
     return df
@@ -114,13 +138,13 @@ class DataAnalyzer:
 
     def _numbers(self, column):
         """One column as numbers, with unreadable and missing cells dropped."""
-        return pd.to_numeric(self.df[column], errors="coerce").dropna()
+        return _coerce_numeric(self.df[column]).dropna()
 
     def _numbers_for(self, *columns):
         """Several columns as numbers, keeping only rows where they are ALL
         present. Correlation and regression need matched-up rows, so a row with
         a gap in any one column has to go."""
-        frame = self.df[list(columns)].apply(pd.to_numeric, errors="coerce")
+        frame = self.df[list(columns)].apply(_coerce_numeric)
         return frame.dropna()
 
     def _value_and_group(self, value_column, group_column):
@@ -128,7 +152,7 @@ class DataAnalyzer:
         keeping only rows where both are present. The group column stays as
         labels; only the value column is turned into numbers."""
         data = self.df[[value_column, group_column]].copy()
-        data[value_column] = pd.to_numeric(data[value_column], errors="coerce")
+        data[value_column] = _coerce_numeric(data[value_column])
         return data.dropna()
 
     def _numeric_column_names(self):
@@ -137,7 +161,7 @@ class DataAnalyzer:
         return [
             col
             for col in self.df.columns
-            if pd.to_numeric(self.df[col], errors="coerce").notna().mean()
+            if _coerce_numeric(self.df[col]).notna().mean()
                >= NUMERIC_THRESHOLD
         ]
 
@@ -410,7 +434,7 @@ class DataAnalyzer:
         parts = []
         for name in x_columns:
             column = self.df[name]
-            numbers = pd.to_numeric(column, errors="coerce")
+            numbers = _coerce_numeric(column)
             if numbers.notna().mean() >= NUMERIC_THRESHOLD:
                 parts.append(numbers.rename(name))
             else:
@@ -429,7 +453,7 @@ class DataAnalyzer:
         try:
             import statsmodels.api as smapi
 
-            y = pd.to_numeric(self.df[y_column], errors="coerce")
+            y = _coerce_numeric(self.df[y_column])
             design = self._build_design_matrix(x_columns)
             # Line up outcome and predictors, then keep only complete rows.
             frame = pd.concat([y.rename(y_column), design], axis=1).dropna()
@@ -439,8 +463,8 @@ class DataAnalyzer:
             # fit into NaNs.
             row_weights = None
             if weights is not None:
-                row_weights = pd.to_numeric(
-                    self.df[weights], errors="coerce"
+                row_weights = _coerce_numeric(
+                    self.df[weights]
                 ).reindex(frame.index)
                 frame = frame[row_weights.notna()]
                 row_weights = row_weights.dropna()
@@ -629,10 +653,16 @@ class DataAnalyzer:
             from statsmodels.stats.outliers_influence import variance_inflation_factor
 
             frame = self._numbers_for(*x_columns)
-            # add_constant sticks a "const" column of 1s on the front, so the
-            # names line up as ["const", then the real columns].
-            matrix = np.asarray(smapi.add_constant(frame))
-            names = ["const", *frame.columns]
+            # add_constant sticks a "const" column of 1s on the front. Take the
+            # names from the result it actually produced, not from an assumed
+            # layout: if a predictor is already constant (which the complete-case
+            # filtering above can cause) add_constant skips its own column, and a
+            # hand-built ["const", ...] list would then be one name too long.
+            # add_constant returns a DataFrame here (it's given one), but the
+            # stubs type it as a bare ndarray -- cast so .columns resolves.
+            design = cast(pd.DataFrame, smapi.add_constant(frame))
+            matrix = np.asarray(design)
+            names = list(design.columns)
 
             vifs = {
                 name: _num(variance_inflation_factor(matrix, i))
@@ -714,10 +744,10 @@ class DataAnalyzer:
         # Match column names case-insensitively -- files spell it "HDL", "hdl", ...
         by_lowercase_name = {c.lower(): c for c in self.df.columns}
         if "triglycerides" in by_lowercase_name and "hdl" in by_lowercase_name:
-            triglycerides = pd.to_numeric(
-                self.df[by_lowercase_name["triglycerides"]], errors="coerce"
+            triglycerides = _coerce_numeric(
+                self.df[by_lowercase_name["triglycerides"]]
             )
-            hdl = pd.to_numeric(self.df[by_lowercase_name["hdl"]], errors="coerce")
+            hdl = _coerce_numeric(self.df[by_lowercase_name["hdl"]])
             # An HDL of 0 would divide to infinity; throw those rows out.
             ratio = (triglycerides / hdl).replace([np.inf, -np.inf], np.nan).dropna()
             metrics["trig_hdl_ratio"] = {
@@ -953,12 +983,13 @@ def main(argv=None):
 
     app.py is the real front door, but booting a web server just to see what
     advanced_analysis() returns is slow. This loads a CSV the same way the app
-    does (Data/data.csv by default), runs a tier, and prints the result:
+    does (Data/nhanes_analytic.csv by default), runs a tier, and prints the
+    result. NHANES columns are coded (RIDAGEYR = age, BMXBMI = BMI):
 
-        python Backend/engine.py                              # basic, every numeric column
-        python Backend/engine.py --tier advanced --column Age
-        python Backend/engine.py --tier medium --column Score --group Gender
-        python Backend/engine.py --csv Data/laptopData.csv --tier categorical
+        python Backend/engine.py --column BMXBMI                    # basic BMI
+        python Backend/engine.py --tier medium --column BMXBMI --group RIAGENDR
+        python Backend/engine.py --tier advanced --column LBXTC     # total cholesterol
+        python Backend/engine.py --csv Data/data.csv --column Age   # the small demo set
 
     With no --column it runs the tier on every column that fits: the numeric
     columns for the number tiers, the label columns for the categorical tier.
@@ -977,7 +1008,7 @@ def main(argv=None):
     )
     parser.add_argument(
         "--csv", type=Path, default=default_csv,
-        help="CSV file to analyze (default: Data/data.csv).",
+        help="CSV file to analyze (default: Data/nhanes_analytic.csv).",
     )
     parser.add_argument(
         "--tier", default="basic", choices=list(_TIERS),

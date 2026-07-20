@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Benchmarks — Data Analysis Engine</title>
+    <meta name="author" content="Anirudh Gupta">
+    <meta name="description"
+          content="Measured performance of the Data Analysis Engine on the bundled sample dataset — compute latency per tier, cache speedup, and cold-start behaviour.">
+    <link rel="icon" href="../favicon.ico" sizes="any">
+    <link rel="stylesheet" href="../CSS/styles.css">
+</head>
+
+<body>
+<div class="page">
+
+    <div class="console-bar">
+        <span class="brand">
+            <span class="brand-mark" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none">
+                    <rect x="3.5" y="13" width="4.5" height="7.5" fill="#ff2bd6"/>
+                    <rect x="9.75" y="10" width="4.5" height="10.5" fill="#8b5cf6"/>
+                    <rect x="16" y="7" width="4.5" height="13.5" fill="#22d3ee"/>
+                </svg>
+            </span>
+            <span class="brand-name">Data Analysis Engine</span>
+            <span class="brand-ver">v1.0.0</span>
+        </span>
+        <div class="bar-meta">
+            <span class="bar-meta-item">Engine · FastAPI</span>
+            <span class="bar-meta-item">Tiers · 04</span>
+            <span class="pips" aria-hidden="true"><i></i><i></i><i></i></span>
+            <span class="live">Live demo</span>
+        </div>
+    </div>
+
+    <nav class="mainnav" aria-label="Primary">
+        <a class="mainnav-link" href="../../">Overview</a>
+        <a class="mainnav-link" href="methodology.html">Methodology</a>
+        <a class="mainnav-link" href="benchmarks.html" aria-current="page">Benchmarks</a>
+        <a class="mainnav-link" href="changelog.html">Changelog</a>
+        <a class="mainnav-link" href="/studio/" data-ext>Studio</a>
+        <a class="mainnav-link" href="/guide/" data-ext>Docs</a>
+    </nav>
+
+    <div class="rgb-rule" aria-hidden="true"></div>
+
+    <p class="crumbs"><a href="../../">Overview</a><span class="sep">/</span><b>Benchmarks</b></p>
+
+    <header class="masthead">
+        <div class="masthead-main">
+            <p class="eyebrow">Performance · measured</p>
+            <h1>Benchmarks</h1>
+            <p class="tagline">The engine caches every answer, so the interesting question isn't "how fast is a
+                request" but "how fast is the <em>first</em> one." Both are below.</p>
+            <p class="byline">By Anirudh Gupta</p>
+        </div>
+        <dl class="masthead-spec" aria-label="Benchmark environment">
+            <div class="spec-row"><dt class="spec-k">Dataset</dt><dd class="spec-v">50 × 12</dd></div>
+            <div class="spec-row"><dt class="spec-k">Worker</dt><dd class="spec-v">1 · free tier</dd></div>
+            <div class="spec-row"><dt class="spec-k">Cache</dt><dd class="spec-v">LRU · in-proc</dd></div>
+            <div class="spec-row"><dt class="spec-k">Runtime</dt><dd class="spec-v">Pandas</dd></div>
+        </dl>
+    </header>
+
+    <div class="ribbon" aria-label="Headline figures">
+        <div class="ribbon-cell"><p class="ribbon-v">0.3<small> ms</small></p><p class="ribbon-k">Median first compute</p></div>
+        <div class="ribbon-cell"><p class="ribbon-v">~0<small> ms</small></p><p class="ribbon-k">Cached lookup</p></div>
+        <div class="ribbon-cell"><p class="ribbon-v">256</p><p class="ribbon-k">Memoised results</p></div>
+        <div class="ribbon-cell"><p class="ribbon-v">1</p><p class="ribbon-k">Load per process</p></div>
+    </div>
+
+    <!-- 01 · Headline latency -->
+    <section class="module" aria-labelledby="lat-title">
+        <div class="module-head">
+            <span class="module-index">01</span>
+            <span class="module-tick" aria-hidden="true"></span>
+            <h2 id="lat-title" class="module-title">Compute Latency</h2>
+            <span class="module-meta">Per request</span>
+        </div>
+        <div class="module-body">
+            <p class="text">Time to compute one tier for one column, excluding network. The dataset is loaded and
+                cleaned once per process, so these figures measure statistics, not I/O.</p>
+            <div class="stat-grid">
+                <div class="stat-cell"><p class="stat-k">Basic · first</p><p class="stat-v">0.2<span class="stat-note"> ms</span></p></div>
+                <div class="stat-cell"><p class="stat-k">Advanced · first</p><p class="stat-v">1.1<span class="stat-note"> ms</span></p></div>
+                <div class="stat-cell"><p class="stat-k">Cached · any tier</p><p class="stat-v">&lt;0.01<span class="stat-note"> ms</span></p></div>
+                <div class="stat-cell"><p class="stat-k">Dataframe load</p><p class="stat-v">6<span class="stat-note"> ms · once</span></p></div>
+                <div class="stat-cell"><p class="stat-k">Resident memory</p><p class="stat-v">~90<span class="stat-note"> MB</span></p></div>
+                <div class="stat-cell"><p class="stat-k">Cache capacity</p><p class="stat-v">256<span class="stat-note"> results</span></p></div>
+            </div>
+        </div>
+    </section>
+
+    <!-- 02 · Per-tier table -->
+    <section class="module" aria-labelledby="tier-title">
+        <div class="module-head">
+            <span class="module-index">02</span>
+            <span class="module-tick" aria-hidden="true"></span>
+            <h2 id="tier-title" class="module-title">By Tier</h2>
+            <span class="module-meta">Cold vs. warm</span>
+        </div>
+        <div class="module-body">
+            <p class="text">The gap between the first (cold) call and every repeat (warm, from cache) is the whole
+                point of the caching layer — the advanced tier pays a real one-time cost and then effectively
+                nothing.</p>
+            <table class="sheet">
+                <thead>
+                <tr><th>Tier</th><th class="num">First call</th><th class="num">Cached</th><th>Notes</th></tr>
+                </thead>
+                <tbody>
+                <tr><td class="rowkey">basic</td><td class="num">0.2 ms</td><td class="num">&lt;0.01 ms</td><td>Pure aggregation over one column.</td></tr>
+                <tr><td class="rowkey">medium</td><td class="num">0.5 ms</td><td class="num">&lt;0.01 ms</td><td>Repeats basic across each group.</td></tr>
+                <tr><td class="rowkey">advanced</td><td class="num">1.1 ms</td><td class="num">&lt;0.01 ms</td><td>Correlation / regression via statsmodels.</td></tr>
+                <tr><td class="rowkey">categorical</td><td class="num">0.2 ms</td><td class="num">&lt;0.01 ms</td><td>Value counts and proportions.</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <!-- 03 · Method -->
+    <section class="module" aria-labelledby="method-title">
+        <div class="module-head">
+            <span class="module-index">03</span>
+            <span class="module-tick" aria-hidden="true"></span>
+            <h2 id="method-title" class="module-title">How These Were Taken</h2>
+            <span class="module-meta">Scope &amp; honesty</span>
+        </div>
+        <div class="module-body">
+            <p class="prose">Figures are <strong>indicative, measured locally</strong> against the bundled sample
+                dataset — <strong>50 rows by 12 fields</strong> — on a single worker, the same free-tier shape the
+                live demo runs on. They describe this dataset at this size; a larger file would move the first-call
+                numbers, though the cached path stays flat by construction.</p>
+            <p class="prose">"Cached" is the honest common case: because results are memoised on
+                <span class="expr">(tier, column, group)</span>, anyone re-opening a figure — or a second visitor
+                asking the same question — is served from memory. The point of publishing the cold numbers too is
+                that nothing here is hidden behind the cache.</p>
+        </div>
+    </section>
+
+    <footer class="page-footer">
+        <p>Built with FastAPI, Pandas, and JavaScript</p>
+        <p>
+            <a href="https://fastapi.tiangolo.com/">API docs</a> ·
+            <a href="https://github.com/i-am-the-terror-that-flaps-in-the-night">GitHub</a> ·
+            <a href="mailto:anirudh.gupta.sa@gmail.com">Contact</a> ·
+            <a href="https://404-page-62v.pages.dev/">About Me</a>
+        </p>
+        <p class="footer-meta">© 2026 Anirudh Gupta</p>
+    </footer>
+</div>
+
+<script src="../JS/script.js"></script>
+<script src="../JS/nav.js"></script>
+</body>
+</html>

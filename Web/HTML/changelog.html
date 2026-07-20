@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Changelog — Data Analysis Engine</title>
+    <meta name="author" content="Anirudh Gupta">
+    <meta name="description"
+          content="Release history and roadmap for the Data Analysis Engine — how a basic-statistics script grew into a four-tier engine with its own console.">
+    <link rel="icon" href="../favicon.ico" sizes="any">
+    <link rel="stylesheet" href="../CSS/styles.css">
+</head>
+
+<body>
+<div class="page">
+
+    <div class="console-bar">
+        <span class="brand">
+            <span class="brand-mark" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none">
+                    <rect x="3.5" y="13" width="4.5" height="7.5" fill="#ff2bd6"/>
+                    <rect x="9.75" y="10" width="4.5" height="10.5" fill="#8b5cf6"/>
+                    <rect x="16" y="7" width="4.5" height="13.5" fill="#22d3ee"/>
+                </svg>
+            </span>
+            <span class="brand-name">Data Analysis Engine</span>
+            <span class="brand-ver">v1.0.0</span>
+        </span>
+        <div class="bar-meta">
+            <span class="bar-meta-item">Engine · FastAPI</span>
+            <span class="bar-meta-item">Tiers · 04</span>
+            <span class="pips" aria-hidden="true"><i></i><i></i><i></i></span>
+            <span class="live">Live demo</span>
+        </div>
+    </div>
+
+    <nav class="mainnav" aria-label="Primary">
+        <a class="mainnav-link" href="../../">Overview</a>
+        <a class="mainnav-link" href="methodology.html">Methodology</a>
+        <a class="mainnav-link" href="benchmarks.html">Benchmarks</a>
+        <a class="mainnav-link" href="changelog.html" aria-current="page">Changelog</a>
+        <a class="mainnav-link" href="/studio/" data-ext>Studio</a>
+        <a class="mainnav-link" href="/guide/" data-ext>Docs</a>
+    </nav>
+
+    <div class="rgb-rule" aria-hidden="true"></div>
+
+    <p class="crumbs"><a href="../../">Overview</a><span class="sep">/</span><b>Changelog</b></p>
+
+    <header class="masthead">
+        <div class="masthead-main">
+            <p class="eyebrow">Release notes</p>
+            <h1>Changelog</h1>
+            <p class="tagline">How a short basic-statistics script grew into a four-tier engine with a JSON API, a
+                caching layer, and its own analysis console.</p>
+            <p class="byline">By Anirudh Gupta</p>
+        </div>
+        <dl class="masthead-spec" aria-label="Release status">
+            <div class="spec-row"><dt class="spec-k">Current</dt><dd class="spec-v">v1.0.0</dd></div>
+            <div class="spec-row"><dt class="spec-k">Released</dt><dd class="spec-v">2026·07·09</dd></div>
+            <div class="spec-row"><dt class="spec-k">Cadence</dt><dd class="spec-v">Iterative</dd></div>
+            <div class="spec-row"><dt class="spec-k">Status</dt><dd class="spec-v">Stable</dd></div>
+        </dl>
+    </header>
+
+    <!-- 01 · History -->
+    <section class="module" aria-labelledby="hist-title">
+        <div class="module-head">
+            <span class="module-index">01</span>
+            <span class="module-tick" aria-hidden="true"></span>
+            <h2 id="hist-title" class="module-title">Release History</h2>
+            <span class="module-meta">Newest first</span>
+        </div>
+        <div class="module-body">
+            <ul class="timeline">
+                <li class="release release--now">
+                    <div class="release-head">
+                        <span class="release-ver">v1.0.0</span>
+                        <span class="tag tag--now">Current</span>
+                        <span class="release-date">09 Jul 2026</span>
+                    </div>
+                    <ul class="release-list">
+                        <li><b>Console redesign</b> — the "terminal ledger" theme, a staged boot sequence, and the multi-page site you're reading now.</li>
+                        <li><b>Studio</b> — a server-rendered analysis browser and run log alongside the live dashboard.</li>
+                        <li><b>Consolidated backend</b> — one FastAPI process serves the API, the dashboard, and every page.</li>
+                    </ul>
+                </li>
+                <li class="release">
+                    <div class="release-head">
+                        <span class="release-ver">v0.9.0</span>
+                        <span class="release-date">Jun 2026</span>
+                    </div>
+                    <ul class="release-list">
+                        <li><b>Advanced tier</b> — correlation and regression, wired through statsmodels.</li>
+                        <li><b>Group-by</b> — the medium and advanced tiers can split a column across a category.</li>
+                    </ul>
+                </li>
+                <li class="release">
+                    <div class="release-head">
+                        <span class="release-ver">v0.8.0</span>
+                        <span class="release-date">Jun 2026</span>
+                    </div>
+                    <ul class="release-list">
+                        <li><b>Categorical tier</b> — counts and proportions for label columns.</li>
+                        <li><b>Dataset telemetry</b> — live shape, analyzable/categorical split, complete vs. reduced counts.</li>
+                    </ul>
+                </li>
+                <li class="release">
+                    <div class="release-head">
+                        <span class="release-ver">v0.5.0</span>
+                        <span class="release-date">May 2026</span>
+                    </div>
+                    <ul class="release-list">
+                        <li><b>Caching layer</b> — results memoised on <span class="expr">(tier, column, group)</span>; repeat questions are free.</li>
+                        <li><b>Overview endpoint</b> — dataset summary served without recomputation.</li>
+                    </ul>
+                </li>
+                <li class="release">
+                    <div class="release-head">
+                        <span class="release-ver">v0.3.0</span>
+                        <span class="release-date">Apr 2026</span>
+                    </div>
+                    <ul class="release-list">
+                        <li><b>HTTP API</b> — the engine wrapped in a FastAPI service with a JSON contract.</li>
+                        <li><b>Static dashboard</b> — the first browser front-end for picking a column and reading the result.</li>
+                    </ul>
+                </li>
+                <li class="release">
+                    <div class="release-head">
+                        <span class="release-ver">v0.1.0</span>
+                        <span class="release-date">Mar 2026</span>
+                    </div>
+                    <ul class="release-list">
+                        <li><b>The engine</b> — <span class="expr">engine.py</span>: basic descriptive statistics over a cleaned dataframe, and the missing-data rule that everything since has protected.</li>
+                    </ul>
+                </li>
+            </ul>
+        </div>
+    </section>
+
+    <!-- 02 · Roadmap -->
+    <section class="module" aria-labelledby="road-title">
+        <div class="module-head">
+            <span class="module-index">02</span>
+            <span class="module-tick" aria-hidden="true"></span>
+            <h2 id="road-title" class="module-title">Roadmap</h2>
+            <span class="module-meta">Planned</span>
+        </div>
+        <div class="module-body">
+            <p class="text">Where this is headed. Nothing below is live yet — it's the shortlist for the next
+                iterations.</p>
+            <table class="sheet">
+                <thead>
+                <tr><th>Item</th><th>What it adds</th><th>Status</th></tr>
+                </thead>
+                <tbody>
+                <tr><td class="rowkey">Bring-your-own CSV</td><td>Upload a file and analyse it in place, without redeploying.</td><td><span class="tag tag--next">Planned</span></td></tr>
+                <tr><td class="rowkey">Result export</td><td>Download any readout as CSV or JSON.</td><td><span class="tag tag--next">Planned</span></td></tr>
+                <tr><td class="rowkey">Inline charts</td><td>A small distribution sparkline beside each numeric result.</td><td><span class="tag tag--next">Exploring</span></td></tr>
+                <tr><td class="rowkey">Shareable runs</td><td>A permalink that reopens an exact tier / column / group.</td><td><span class="tag tag--next">Exploring</span></td></tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <footer class="page-footer">
+        <p>Built with FastAPI, Pandas, and JavaScript</p>
+        <p>
+            <a href="https://fastapi.tiangolo.com/">API docs</a> ·
+            <a href="https://github.com/i-am-the-terror-that-flaps-in-the-night">GitHub</a> ·
+            <a href="mailto:anirudh.gupta.sa@gmail.com">Contact</a> ·
+            <a href="https://404-page-62v.pages.dev/">About Me</a>
+        </p>
+        <p class="footer-meta">© 2026 Anirudh Gupta</p>
+    </footer>
+</div>
+
+<script src="../JS/script.js"></script>
+<script src="../JS/nav.js"></script>
+</body>
+</html>

@@ -7,7 +7,11 @@ services:
     runtime: python
     plan: free
     # Build and run from the repo root. The default start command `uvicorn
-    # main:app` resolves the root main.py, which re-exports Backend/app.py.
+    # main:app` resolves the root main.py, which re-exports Backend/app.py. No
+    # migrate step: the run log is a stdlib-sqlite3 file created on first write,
+    # and the free tier has no persistent disk anyway -- rows written at runtime
+    # don't survive the next deploy, which is why the log is a local-only tool
+    # and nothing on the live site depends on it.
     buildCommand: pip install -r requirements.txt
     startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
     # Render probes this for zero-downtime deploys; app.py returns 200 here.

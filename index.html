@@ -5,7 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Data Analysis — statistical engine by Anirudh Gupta</title>
     <meta name="author" content="Anirudh Gupta">
-    <meta name="description" content="A descriptive-statistics engine — the companion demo to Anirudh Gupta's Medicine & Health science-fair project.">
+    <meta name="description"
+          content="A descriptive-statistics engine — the companion demo to Anirudh Gupta's Medicine & Health science-fair project.">
     <link rel="icon" href="Web/favicon.ico" sizes="any">
     <link rel="stylesheet" href="Web/CSS/styles.css">
 </head>
@@ -15,8 +16,15 @@
 <!-- Loading splash: covers the page on first paint, then Web/JS/script.js fades
      it out once the app is ready (and after a minimum display time). -->
 <div id="loader" class="loader-overlay" role="status" aria-label="Loading, please wait">
-    <div class="loader-panel" aria-hidden="true">
+    <div class="loader-card" aria-hidden="true">
         <header class="loader-head">
+            <span class="loader-mark">
+                <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <rect x="3.5" y="13" width="4.5" height="7.5" fill="#ff2bd6"/>
+                    <rect x="9.75" y="10" width="4.5" height="10.5" fill="#8b5cf6"/>
+                    <rect x="16" y="7" width="4.5" height="13.5" fill="#22d3ee"/>
+                </svg>
+            </span>
             <p class="loader-brand">Data Analysis Engine</p>
             <p class="loader-sub">Statistical Engine · v1.0.0</p>
             <p class="loader-build">Build 2026.07.09 · FastAPI Core · Statistics Module</p>
@@ -38,113 +46,243 @@
 </div>
 
 <div class="page">
-    <header class="page-header">
-        <p class="eyebrow">Descriptive-statistics engine</p>
-        <h1>Data Analysis</h1>
-        <p class="tagline">The analysis engine behind my Medicine &amp; Health science-fair project — try it live below.</p>
-        <p class="byline">By Anirudh Gupta</p>
-    </header>
 
-    <section class="flow-section" aria-labelledby="analyze-title">
-        <p class="section-eyebrow">Analyze</p>
-        <h2 id="analyze-title" class="section-title">Statistical Analysis</h2>
-        <p class="text">Pick an analysis tier and a column from <code>data.csv</code> — optionally grouped by a category — and the engine computes the rest.</p>
-
-        <p class="control-label">Tier</p>
-        <ul class="channel-grid" id="tier-grid" role="list" aria-label="Analysis tier"></ul>
-
-        <p class="control-label" id="column-label">Column</p>
-        <ul class="channel-grid" id="channel-grid" role="list" aria-label="Columns">
-            <li class="channel-empty">Loading columns…</li>
-        </ul>
-
-        <div id="group-control" hidden>
-            <p class="control-label">Group by <span class="control-note">optional</span></p>
-            <ul class="channel-grid" id="group-grid" role="list" aria-label="Group by"></ul>
+    <!-- Top status bar -->
+    <div class="console-bar">
+        <span class="brand">
+            <span class="brand-mark" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none">
+                    <rect x="3.5" y="13" width="4.5" height="7.5" fill="#ff2bd6"/>
+                    <rect x="9.75" y="10" width="4.5" height="10.5" fill="#8b5cf6"/>
+                    <rect x="16" y="7" width="4.5" height="13.5" fill="#22d3ee"/>
+                </svg>
+            </span>
+            <span class="brand-name">Data Analysis Engine</span>
+            <span class="brand-ver">v1.0.0</span>
+        </span>
+        <div class="bar-meta">
+            <span class="bar-meta-item">Engine · FastAPI</span>
+            <span class="bar-meta-item">Tiers · 04</span>
+            <!-- Filled by Web/JS/script.js with the real API round-trip; stays
+                 hidden until (and unless) the backend answers. -->
+            <span class="bar-meta-item bar-live" id="link-latency"></span>
+            <span class="pips" aria-hidden="true"><i></i><i></i><i></i></span>
+            <span class="live">Live demo</span>
         </div>
+    </div>
 
-        <p id="status" class="status" role="status" aria-live="polite"></p>
+    <!-- Primary navigation: rides under the status bar on every page. Absolute
+         hrefs so the same markup works from "/" and from /Web/*.html. -->
+    <nav class="mainnav" aria-label="Primary">
+        <a class="mainnav-link" href="./" aria-current="page">Overview</a>
+        <a class="mainnav-link" href="Web/HTML/methodology.html">Methodology</a>
+        <a class="mainnav-link" href="Web/HTML/benchmarks.html">Benchmarks</a>
+        <a class="mainnav-link" href="Web/HTML/changelog.html">Changelog</a>
+        <a class="mainnav-link" href="/studio/" data-ext>Studio</a>
+        <a class="mainnav-link" href="/guide/" data-ext>Docs</a>
+    </nav>
 
-        <div id="results" class="results" hidden></div>
-    </section>
+    <div class="rgb-rule" aria-hidden="true"></div>
 
-    <section class="flow-section" aria-labelledby="tel-title">
-        <p class="section-eyebrow">Dataset</p>
-        <h2 id="tel-title" class="section-title">Dataset Telemetry</h2>
-        <p class="text">Live readout from the source this instrument is wired to.</p>
-        <table>
-            <tbody>
-                <tr><td class="label">Source</td><td class="value" id="tel-source">data.csv</td></tr>
-                <tr><td class="label">Records</td><td class="value" id="tel-rows">50</td></tr>
-                <tr><td class="label">Fields</td><td class="value" id="tel-cols">12</td></tr>
-                <tr><td class="label">Analyzable</td><td class="value" id="tel-numeric">10</td></tr>
-                <tr><td class="label">Categorical</td><td class="value" id="tel-categorical">2</td></tr>
-                <tr><td class="label">Complete <span class="label-note">n=50</span></td><td class="value" id="tel-complete">5</td></tr>
-                <tr><td class="label">Reduced <span class="label-note">n=49</span></td><td class="value" id="tel-reduced">5</td></tr>
-            </tbody>
-        </table>
-    </section>
-
-    <section class="flow-section" aria-labelledby="ref-title">
-        <p class="section-eyebrow">Reference</p>
-        <h2 id="ref-title" class="section-title">Statistic Reference</h2>
-        <p class="text">What each figure in the readout means — and how the numbers stay honest.</p>
-        <dl class="legend">
-            <div class="legend-row">
-                <dt class="legend-term">mean</dt>
-                <dd class="legend-def">Arithmetic average of the values. Sensitive to extremes — a single outlier pulls it.</dd>
+    <!-- Masthead: title on the left, an instrument nameplate on the right -->
+    <header class="masthead">
+        <div class="masthead-main">
+            <p class="eyebrow">Descriptive-statistics engine</p>
+            <h1>Data Analysis</h1>
+            <p class="tagline">The analysis engine behind my Medicine &amp; Health science-fair project — try it live
+                below.</p>
+            <p class="byline">By Anirudh Gupta</p>
+        </div>
+        <dl class="masthead-spec" aria-label="Engine specification">
+            <div class="spec-row">
+                <dt class="spec-k">Engine</dt>
+                <dd class="spec-v">FastAPI</dd>
             </div>
-            <div class="legend-row">
-                <dt class="legend-term">median</dt>
-                <dd class="legend-def">The middle value once sorted (the 50th percentile). Barely moved by outliers.</dd>
+            <div class="spec-row">
+                <dt class="spec-k">Runtime</dt>
+                <dd class="spec-v">Pandas</dd>
             </div>
-            <div class="legend-row">
-                <dt class="legend-term">mode</dt>
-                <dd class="legend-def">The most frequent value. Returned as a list, so every tie is shown — Age has four.</dd>
+            <div class="spec-row">
+                <dt class="spec-k">Build</dt>
+                <dd class="spec-v">2026.07.09</dd>
             </div>
-            <div class="legend-row">
-                <dt class="legend-term">min</dt>
-                <dd class="legend-def">The smallest value observed.</dd>
-            </div>
-            <div class="legend-row">
-                <dt class="legend-term">max</dt>
-                <dd class="legend-def">The largest value observed.</dd>
-            </div>
-            <div class="legend-row">
-                <dt class="legend-term">std <span class="legend-tag">sample · n−1</span></dt>
-                <dd class="legend-def">Standard deviation: the typical distance of a value from the mean.</dd>
-            </div>
-            <div class="legend-row">
-                <dt class="legend-term">variance <span class="legend-tag">= std²</span></dt>
-                <dd class="legend-def">The standard deviation squared — the same spread in squared units.</dd>
+            <div class="spec-row">
+                <dt class="spec-k">Status</dt>
+                <dd class="spec-v"><span class="spec-live">Live demo</span></dd>
             </div>
         </dl>
-        <p class="legend-note">
-            <span class="legend-note-key">Missing data</span>
-            Cells that can't be read as a number — a blank, <span class="token">NA</span>,
-            <span class="token">?</span>, or <span class="token">null</span> — are dropped, never
-            filled in. Five of the ten columns each lose exactly one such cell, so their stats
-            summarize 49 values instead of 50. Nothing is invented to close the gap.
-        </p>
+    </header>
+
+    <!-- Capability ribbon: the marquee figures, stated plainly. -->
+    <div class="ribbon" aria-label="At a glance">
+        <div class="ribbon-cell">
+            <p class="ribbon-v">04</p>
+            <p class="ribbon-k">Analysis tiers</p>
+        </div>
+        <div class="ribbon-cell">
+            <p class="ribbon-v">08</p>
+            <p class="ribbon-k">Statistics / column</p>
+        </div>
+        <div class="ribbon-cell">
+            <p class="ribbon-v">&lt;1<small> ms</small></p>
+            <p class="ribbon-k">Core compute</p>
+        </div>
+        <div class="ribbon-cell">
+            <p class="ribbon-v">100<small> %</small></p>
+            <p class="ribbon-k">Deterministic · cached</p>
+        </div>
+    </div>
+
+    <!-- 01 · Analyze -->
+    <section class="module" aria-labelledby="analyze-title">
+        <div class="module-head">
+            <span class="module-index">01</span>
+            <span class="module-tick" aria-hidden="true"></span>
+            <h2 id="analyze-title" class="module-title">Statistical Analysis</h2>
+            <span class="module-meta">Live compute</span>
+        </div>
+        <div class="module-body">
+            <p class="text">Pick an analysis tier and a column from <code>data.csv</code> — optionally grouped by a
+                category — and the engine computes the rest.</p>
+
+            <div class="fields">
+                <div class="field">
+                    <p class="field-label">Tier</p>
+                    <ul class="channel-grid" id="tier-grid" role="list" aria-label="Analysis tier"></ul>
+                </div>
+                <div class="field">
+                    <p class="field-label" id="column-label">Column</p>
+                    <ul class="channel-grid" id="channel-grid" role="list" aria-label="Columns">
+                        <li class="channel-empty">Loading columns…</li>
+                    </ul>
+                </div>
+                <div class="field" id="group-control" hidden>
+                    <p class="field-label">Group by <span class="field-note">optional</span></p>
+                    <ul class="channel-grid" id="group-grid" role="list" aria-label="Group by"></ul>
+                </div>
+            </div>
+
+            <p id="status" class="status" role="status" aria-live="polite"></p>
+
+            <div id="results" class="results" hidden></div>
+        </div>
+    </section>
+
+    <!-- 02 · Dataset telemetry -->
+    <section class="module" aria-labelledby="tel-title">
+        <div class="module-head">
+            <span class="module-index">02</span>
+            <span class="module-tick" aria-hidden="true"></span>
+            <h2 id="tel-title" class="module-title">Dataset Telemetry</h2>
+            <span class="module-meta">Source <code id="tel-source">data.csv</code></span>
+        </div>
+        <div class="module-body">
+            <p class="text">Live readout from the source this engine is wired to.</p>
+
+            <div class="stat-grid">
+                <div class="stat-cell">
+                    <p class="stat-k">Records</p>
+                    <p class="stat-v" id="tel-rows">50</p>
+                </div>
+                <div class="stat-cell">
+                    <p class="stat-k">Fields</p>
+                    <p class="stat-v" id="tel-cols">12</p>
+                </div>
+                <div class="stat-cell">
+                    <p class="stat-k">Analyzable</p>
+                    <p class="stat-v" id="tel-numeric">10</p>
+                </div>
+                <div class="stat-cell">
+                    <p class="stat-k">Categorical</p>
+                    <p class="stat-v" id="tel-categorical">2</p>
+                </div>
+                <div class="stat-cell">
+                    <p class="stat-k">Complete <span class="stat-note">n=50</span></p>
+                    <p class="stat-v" id="tel-complete">5</p>
+                </div>
+                <div class="stat-cell">
+                    <p class="stat-k">Reduced <span class="stat-note">n=49</span></p>
+                    <p class="stat-v" id="tel-reduced">5</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- 03 · Statistic reference -->
+    <section class="module" aria-labelledby="ref-title">
+        <div class="module-head">
+            <span class="module-index">03</span>
+            <span class="module-tick" aria-hidden="true"></span>
+            <h2 id="ref-title" class="module-title">Statistic Reference</h2>
+            <span class="module-meta">8 figures</span>
+        </div>
+        <div class="module-body">
+            <p class="text">What each figure in the readout means — and how the numbers stay honest.</p>
+            <dl class="legend">
+                <div class="legend-row">
+                    <dt class="legend-term">count <span class="legend-tag">n</span></dt>
+                    <dd class="legend-def">How many values went into the figures — missing cells are dropped, so some
+                        columns show 49, not 50.
+                    </dd>
+                </div>
+                <div class="legend-row">
+                    <dt class="legend-term">mean</dt>
+                    <dd class="legend-def">Arithmetic average of the values. Sensitive to extremes — a single outlier
+                        pulls it.
+                    </dd>
+                </div>
+                <div class="legend-row">
+                    <dt class="legend-term">median</dt>
+                    <dd class="legend-def">The middle value once sorted (the 50th percentile). Barely moved by outliers.
+                    </dd>
+                </div>
+                <div class="legend-row">
+                    <dt class="legend-term">mode</dt>
+                    <dd class="legend-def">The most frequent value. Returned as a list, so every tie is shown — Age has
+                        four.
+                    </dd>
+                </div>
+                <div class="legend-row">
+                    <dt class="legend-term">min</dt>
+                    <dd class="legend-def">The smallest value observed.</dd>
+                </div>
+                <div class="legend-row">
+                    <dt class="legend-term">max</dt>
+                    <dd class="legend-def">The largest value observed.</dd>
+                </div>
+                <div class="legend-row">
+                    <dt class="legend-term">std <span class="legend-tag">sample · n−1</span></dt>
+                    <dd class="legend-def">Standard deviation: the typical distance of a value from the mean.</dd>
+                </div>
+                <div class="legend-row">
+                    <dt class="legend-term">variance <span class="legend-tag">= std²</span></dt>
+                    <dd class="legend-def">The standard deviation squared — the same spread in squared units.</dd>
+                </div>
+            </dl>
+            <p class="legend-note">
+                <span class="legend-note-key">Missing data</span>
+                Cells that can't be read as a number — a blank, <span class="token">NA</span>,
+                <span class="token">?</span>, or <span class="token">null</span> — are dropped, never
+                filled in. Five of the ten columns each lose exactly one such cell, so their stats
+                summarize 49 values instead of 50. Nothing is invented to close the gap.
+            </p>
+        </div>
     </section>
 
     <footer class="page-footer">
+        <p>Built with FastAPI, Pandas, and JavaScript</p>
         <p>
-            Built with FastAPI, Pandas, and JavaScript
-        </p>
-
-        <p>
-            <a href="/docs">API docs</a> ·
+            <a href="https://fastapi.tiangolo.com/">API docs</a> ·
             <a href="https://github.com/i-am-the-terror-that-flaps-in-the-night">GitHub</a> ·
             <a href="mailto:anirudh.gupta.sa@gmail.com">Contact</a> ·
-            <a href="https://website-repo.anirudh-gupta-sa.workers.dev">About Me</a>
+            <a href="https://404-page-62v.pages.dev/">About Me</a>
         </p>
-
         <p class="footer-meta">© 2026 Anirudh Gupta</p>
     </footer>
 </div>
 
 <script src="Web/JS/transition.js"></script>
 <script src="Web/JS/script.js"></script>
+<script src="Web/JS/nav.js"></script>
 </body>
 </html>

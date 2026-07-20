@@ -65,6 +65,14 @@ figures/
 # ...but keep the small practice dataset tracked.
 !Data/data.csv
 
+# ---- Django ----
+# Local run log. The host has no persistent disk, so this is never shared state.
+# Committing it would bake a stale database into the deployed image.
+*.sqlite3
+*.sqlite3-journal
+*.sqlite3-wal
+*.sqlite3-shm
+
 # ---- Environment / secrets ----
 .env
 .env.*
@@ -95,3 +103,6 @@ nuclei*
 Thumbs.db
 ehthumbs.db
 Desktop.ini
+
+# Studio run-log (local lab notebook; free tier has no persistent disk)
+Backend/studio_runs.db

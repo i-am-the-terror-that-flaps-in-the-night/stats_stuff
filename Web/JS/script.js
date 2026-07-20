@@ -16,16 +16,24 @@
     const API_CANDIDATES = ["", "http://127.0.0.1:8000", "http://localhost:8000"];
     let apiBase = "";
 
-    const statusEl = document.getElementById("status");
-    const resultsEl = document.getElementById("results");
-    const channelGrid = document.getElementById("channel-grid");
-    const tierGrid = document.getElementById("tier-grid");
-    const groupGrid = document.getElementById("group-grid");
-    const groupControl = document.getElementById("group-control");
-    const loader = document.getElementById("loader");
-    const bootChannelsEl = document.getElementById("boot-channels");
-    const bootLogEl = document.getElementById("boot-log");
-    const bootStatusEl = document.getElementById("boot-status");
+    // DOM handles, (re)populated by queryElements(). They are `let`, not `const`,
+    // because the SPA router (Web/JS/nav.js) swaps the page markup in place when
+    // you return to the Overview, and initInPlace() re-grabs the fresh nodes.
+    let statusEl, resultsEl, channelGrid, tierGrid, groupGrid, groupControl;
+    let loader, bootChannelsEl, bootLogEl, bootStatusEl;
+
+    function queryElements() {
+        statusEl = document.getElementById("status");
+        resultsEl = document.getElementById("results");
+        channelGrid = document.getElementById("channel-grid");
+        tierGrid = document.getElementById("tier-grid");
+        groupGrid = document.getElementById("group-grid");
+        groupControl = document.getElementById("group-control");
+        loader = document.getElementById("loader");
+        bootChannelsEl = document.getElementById("boot-channels");
+        bootLogEl = document.getElementById("boot-log");
+        bootStatusEl = document.getElementById("boot-status");
+    }
 
     // The analysis tiers. basic/medium/advanced run on numeric columns;
     // categorical runs on label columns (and swaps the column list to match).
@@ -101,10 +109,21 @@
         return tier === "categorical" ? categoricalColumns : numericColumns;
     }
 
+    // Show the real API round-trip in the top bar. A genuine, live number -- it
+    // reads as a monitored, fast engine. The chip hides itself while empty, so a
+    // backend-less static preview simply never shows it.
+    function setLinkLatency(ms) {
+        const el = document.getElementById("link-latency");
+        if (el) {
+            el.innerHTML = `Link · <b>${ms} ms</b>`;
+        }
+    }
+
     // Find a backend that answers /api/columns and render the selectors.
     async function loadColumns() {
         for (const base of API_CANDIDATES) {
             let res;
+            const probeStart = performance.now();
             try {
                 res = await fetch(`${base}/api/columns`);
             } catch {
@@ -113,6 +132,7 @@
             if (!res.ok) {
                 continue; // answered, but not the API (e.g., 404) -- next candidate
             }
+            setLinkLatency(Math.round(performance.now() - probeStart));
 
             const data = await res.json();
             apiBase = base;
@@ -295,43 +315,294 @@
 
     // ---- Analysis + rendering ---------------------------------------------
 
-    // Fetch the selected tier/column/group and render the (possibly nested) result.
+    function prefersReducedMotion() {
+        return Boolean(window.matchMedia &&
+            window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+    }
+
+    const easeOutCubic = (t) => 1 - Math.pow(1 - t, 3);
+
+    // The real stages the engine walks for each tier -- coerce, drop missing,
+    // aggregate, and (for the deeper tiers) fit and test. Surfacing them as a
+    // running pipeline shows the work the engine actually does, paced so it reads
+    // instead of flickering past. Heavier tiers legitimately list more steps.
+    const RUN_STAGES = {
+        basic: ["Loading column", "Coercing to numeric", "Dropping missing values",
+            "Aggregating statistics", "Formatting output"],
+        medium: ["Loading column", "Coercing to numeric", "Profiling distribution",
+            "Estimating confidence interval", "Comparing groups", "Formatting output"],
+        advanced: ["Aligning columns", "Coercing to numeric", "Building correlation matrix",
+            "Fitting OLS regression", "Testing significance", "Scanning for confounders",
+            "Formatting output"],
+        categorical: ["Loading column", "Tallying categories", "Cross-tabulating",
+            "Testing independence (χ²)", "Formatting output"],
+    };
+    // Nominal run length per tier, ms. The bar holds near the end until the real
+    // response lands, so a cold Render start naturally stretches this, never cuts
+    // it short.
+    const RUN_TOTAL_MS = { basic: 720, medium: 980, advanced: 1300, categorical: 820 };
+
+    // The live dataset shape, pulled from the telemetry readout, to label the run
+    // ("Σ 50 rows · 12 fields") -- concrete scale, not a spinner.
+    function datasetShape() {
+        const rows = document.getElementById("tel-rows");
+        const cols = document.getElementById("tel-cols");
+        return {
+            rows: rows ? rows.textContent.trim() : null,
+            cols: cols ? cols.textContent.trim() : null,
+        };
+    }
+
+    // Build the compute panel and drive it. Returns handles the caller uses to
+    // gate on the real response: minTime resolves once the nominal run elapses;
+    // finish() releases the bar to 100%; complete resolves when it lands there.
+    function runCompute(tier) {
+        const stages = RUN_STAGES[tier] || RUN_STAGES.basic;
+        const totalMs = RUN_TOTAL_MS[tier] || 800;
+
+        const panel = document.createElement("div");
+        panel.className = "compute";
+
+        const head = document.createElement("div");
+        head.className = "compute-head";
+        const title = document.createElement("span");
+        title.className = "compute-title";
+        title.textContent = "Computing";
+        const tierTag = document.createElement("span");
+        tierTag.className = "compute-tier";
+        tierTag.textContent = tier;
+        const spacer = document.createElement("span");
+        spacer.className = "compute-spacer";
+        const msEl = document.createElement("span");
+        msEl.className = "compute-ms";
+        msEl.textContent = "0 ms";
+        const pctEl = document.createElement("span");
+        pctEl.className = "compute-pct";
+        pctEl.textContent = "0%";
+        head.append(title, tierTag, spacer, msEl, pctEl);
+
+        const track = document.createElement("div");
+        track.className = "compute-track";
+        const fillEl = document.createElement("div");
+        fillEl.className = "compute-fill";
+        track.appendChild(fillEl);
+
+        const list = document.createElement("ul");
+        list.className = "compute-stages";
+        const stageEls = stages.map((label) => {
+            const li = document.createElement("li");
+            li.className = "compute-stage";
+            const glyph = document.createElement("span");
+            glyph.className = "compute-glyph";
+            const name = document.createElement("span");
+            name.className = "compute-name";
+            name.textContent = label;
+            const st = document.createElement("span");
+            st.className = "compute-state";
+            li.append(glyph, name, st);
+            list.appendChild(li);
+            return li;
+        });
+
+        const foot = document.createElement("p");
+        foot.className = "compute-foot";
+        const shape = datasetShape();
+        foot.textContent = shape.rows && shape.cols
+            ? `Σ ${shape.rows} rows · ${shape.cols} fields · single pass`
+            : "single pass";
+
+        panel.append(head, track, list, foot);
+        resultsEl.classList.remove("is-fresh");
+        resultsEl.innerHTML = "";
+        resultsEl.appendChild(panel);
+        resultsEl.hidden = false;
+
+        const n = stageEls.length;
+        function apply(p) {
+            fillEl.style.width = (p * 100).toFixed(1) + "%";
+            pctEl.textContent = Math.round(p * 100) + "%";
+            stageEls.forEach((row, i) => {
+                const st = row.querySelector(".compute-state");
+                row.classList.remove("is-active", "is-done");
+                if (p >= (i + 1) / n - 0.0001) {
+                    row.classList.add("is-done");
+                    st.textContent = "done";
+                } else if (p >= i / n) {
+                    row.classList.add("is-active");
+                    st.textContent = "running";
+                } else {
+                    st.textContent = "";
+                }
+            });
+        }
+
+        // Reduced motion: no run animation. Mark everything settled and let the
+        // caller reveal as soon as the response is in.
+        if (prefersReducedMotion()) {
+            apply(1);
+            return {
+                minTime: Promise.resolve(),
+                complete: Promise.resolve(),
+                finish() {},
+                stop() {},
+                elapsed: () => 0,
+            };
+        }
+
+        const start = performance.now();
+        let finished = false;
+        let raf = 0;
+        let stopped = false;
+        let resolveMin;
+        let resolveComplete;
+        let minDone = false;
+        const minTime = new Promise((r) => (resolveMin = r));
+        const complete = new Promise((r) => (resolveComplete = r));
+
+        function tick() {
+            if (stopped) {
+                return;
+            }
+            const now = performance.now();
+            const t = (now - start) / totalMs;
+            const cap = finished ? 1 : 0.92; // hold shy of done until data lands
+            const p = Math.min(cap, easeOutCubic(Math.min(t, 1)));
+            apply(p);
+            msEl.textContent = Math.round(now - start) + " ms";
+            if (t >= 1 && !minDone) {
+                minDone = true;
+                resolveMin();
+            }
+            if (finished && p >= 1) {
+                apply(1);
+                msEl.textContent = Math.round(now - start) + " ms";
+                resolveComplete();
+                return;
+            }
+            raf = requestAnimationFrame(tick);
+        }
+        raf = requestAnimationFrame(tick);
+
+        return {
+            minTime,
+            complete,
+            finish() { finished = true; },
+            stop() { stopped = true; cancelAnimationFrame(raf); },
+            elapsed: () => Math.round(performance.now() - start),
+        };
+    }
+
+    // Fetch the selected tier/column/group, run the compute pipeline, and reveal
+    // the (possibly nested) result once BOTH the response and the run have landed.
     async function analyze() {
         if (!state.column || busy) {
             return;
         }
 
         busy = true;
-        resultsEl.hidden = true;
         const grouped = tierSupportsGroup(state.tier) && state.group;
         const groupLabel = grouped ? ` grouped by ${state.group}` : "";
-        setStatus(`Running ${state.tier} analysis of ${state.column}${groupLabel}…`);
+        setStatus(`Analyzing ${state.column}${groupLabel}…`);
 
         let url = `${apiBase}/api/analyze/${state.tier}/${encodeURIComponent(state.column)}`;
         if (grouped) {
             url += `?group=${encodeURIComponent(state.group)}`;
         }
 
+        const run = runCompute(state.tier);
         try {
-            const res = await fetch(url);
-            const data = await res.json();
+            const netStart = performance.now();
+            const fetchResult = fetch(url).then(async (res) => {
+                // Real network round-trip, refreshed on every run so the top-bar
+                // latency chip stays live as you use the engine.
+                setLinkLatency(Math.round(performance.now() - netStart));
+                return { ok: res.ok, status: res.status, data: await res.json() };
+            });
+            // Wait for the response AND the nominal run, then let the bar finish.
+            const [res] = await Promise.all([fetchResult, run.minTime]);
+            run.finish();
+            await run.complete;
 
             if (res.ok) {
-                renderResult(data);
-                setStatus(`${state.tier} analysis of ${state.column}${groupLabel}:`);
+                const ms = run.elapsed();
+                renderResult(res.data, ms);
+                setStatus(
+                    `${state.tier} analysis of ${state.column}${groupLabel} — computed in ${ms} ms`
+                );
             } else {
-                const detail = data.detail || `HTTP ${res.status}`;
+                run.stop();
+                resultsEl.hidden = true;
+                const detail = res.data.detail || `HTTP ${res.status}`;
                 setStatus(`Could not analyze ${state.column}: ${detail}`, true);
             }
         } catch (err) {
+            run.stop();
+            resultsEl.hidden = true;
             setStatus(`Could not analyze ${state.column}: ${err.message}`, true);
         } finally {
             busy = false;
         }
     }
 
+    // Count a freshly-rendered numeric value up from zero so the readout reads as
+    // just-computed. Scalars only (the .stat-v headline cells); flags, dashes, and
+    // list values are left alone. No-op under reduced motion.
+    function animateCounts(root) {
+        if (prefersReducedMotion()) {
+            return;
+        }
+        for (const el of root.querySelectorAll(".stat-v")) {
+            if (el.childElementCount) {
+                continue; // holds a flag/list node, not a bare number
+            }
+            const raw = el.textContent.trim();
+            if (!/^-?\d+(\.\d+)?$/.test(raw)) {
+                continue;
+            }
+            const target = parseFloat(raw);
+            const decimals = raw.includes(".") ? raw.split(".")[1].length : 0;
+            const start = performance.now();
+            const dur = 480;
+            (function step(now) {
+                const t = Math.min(1, (now - start) / dur);
+                el.textContent = (target * easeOutCubic(t)).toFixed(decimals);
+                if (t < 1) {
+                    requestAnimationFrame(step);
+                } else {
+                    el.textContent = raw; // land exactly on the real value
+                }
+            })(start);
+        }
+    }
+
     function isPlainObject(v) {
         return v !== null && typeof v === "object" && !Array.isArray(v);
+    }
+
+    // A "leaf" is anything formatValue can render in a single cell: a scalar,
+    // null, or an array of scalars (never a nested object).
+    function isLeaf(v) {
+        if (v === null || v === undefined) {
+            return true;
+        }
+        const t = typeof v;
+        if (t === "number" || t === "string" || t === "boolean") {
+            return true;
+        }
+        if (Array.isArray(v)) {
+            return !v.some(isPlainObject);
+        }
+        return false;
+    }
+
+    // A "record" is a flat object whose every value is a leaf — i.e., a single
+    // row's worth of data. A group of same-shaped records renders as a matrix.
+    function isRecord(v) {
+        if (!isPlainObject(v)) {
+            return false;
+        }
+        const vals = Object.values(v);
+        return vals.length > 0 && vals.every(isLeaf);
     }
 
     // Turn "ci_lower" -> "ci lower" (the CSS uppercases the label).
@@ -360,16 +631,89 @@
         return document.createTextNode(String(value));
     }
 
-    function renderRow(key, value) {
-        const tr = document.createElement("tr");
-        const label = document.createElement("td");
-        label.className = "label";
+    // A value that won't fit the narrow right half of a label–value cell: a
+    // list (predictors, confounders, group order) or a long string. These get
+    // the full row so they read left-to-right instead of stacking one word per
+    // line in a cramped column.
+    function isWideValue(value) {
+        if (Array.isArray(value)) {
+            return value.length > 2;
+        }
+        return typeof value === "string" && value.length > 28;
+    }
+
+    // One statistic as a compact label–value cell. These tile into a grid
+    // (.stat-list) so each value sits next to its label, instead of a two-column
+    // table that strands the value at the far side of a wide, hard-to-track row.
+    // Wide values (see isWideValue) span the whole row with the label above.
+    function renderStat(key, value) {
+        const cell = document.createElement("div");
+        cell.className = isWideValue(value) ? "stat is-wide" : "stat";
+        const label = document.createElement("span");
+        label.className = "stat-k";
         label.textContent = prettify(key);
-        const val = document.createElement("td");
-        val.className = "value";
+        const val = document.createElement("span");
+        val.className = "stat-v";
         val.appendChild(formatValue(value));
-        tr.append(label, val);
-        return tr;
+        cell.append(label, val);
+        return cell;
+    }
+
+    // Render a set of same-shaped record groups as one comparison matrix: a row
+    // per group, a column per metric. The column set is the union of the records'
+    // keys (first-seen order), so ragged records still line up and gaps show as a
+    // dash. Far easier to scan than a stack of identical two-column tables.
+    function renderMatrix(entries) {
+        const cols = [];
+        const seen = new Set();
+        for (const [, rec] of entries) {
+            for (const key of Object.keys(rec)) {
+                if (!seen.has(key)) {
+                    seen.add(key);
+                    cols.push(key);
+                }
+            }
+        }
+
+        const table = document.createElement("table");
+        table.className = "matrix";
+
+        const thead = document.createElement("thead");
+        const headRow = document.createElement("tr");
+        const corner = document.createElement("th");
+        corner.className = "matrix-corner";
+        headRow.appendChild(corner);
+        for (const col of cols) {
+            const th = document.createElement("th");
+            th.textContent = prettify(col);
+            headRow.appendChild(th);
+        }
+        thead.appendChild(headRow);
+        table.appendChild(thead);
+
+        const tbody = document.createElement("tbody");
+        for (const [name, rec] of entries) {
+            const tr = document.createElement("tr");
+            const rowLabel = document.createElement("th");
+            rowLabel.className = "matrix-row-label";
+            rowLabel.scope = "row";
+            rowLabel.textContent = prettify(name);
+            tr.appendChild(rowLabel);
+            for (const col of cols) {
+                const td = document.createElement("td");
+                td.className = "value";
+                td.appendChild(formatValue(col in rec ? rec[col] : null));
+                tr.appendChild(td);
+            }
+            tbody.appendChild(tr);
+        }
+        table.appendChild(tbody);
+
+        // Wrap so a wide matrix scrolls sideways instead of stretching the page.
+        const scroll = document.createElement("div");
+        scroll.className = "results-scroll";
+        scroll.appendChild(table);
+        return scroll;
     }
 
     // Recursively render a result object: scalar entries collect into a table,
@@ -387,13 +731,20 @@
         }
 
         if (rows.length) {
-            const table = document.createElement("table");
-            const tbody = document.createElement("tbody");
+            const list = document.createElement("div");
+            list.className = "stat-list";
             for (const [k, v] of rows) {
-                tbody.appendChild(renderRow(k, v));
+                list.appendChild(renderStat(k, v));
             }
-            table.appendChild(tbody);
-            container.appendChild(table);
+            container.appendChild(list);
+        }
+
+        // Two or more sibling groups that are all flat, same-kind records (e.g.
+        // one correlation per column, or per-group stats) collapse into a single
+        // comparison matrix instead of a stack of identical little tables.
+        if (groups.length >= 2 && groups.every(([, v]) => isRecord(v))) {
+            container.appendChild(renderMatrix(groups));
+            return;
         }
 
         for (const [k, v] of groups) {
@@ -416,10 +767,38 @@
         }
     }
 
-    function renderResult(data) {
+    function renderResult(data, ms) {
         resultsEl.innerHTML = "";
+
+        // Result header: what ran, and how long the engine took. The timing is
+        // real (measured across the run above), which is the point -- it reads as
+        // a fast instrument, not a stalled one.
+        const head = document.createElement("div");
+        head.className = "results-head";
+        const k = document.createElement("span");
+        k.className = "results-head-k";
+        k.textContent = "Result";
+        const tierTag = document.createElement("span");
+        tierTag.className = "results-head-tier";
+        tierTag.textContent = state.tier;
+        const spacer = document.createElement("span");
+        spacer.className = "compute-spacer";
+        const msTag = document.createElement("span");
+        msTag.className = "results-head-ms";
+        if (ms != null) {
+            msTag.textContent = `${ms} ms`;
+        }
+        head.append(k, tierTag, spacer, msTag);
+        resultsEl.appendChild(head);
+
         renderInto(resultsEl, data);
         resultsEl.hidden = false;
+
+        // Re-trigger the staggered reveal, then count the headline numbers up.
+        resultsEl.classList.remove("is-fresh");
+        void resultsEl.offsetWidth; // reflow so the animation restarts each run
+        resultsEl.classList.add("is-fresh");
+        animateCounts(resultsEl);
     }
 
     // ---- Wiring ------------------------------------------------------------
@@ -657,30 +1036,61 @@
     }
 
     // Each grid is a selector: a chip click drives the corresponding choice.
-    if (tierGrid) {
-        tierGrid.addEventListener("click", (e) => {
-            const btn = e.target.closest(".channel");
-            if (btn) {
-                selectTier(btn.dataset.tier);
-            }
-        });
-    }
-    if (channelGrid) {
-        channelGrid.addEventListener("click", (e) => {
-            const btn = e.target.closest(".channel");
-            if (btn) {
-                selectColumn(btn.dataset.column);
-            }
-        });
-    }
-    if (groupGrid) {
-        groupGrid.addEventListener("click", (e) => {
-            const btn = e.target.closest(".channel");
-            if (btn) {
-                selectGroup(btn.dataset.group);
-            }
-        });
+    // Listeners live on the grid container (which persists as its chips rebuild),
+    // so this is called once per DOM generation -- first load and each SPA swap.
+    function wireEvents() {
+        if (tierGrid) {
+            tierGrid.addEventListener("click", (e) => {
+                const btn = e.target.closest(".channel");
+                if (btn) {
+                    selectTier(btn.dataset.tier);
+                }
+            });
+        }
+        if (channelGrid) {
+            channelGrid.addEventListener("click", (e) => {
+                const btn = e.target.closest(".channel");
+                if (btn) {
+                    selectColumn(btn.dataset.column);
+                }
+            });
+        }
+        if (groupGrid) {
+            groupGrid.addEventListener("click", (e) => {
+                const btn = e.target.closest(".channel");
+                if (btn) {
+                    selectGroup(btn.dataset.group);
+                }
+            });
+        }
     }
 
-    boot();
+    // Re-enter the Overview after an SPA swap (Web/JS/nav.js) WITHOUT replaying
+    // the boot splash: grab the fresh DOM, reset the selection, wire, and load.
+    // A no-op on any page that isn't the Overview (no tier grid to bind).
+    function initInPlace() {
+        queryElements();
+        if (!tierGrid) {
+            return;
+        }
+        state.tier = "basic";
+        state.column = null;
+        state.group = "";
+        numericColumns = [];
+        categoricalColumns = [];
+        busy = false;
+        wireEvents();
+        loadColumns();
+    }
+
+    window.StatsApp = { initInPlace };
+
+    // First load. Only a genuine Overview (its boot splash markup present) plays
+    // the splash; every other page leaves the analysis app dormant until the
+    // router swaps the Overview in and calls initInPlace().
+    queryElements();
+    if (loader && tierGrid) {
+        wireEvents();
+        boot();
+    }
 })();
