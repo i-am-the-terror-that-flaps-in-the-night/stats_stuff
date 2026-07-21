@@ -177,9 +177,9 @@ def compute_stats(column: str):
 
 # The analysis tiers that operate on a numeric column. The categorical branch is
 # handled separately (it works on label columns), so it's kept out of this set.
-# The engine also has an "expert" tier, but the website deliberately doesn't
-# expose it -- see engine.py's expert_analysis().
-NUMERIC_TIERS = ("basic", "medium", "advanced")
+# "expert" is the deepest numeric tier (collinearity/VIF, regression diagnostics,
+# clinical cutoffs, trend tests) -- see engine.py's expert_analysis().
+NUMERIC_TIERS = ("basic", "medium", "advanced", "expert")
 
 
 @lru_cache(maxsize=256)
@@ -199,6 +199,8 @@ def compute_tier(tier: str, column: str, group: str | None):
         return analyzer.medium_analysis(column, group)
     if tier == "advanced":
         return analyzer.advanced_analysis(column, group)
+    if tier == "expert":
+        return analyzer.expert_analysis(column, group)
     if tier == "categorical":
         return analyzer.categorical_analysis(column)
     return {"error": f"Unknown tier: {tier}"}
@@ -301,9 +303,9 @@ def column_stats(column: str):
 def analyze_column(tier: str, column: str, group: str | None = None):
     """Run any analysis tier for a column.
 
-    tier -> one of basic/medium/advanced (numeric columns) or categorical
+    tier -> one of basic/medium/advanced/expert (numeric columns) or categorical
     (label columns). `group` (optional) names a column to group by and only
-    applies to the medium/advanced tiers; it's ignored otherwise.
+    applies to the medium/advanced/expert tiers; it's ignored otherwise.
     """
     tier = tier.lower()
     if tier not in NUMERIC_TIERS and tier != "categorical":
@@ -316,7 +318,7 @@ def analyze_column(tier: str, column: str, group: str | None = None):
         raise HTTPException(status_code=404, detail=f"Unknown column: {column!r}")
 
     # Grouping only means something for the tiers that run group comparisons.
-    if tier in ("medium", "advanced") and group is not None:
+    if tier in ("medium", "advanced", "expert") and group is not None:
         if group not in set(load_data().columns):
             raise HTTPException(
                 status_code=404, detail=f"Unknown group column: {group!r}"

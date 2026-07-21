@@ -26,11 +26,12 @@
     --line: #d3dae7;           /* hairlines */
     --line-strong: #9aa7bd;    /* major rules, frame */
 
-    /* ---- Ink (all high-contrast on white) ---- */
+    /* ---- Ink (all high-contrast on white; darkened for readability on cheap
+       panels — secondary/faint were the weakest links) ---- */
     --ink: #0b1324;            /* headings, data values */
-    --ink-2: #29374f;          /* body copy */
-    --ink-3: #55637a;          /* labels, secondary */
-    --ink-faint: #8894a8;      /* metadata, disabled */
+    --ink-2: #212e44;          /* body copy */
+    --ink-3: #414e66;          /* labels, secondary (was #55637a) */
+    --ink-faint: #616e8a;      /* metadata, disabled (was #8894a8) */
 
     /* ---- Interactive accent: electric-but-readable blue ---- */
     --accent: #1f4fff;
@@ -53,16 +54,18 @@
     --err: #d21f3c;
     --err-soft: #fdeaed;
 
-    --font: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    /* Readable, neutral system sans — no external fonts (Render cold-start).
+       system-ui first for the crispest native rendering on each platform. */
+    --font: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+        "Helvetica Neue", Arial, sans-serif;
 
-    /* ---- Softer, less-terminal surfacing ---- */
-    --radius: 16px;      /* page frame */
-    --radius-md: 12px;   /* modules, result/compute panels, telemetry grid */
-    --radius-sm: 9px;    /* chips, buttons, badges, status */
-    --shadow-card: 0 26px 60px -30px rgba(18, 38, 88, 0.34),
-        0 6px 18px -10px rgba(18, 38, 88, 0.16);
-    --shadow-soft: 0 12px 30px -16px rgba(18, 38, 88, 0.24);
-    --hero-wash: linear-gradient(135deg, #f8faff 0%, #edf1fe 52%, #f5f0ff 100%);
+    /* ---- Hard rectangular / brutalist surfacing ---- */
+    --radius: 0;
+    --radius-md: 0;
+    --radius-sm: 0;
+    /* Blur-free hard offset shadows — angular slabs, not lifted cards. */
+    --shadow-card: 12px 12px 0 -1px rgba(31, 79, 255, 0.10);
+    --shadow-soft: 6px 6px 0 -1px rgba(31, 79, 255, 0.09);
 }
 
 * {
@@ -78,7 +81,7 @@ body {
     min-height: 100vh;
     font-family: var(--font);
     font-size: 1rem;
-    line-height: 1.6;
+    line-height: 1.65;
     color: var(--ink-2);
     background-color: var(--bg);
     /* Graph-paper grid: busy, technical texture in the margins. The console sits
@@ -101,9 +104,7 @@ body {
     flex: 1;
     background: var(--surface);
     border: 1px solid var(--line-strong);
-    /* Rounded frame with a soft, lifted shadow — a card, not a brutalist slab. */
-    border-radius: var(--radius);
-    overflow: hidden;
+    /* Hard, blur-free offset — brutalist/angular, not a soft card. */
     box-shadow: var(--shadow-card);
 }
 
@@ -294,8 +295,6 @@ body {
     grid-template-columns: 1fr 288px;
     align-items: stretch;
     border-bottom: 1px solid var(--line-strong);
-    /* Soft product-hero wash instead of flat console white. */
-    background: var(--hero-wash);
 }
 
 .masthead-main {
@@ -304,10 +303,11 @@ body {
 
 .eyebrow {
     margin: 0 0 12px;
-    font-size: 0.72rem;
+    font-size: 0.74rem;
     font-weight: 700;
     text-transform: uppercase;
-    letter-spacing: 0.2em;
+    /* Tighter than the old 0.2em — wide-tracked caps read poorly at this size. */
+    letter-spacing: 0.11em;
     color: var(--accent-strong);
 }
 
@@ -325,7 +325,8 @@ h1 {
 .tagline {
     margin: 16px 0 0;
     max-width: 46ch;
-    font-size: 1.05rem;
+    font-size: 1.15rem;
+    line-height: 1.55;
     color: var(--ink-2);
 }
 
@@ -373,9 +374,9 @@ h1 {
 
 .spec-k {
     font-weight: 700;
-    letter-spacing: 0.09em;
+    letter-spacing: 0.06em;
     text-transform: uppercase;
-    font-size: 0.66rem;
+    font-size: 0.7rem;
     color: var(--ink-3);
     align-self: center;
 }
@@ -451,7 +452,6 @@ h1 {
     color: var(--accent-strong);
     background: var(--accent-soft);
     border: 1px solid var(--accent-line);
-    border-radius: 6px;
     padding: 1px 7px;
 }
 
@@ -461,9 +461,10 @@ h1 {
 
 .text {
     margin: 0 0 20px;
-    max-width: 64ch;
+    max-width: 66ch;
     color: var(--ink-2);
-    font-size: 0.98rem;
+    font-size: 1.04rem;
+    line-height: 1.7;
 }
 
 code {
@@ -528,8 +529,8 @@ button {
     color: var(--ink-3);
 }
 
-/* Chip: a soft, rounded control. White at rest; hover lifts with a tinted fill;
-   active fills solid accent with a gentle drop shadow (no neon glare). */
+/* Chip: a hard square control. White at rest, hairline border; hover tints and
+   throws a hard offset; active fills solid accent with a hard offset shadow. */
 .channel {
     padding: 8px 15px;
     font-size: 0.84rem;
@@ -538,31 +539,28 @@ button {
     color: var(--ink-2);
     background: var(--surface);
     border: 1px solid var(--line-strong);
-    border-radius: var(--radius-sm);
-    transition: color 0.16s ease, background-color 0.16s ease,
-        border-color 0.16s ease, box-shadow 0.16s ease, transform 0.12s ease;
+    transition: color 0.14s ease, background-color 0.14s ease,
+        border-color 0.14s ease, box-shadow 0.14s ease;
 }
 
 .channel:hover:not(:disabled) {
     color: var(--accent-strong);
     border-color: var(--accent);
     background: var(--accent-soft);
-    box-shadow: var(--shadow-soft);
-    transform: translateY(-1px);
+    box-shadow: 4px 4px 0 -1px var(--accent-line);
 }
 
 .channel.is-active {
     color: #fff;
     background: var(--accent);
     border-color: var(--accent);
-    box-shadow: 0 8px 18px -7px rgba(31, 79, 255, 0.6);
+    box-shadow: 4px 4px 0 -1px var(--accent-strong);
 }
 
 .channel.is-active:hover {
     background: var(--accent-strong);
     border-color: var(--accent-strong);
     color: #fff;
-    transform: translateY(-1px);
 }
 
 .channel:disabled {
@@ -570,6 +568,54 @@ button {
     background: var(--surface-2);
     border-color: var(--line);
     cursor: not-allowed;
+}
+
+/* ---- Expert tier: the "power" chip ------------------------------------- */
+/* The deepest numeric tier reads as premium. Where the other tiers use flat
+   accent blue, expert flies the full neon-RGB spectrum: a gradient border and a
+   diamond marker at rest, a hue-cycling RGB fill when selected. Stays square. */
+.channel[data-tier="expert"] {
+    font-weight: 700;
+    border: 1px solid transparent;
+    border-image: var(--rgb) 1;
+    box-shadow: var(--rgb-glow-sm);
+}
+
+.channel[data-tier="expert"]::after {
+    content: "◆";
+    margin-left: 8px;
+    font-size: 0.72em;
+    background: var(--rgb);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    color: transparent;
+}
+
+.channel[data-tier="expert"]:hover:not(:disabled) {
+    color: var(--ink);
+    background: var(--surface);
+    border-image: var(--rgb) 1;
+    box-shadow: var(--rgb-glow);
+}
+
+.channel[data-tier="expert"].is-active {
+    color: #fff;
+    background: var(--rgb);
+    border-image: var(--rgb) 1;
+    animation: rgb-cycle 9s linear infinite;
+    box-shadow: var(--rgb-glow), 4px 4px 0 -1px rgba(139, 92, 246, 0.55);
+}
+
+.channel[data-tier="expert"].is-active::after,
+.channel[data-tier="expert"].is-active:hover::after {
+    -webkit-text-fill-color: #fff;
+    color: #fff;
+}
+
+.channel[data-tier="expert"].is-active:hover {
+    background: var(--rgb);
+    color: #fff;
 }
 
 :focus-visible {
@@ -600,13 +646,11 @@ button {
     background: var(--err-soft);
 }
 
-/* ---- Result readout (soft card) --------------------------------------- */
+/* ---- Result readout (hard ledger slab) -------------------------------- */
 .results {
     position: relative;
     margin-top: 18px;
     border: 1px solid var(--line-strong);
-    border-radius: var(--radius-md);
-    overflow: hidden;
     box-shadow: var(--shadow-soft);
 }
 
@@ -682,7 +726,6 @@ button {
     height: 5px;
     margin-bottom: 14px;
     background: var(--surface-3);
-    border-radius: 999px;
     overflow: hidden;
 }
 
@@ -691,7 +734,6 @@ button {
     inset: 0 auto 0 0;
     width: 0;
     background: var(--rgb);
-    border-radius: 999px;
     box-shadow: var(--rgb-glow-sm);
 }
 
@@ -796,6 +838,45 @@ button {
     50% { opacity: 1; }
 }
 
+/* ---- Expert compute: the "deep analysis" treatment --------------------- */
+/* Same pipeline chrome, dialed up: a neon-washed panel, RGB title/tier text, a
+   hue-cycling progress bar with a heavier bloom, and brighter active glyphs — so
+   the deepest tier visibly grinds harder than the rest. */
+.compute.is-expert {
+    background:
+        linear-gradient(180deg, rgba(139, 92, 246, 0.06), transparent 42%),
+        repeating-linear-gradient(90deg, transparent 0 22px,
+            rgba(34, 211, 238, 0.04) 22px 23px);
+}
+
+.compute.is-expert .compute-title,
+.compute.is-expert .compute-tier {
+    background: var(--rgb);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    color: transparent;
+    animation: rgb-cycle 9s linear infinite;
+}
+
+.compute.is-expert .compute-fill {
+    animation: rgb-cycle 9s linear infinite;
+    box-shadow: var(--rgb-glow);
+}
+
+.compute.is-expert .compute-track {
+    height: 6px;
+}
+
+.compute.is-expert .compute-stage.is-active .compute-glyph {
+    border-color: var(--neon-2);
+    box-shadow: 0 0 0 1px var(--neon-2), 0 0 12px -1px var(--neon-2);
+}
+
+.compute.is-expert .compute-stage.is-active .compute-glyph::after {
+    background: var(--neon-2);
+}
+
 /* ---- Result header (what ran · how long) ------------------------------- */
 .results-head {
     display: flex;
@@ -828,9 +909,32 @@ button {
     font-size: 0.72rem;
     font-weight: 800;
     font-variant-numeric: tabular-nums;
-    border-radius: 999px;
     color: var(--ok);
     background: var(--ok-soft);
+}
+
+/* ---- Expert results: full-RGB "power" bookend ------------------------- */
+/* An intensified neon cap on the box, a washed header, and an RGB "EXPERT"
+   tag — so a completed deep-tier readout still signals it was the heavy one. */
+.results.is-expert::before {
+    height: 4px;
+    box-shadow: var(--rgb-glow), 0 0 34px rgba(139, 92, 246, 0.5);
+}
+
+.results.is-expert .results-head {
+    background:
+        linear-gradient(90deg, rgba(255, 43, 214, 0.07), rgba(34, 211, 238, 0.07));
+    border-bottom-color: var(--neon-2);
+}
+
+.results.is-expert .results-head-tier {
+    background: var(--rgb);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    color: transparent;
+    font-weight: 800;
+    animation: rgb-cycle 9s linear infinite;
 }
 
 /* ---- Fresh-result reveal: a short staggered rise, restarted each run --- */
@@ -865,7 +969,7 @@ button {
 .results td {
     padding: 12px 16px;
     border-bottom: 1px solid var(--line);
-    font-size: 0.9rem;
+    font-size: 0.95rem;
 }
 
 .results tr:last-child td {
@@ -1079,7 +1183,7 @@ button {
 .matrix .matrix-row-label {
     padding: 12px 18px;
     border-bottom: 1px solid var(--line);
-    font-size: 0.9rem;
+    font-size: 0.94rem;
 }
 
 .matrix tbody tr:last-child td,
@@ -1091,7 +1195,7 @@ button {
     text-align: right;
     white-space: nowrap;
     font-weight: 800;
-    font-size: 0.95rem;
+    font-size: 1rem;
     font-variant-numeric: tabular-nums;
     color: var(--ink);
 }
@@ -1148,8 +1252,6 @@ button {
     grid-template-columns: repeat(6, 1fr);
     border-top: 1px solid var(--line-strong);
     border-left: 1px solid var(--line-strong);
-    border-radius: var(--radius-md);
-    overflow: hidden;
     box-shadow: var(--shadow-soft);
 }
 
@@ -1167,10 +1269,10 @@ button {
 
 .stat-k {
     margin: 0 0 9px;
-    font-size: 0.66rem;
+    font-size: 0.7rem;
     font-weight: 700;
     text-transform: uppercase;
-    letter-spacing: 0.09em;
+    letter-spacing: 0.06em;
     color: var(--ink-3);
 }
 
@@ -1232,7 +1334,8 @@ button {
 
 .legend-def {
     margin: 0;
-    font-size: 0.93rem;
+    font-size: 0.98rem;
+    line-height: 1.65;
     color: var(--ink-2);
 }
 
@@ -1243,8 +1346,8 @@ button {
     border-top: 1px solid var(--line-strong);
     border-left: 3px solid var(--accent);
     background: var(--accent-soft);
-    font-size: 0.92rem;
-    line-height: 1.6;
+    font-size: 0.97rem;
+    line-height: 1.65;
     color: var(--ink-2);
 }
 
@@ -1662,6 +1765,11 @@ body.boot-page-enter .page {
     .pips i,
     .results::before,
     .page-footer::before,
+    .channel[data-tier="expert"].is-active,
+    .compute.is-expert .compute-title,
+    .compute.is-expert .compute-tier,
+    .compute.is-expert .compute-fill,
+    .results.is-expert .results-head-tier,
     body.boot-page-enter .page {
         animation: none;
     }
@@ -1879,15 +1987,15 @@ body.boot-page-enter .page {
 .sheet {
     width: 100%;
     border-collapse: collapse;
-    font-size: 0.86rem;
+    font-size: 0.92rem;
     margin: 4px 0 2px;
 }
 
 .sheet caption {
     text-align: left;
-    font-size: 0.63rem;
+    font-size: 0.68rem;
     font-weight: 700;
-    letter-spacing: 0.14em;
+    letter-spacing: 0.08em;
     text-transform: uppercase;
     color: var(--ink-faint);
     padding-bottom: 8px;
@@ -1902,8 +2010,8 @@ body.boot-page-enter .page {
 }
 
 .sheet thead th {
-    font-size: 0.63rem;
-    letter-spacing: 0.12em;
+    font-size: 0.68rem;
+    letter-spacing: 0.07em;
     text-transform: uppercase;
     color: var(--ink-faint);
     font-weight: 700;

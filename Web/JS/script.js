@@ -35,11 +35,12 @@
         bootStatusEl = document.getElementById("boot-status");
     }
 
-    // The analysis tiers. basic/medium/advanced run on numeric columns;
+    // The analysis tiers. basic/medium/advanced/expert run on numeric columns;
     // categorical runs on label columns (and swaps the column list to match).
-    const TIERS = ["basic", "medium", "advanced", "categorical"];
+    // expert is the deepest numeric tier and gets a distinct "power" treatment.
+    const TIERS = ["basic", "medium", "advanced", "expert", "categorical"];
     // Only these tiers do group comparisons, so only they show the group-by picker.
-    const GROUPING_TIERS = new Set(["medium", "advanced"]);
+    const GROUPING_TIERS = new Set(["medium", "advanced", "expert"]);
 
     // Current selection. group === "" means "no grouping".
     const state = { tier: "basic", column: null, group: "" };
@@ -54,7 +55,7 @@
     // Loading splash: keep it up for at least this long so the intro animation
     // reads as intentional rather than a flicker. A progress bar fills while a
     // fast-scrolling "module log" churns beneath it (see below).
-    const LOADER_MIN_MS = 5000;
+    const LOADER_MIN_MS = 6000;
 
     // Boot log played for laughs: a silly present-progressive verb crossed with
     // an absurd, stats-flavored target. The two pools multiply out to hundreds of
@@ -116,6 +117,48 @@
         const el = document.getElementById("link-latency");
         if (el) {
             el.innerHTML = `Link · <b>${ms} ms</b>`;
+        }
+    }
+
+    // Point the Studio/Docs links at a backend that can actually serve them.
+    //
+    // /studio/ and /guide/ are rendered by FastAPI, so they only exist on the
+    // backend origin. When this page is served statically (e.g. IntelliJ Live
+    // Server, or opened from disk), those absolute "/studio/" links resolve to
+    // the static server, which has no such route -- so they 404. Here we probe
+    // for the origin that actually answers (same list the API uses) and, if it's
+    // a *different* origin than this page, rewrite the data-ext links to it. When
+    // the backend already serves this page (same origin) the links are left alone
+    // and just work; when no backend is reachable at all there's nothing to point
+    // at, so they're left as-is (the pages genuinely need the server running).
+    let externalLinksResolved = false;
+    async function resolveExternalLinks() {
+        const links = document.querySelectorAll("a[data-ext]");
+        if (!links.length) {
+            return;
+        }
+        for (const base of API_CANDIDATES) {
+            let ok = false;
+            try {
+                const res = await fetch(`${base}/healthz`);
+                ok = res.ok;
+            } catch {
+                continue; // nothing answering here -- try the next candidate
+            }
+            if (!ok) {
+                continue;
+            }
+            externalLinksResolved = true;
+            if (base) {
+                // Backend is on another origin -- retarget the links to it.
+                for (const a of links) {
+                    const path = a.getAttribute("href");
+                    if (path && path.startsWith("/")) {
+                        a.href = base + path;
+                    }
+                }
+            }
+            return; // backend found (same-origin or rewritten) -- done
         }
     }
 
@@ -334,13 +377,21 @@
         advanced: ["Aligning columns", "Coercing to numeric", "Building correlation matrix",
             "Fitting OLS regression", "Testing significance", "Scanning for confounders",
             "Formatting output"],
+        // The deepest tier — the most steps, and the ones only it runs (VIF,
+        // residual diagnostics, clinical cutoffs, trend tests).
+        expert: ["Aligning columns", "Coercing to numeric", "Inverting design matrix",
+            "Computing variance inflation (VIF)", "Fitting diagnostic regression",
+            "Testing residual normality (Shapiro–Wilk)", "Scanning clinical cutoffs",
+            "Cochran–Armitage trend test", "Consolidating diagnostics", "Formatting output"],
         categorical: ["Loading column", "Tallying categories", "Cross-tabulating",
             "Testing independence (χ²)", "Formatting output"],
     };
     // Nominal run length per tier, ms. The bar holds near the end until the real
     // response lands, so a cold Render start naturally stretches this, never cuts
-    // it short.
-    const RUN_TOTAL_MS = { basic: 720, medium: 980, advanced: 1300, categorical: 820 };
+    // it short. expert runs longest — it does the most, and should feel like it.
+    const RUN_TOTAL_MS = {
+        basic: 720, medium: 980, advanced: 1300, expert: 2000, categorical: 820,
+    };
 
     // The live dataset shape, pulled from the telemetry readout, to label the run
     // ("Σ 50 rows · 12 fields") -- concrete scale, not a spinner.
@@ -360,14 +411,16 @@
         const stages = RUN_STAGES[tier] || RUN_STAGES.basic;
         const totalMs = RUN_TOTAL_MS[tier] || 800;
 
+        const isExpert = tier === "expert";
         const panel = document.createElement("div");
-        panel.className = "compute";
+        // Expert gets a distinct, more intense treatment (full-RGB, "deep").
+        panel.className = isExpert ? "compute is-expert" : "compute";
 
         const head = document.createElement("div");
         head.className = "compute-head";
         const title = document.createElement("span");
         title.className = "compute-title";
-        title.textContent = "Computing";
+        title.textContent = isExpert ? "Deep analysis" : "Computing";
         const tierTag = document.createElement("span");
         tierTag.className = "compute-tier";
         tierTag.textContent = tier;
@@ -769,6 +822,8 @@
 
     function renderResult(data, ms) {
         resultsEl.innerHTML = "";
+        // Expert results carry a distinct full-RGB "power" treatment.
+        resultsEl.classList.toggle("is-expert", state.tier === "expert");
 
         // Result header: what ran, and how long the engine took. The timing is
         // real (measured across the run above), which is the point -- it reads as
@@ -981,7 +1036,7 @@
 
         // The bar ticks fast for smooth motion, but a filler line only posts
         // every few ticks so each one lingers long enough to actually read.
-        const FILLER_EVERY = 12; // ~270ms per filler line at 45ms/tick
+        const FILLER_EVERY = 20; // ~270ms per filler line at 45ms/tick
         let tick = 0;
 
         return setInterval(() => {
@@ -1083,7 +1138,7 @@
         loadColumns();
     }
 
-    window.StatsApp = { initInPlace };
+    window.StatsApp = { initInPlace, resolveExternalLinks };
 
     // First load. Only a genuine Overview (its boot splash markup present) plays
     // the splash; every other page leaves the analysis app dormant until the
@@ -1093,4 +1148,7 @@
         wireEvents();
         boot();
     }
+    // Runs on every page (Studio/Docs links live in the nav on all of them), so
+    // they work whether the site is served by uvicorn or a static preview.
+    resolveExternalLinks();
 })();

@@ -70,6 +70,11 @@
         if (incoming.querySelector("#tier-grid") && window.StatsApp) {
             window.StatsApp.initInPlace();
         }
+        // The swapped-in page has its own Studio/Docs links -- re-point them at
+        // the backend origin if we're served statically.
+        if (window.StatsApp && window.StatsApp.resolveExternalLinks) {
+            window.StatsApp.resolveExternalLinks();
+        }
     }
 
     document.addEventListener("click", (e) => {

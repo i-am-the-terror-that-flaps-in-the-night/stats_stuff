@@ -145,7 +145,7 @@ def _run_analysis(app, tier: str, column: str, group: str | None):
     """Run one tier and time it. Grouping only applies to medium/advanced, and a
     non-existent group column is treated as no grouping (mirrors app.py). Returns
     (result_dict, effective_group, elapsed_ms)."""
-    if tier in ("medium", "advanced") and group:
+    if tier in ("medium", "advanced", "expert") and group:
         if group not in set(app.load_data().columns):
             group = None
     else:
