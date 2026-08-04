@@ -6,7 +6,7 @@
     <title>Benchmarks — Data Analysis Engine</title>
     <meta name="author" content="Anirudh Gupta">
     <meta name="description"
-          content="Measured performance of the Data Analysis Engine on the bundled sample dataset — compute latency per tier, cache speedup, and cold-start behaviour.">
+          content="Measured performance of the Data Analysis Engine on the curated NHANES dataset — compute latency per tier, cache speedup, and cold-start behaviour.">
     <link rel="icon" href="../favicon.ico" sizes="any">
     <link rel="stylesheet" href="../CSS/styles.css">
 </head>
@@ -56,7 +56,7 @@
             <p class="byline">By Anirudh Gupta</p>
         </div>
         <dl class="masthead-spec" aria-label="Benchmark environment">
-            <div class="spec-row"><dt class="spec-k">Dataset</dt><dd class="spec-v">50 × 12</dd></div>
+            <div class="spec-row"><dt class="spec-k">Dataset</dt><dd class="spec-v">9,254 × 18</dd></div>
             <div class="spec-row"><dt class="spec-k">Worker</dt><dd class="spec-v">1 · free tier</dd></div>
             <div class="spec-row"><dt class="spec-k">Cache</dt><dd class="spec-v">LRU · in-proc</dd></div>
             <div class="spec-row"><dt class="spec-k">Runtime</dt><dd class="spec-v">Pandas</dd></div>
@@ -64,7 +64,7 @@
     </header>
 
     <div class="ribbon" aria-label="Headline figures">
-        <div class="ribbon-cell"><p class="ribbon-v">0.3<small> ms</small></p><p class="ribbon-k">Median first compute</p></div>
+        <div class="ribbon-cell"><p class="ribbon-v">0.6<small> ms</small></p><p class="ribbon-k">Median first compute</p></div>
         <div class="ribbon-cell"><p class="ribbon-v">~0<small> ms</small></p><p class="ribbon-k">Cached lookup</p></div>
         <div class="ribbon-cell"><p class="ribbon-v">256</p><p class="ribbon-k">Memoised results</p></div>
         <div class="ribbon-cell"><p class="ribbon-v">1</p><p class="ribbon-k">Load per process</p></div>
@@ -82,11 +82,11 @@
             <p class="text">Time to compute one tier for one column, excluding network. The dataset is loaded and
                 cleaned once per process, so these figures measure statistics, not I/O.</p>
             <div class="stat-grid">
-                <div class="stat-cell"><p class="stat-k">Basic · first</p><p class="stat-v">0.2<span class="stat-note"> ms</span></p></div>
-                <div class="stat-cell"><p class="stat-k">Advanced · first</p><p class="stat-v">1.1<span class="stat-note"> ms</span></p></div>
+                <div class="stat-cell"><p class="stat-k">Basic · first</p><p class="stat-v">0.6<span class="stat-note"> ms</span></p></div>
+                <div class="stat-cell"><p class="stat-k">Advanced · first</p><p class="stat-v">42<span class="stat-note"> ms</span></p></div>
                 <div class="stat-cell"><p class="stat-k">Cached · any tier</p><p class="stat-v">&lt;0.01<span class="stat-note"> ms</span></p></div>
-                <div class="stat-cell"><p class="stat-k">Dataframe load</p><p class="stat-v">6<span class="stat-note"> ms · once</span></p></div>
-                <div class="stat-cell"><p class="stat-k">Resident memory</p><p class="stat-v">~90<span class="stat-note"> MB</span></p></div>
+                <div class="stat-cell"><p class="stat-k">Dataframe load</p><p class="stat-v">175<span class="stat-note"> ms · once</span></p></div>
+                <div class="stat-cell"><p class="stat-k">Resident memory</p><p class="stat-v">~170<span class="stat-note"> MB</span></p></div>
                 <div class="stat-cell"><p class="stat-k">Cache capacity</p><p class="stat-v">256<span class="stat-note"> results</span></p></div>
             </div>
         </div>
@@ -109,11 +109,11 @@
                 <tr><th>Tier</th><th class="num">First call</th><th class="num">Cached</th><th>Notes</th></tr>
                 </thead>
                 <tbody>
-                <tr><td class="rowkey">basic</td><td class="num">0.2 ms</td><td class="num">&lt;0.01 ms</td><td>Pure aggregation over one column.</td></tr>
-                <tr><td class="rowkey">medium</td><td class="num">0.5 ms</td><td class="num">&lt;0.01 ms</td><td>Repeats basic across each group.</td></tr>
-                <tr><td class="rowkey">advanced</td><td class="num">1.1 ms</td><td class="num">&lt;0.01 ms</td><td>Correlation / regression via statsmodels.</td></tr>
-                <tr><td class="rowkey">expert</td><td class="num">2.4 ms</td><td class="num">&lt;0.01 ms</td><td>VIF, residual diagnostics &amp; trend tests — the deepest tier.</td></tr>
-                <tr><td class="rowkey">categorical</td><td class="num">0.2 ms</td><td class="num">&lt;0.01 ms</td><td>Value counts and proportions.</td></tr>
+                <tr><td class="rowkey">basic</td><td class="num">0.6 ms</td><td class="num">&lt;0.01 ms</td><td>Pure aggregation over one column.</td></tr>
+                <tr><td class="rowkey">medium</td><td class="num">9.9 ms</td><td class="num">&lt;0.01 ms</td><td>Repeats basic across each group.</td></tr>
+                <tr><td class="rowkey">advanced</td><td class="num">42 ms</td><td class="num">&lt;0.01 ms</td><td>Correlation / regression via statsmodels.</td></tr>
+                <tr><td class="rowkey">expert</td><td class="num">40 ms</td><td class="num">&lt;0.01 ms</td><td>VIF, residual diagnostics &amp; trend tests — the deepest tier.</td></tr>
+                <tr><td class="rowkey">categorical</td><td class="num">28 ms</td><td class="num">&lt;0.01 ms</td><td>Value counts and proportions.</td></tr>
                 </tbody>
             </table>
         </div>
@@ -128,8 +128,8 @@
             <span class="module-meta">Scope &amp; honesty</span>
         </div>
         <div class="module-body">
-            <p class="prose">Figures are <strong>indicative, measured locally</strong> against the bundled sample
-                dataset — <strong>50 rows by 12 fields</strong> — on a single worker, the same free-tier shape the
+            <p class="prose">Figures are <strong>indicative, measured locally</strong> against the curated NHANES
+                dataset — <strong>9,254 rows by 18 fields</strong> — on a single worker, the same free-tier shape the
                 live demo runs on. They describe this dataset at this size; a larger file would move the first-call
                 numbers, though the cached path stays flat by construction.</p>
             <p class="prose">"Cached" is the honest common case: because results are memoised on
@@ -151,6 +151,7 @@
     </footer>
 </div>
 
+<script src="../JS/transition.js"></script>
 <script src="../JS/script.js"></script>
 <script src="../JS/nav.js"></script>
 </body>

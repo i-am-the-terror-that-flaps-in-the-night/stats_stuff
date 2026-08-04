@@ -1,12 +1,15 @@
 /* Data Analysis Engine — "Terminal Ledger" theme.
  *
  * A LIGHT, dense, angular data-console. No floating cards: the whole page is one
- * framed instrument, its structure carried by hairline rules and a faint
- * graph-paper backdrop rather than elevation. Everything is square (zero radius),
- * the type is all sans (no monospace — data columns align via tabular-nums), and
- * the palette is high-contrast near-black-on-white so it stays readable on cheap
- * laptop panels. The only color that shouts is a thin neon R-G-B signature line
- * plus a few tiny status pips — a LITTLE neon, deliberately rationed.
+ * framed instrument, mounted in a brushed-steel chassis (the page mat) with a
+ * white "screen" bezeled into it, its structure carried by hairline rules
+ * rather than elevation. Everything is square (zero radius), the type is all
+ * sans (no monospace — data columns align via tabular-nums), and the palette
+ * inside the console is high-contrast near-black-on-white so it stays readable
+ * on cheap laptop panels. The only color that shouts is a thin neon R-G-B
+ * signature line plus a few tiny status pips — a LITTLE neon, deliberately
+ * rationed, same as the chrome: a bezel here, a rivet there, not a skin over
+ * everything.
  *
  * Web/JS/script.js and transition.js drive this markup, so every hook is kept:
  * .channel/.is-active chips, the .result-group readout, the boot loader
@@ -18,8 +21,20 @@
     font-size: 16px;
 
     /* ---- Paper & structure ---- */
-    --bg: #e9edf4;             /* page mat, behind the console */
-    --grid-line: rgba(20, 45, 120, 0.07);
+    --bg: #c7cedd;             /* page mat, behind the console -- brushed steel */
+    /* The mat itself: a fine diagonal brush (a repeating hairline stripe) under
+       a broader, uneven sweep -- a real sheet of metal never catches light
+       evenly. Hard-edged bands throughout, no blur, so it reads as machined
+       chassis, not a soft gradient poster. The white console "screen" sits on
+       top of this, untouched, so none of it touches text readability. */
+    --metal-texture: repeating-linear-gradient(115deg,
+            rgba(255, 255, 255, 0.55) 0px, rgba(255, 255, 255, 0.55) 1px,
+            rgba(13, 20, 38, 0.06) 1px, rgba(13, 20, 38, 0.06) 3px),
+        linear-gradient(115deg,
+            #eef1f7 0%, #f8fafc 10%,
+            #c3cbdc 24%, #eef1f7 38%,
+            #aab4c9 52%, #f4f6fb 66%,
+            #b7c0d3 80%, #e9edf5 100%);
     --surface: #ffffff;        /* console interior */
     --surface-2: #f4f6fb;      /* zebra rows, insets, head fills */
     --surface-3: #eaeef6;      /* deeper insets, tracks */
@@ -66,6 +81,37 @@
     /* Blur-free hard offset shadows — angular slabs, not lifted cards. */
     --shadow-card: 12px 12px 0 -1px rgba(31, 79, 255, 0.10);
     --shadow-soft: 6px 6px 0 -1px rgba(31, 79, 255, 0.09);
+
+    /* ---- Metal / chrome: hard-banded brushed-steel fills + crisp 1px bezel
+       edges (no blur — hard stripes, not a soft specular sheen) for the
+       "instrument" pieces: the logo tile, the nameplate, badges, buttons.
+       Rationed the same way as the neon: a machined edge here and there, not
+       a chrome skin over everything. ---- */
+    --chrome-light: linear-gradient(155deg,
+        #f7f9fc 0%, #f7f9fc 20%,
+        #ffffff 20%, #ffffff 34%,
+        #e7ecf5 34%, #e7ecf5 46%,
+        #f7f9fc 46%, #f7f9fc 64%,
+        #dde3ee 64%, #dde3ee 72%,
+        #f7f9fc 72%, #f7f9fc 100%);
+    --chrome-dark: linear-gradient(155deg,
+        #1c273f 0%, #1c273f 16%,
+        #323f5c 16%, #323f5c 28%,
+        #05070d 28%, #05070d 42%,
+        #3b4967 42%, #3b4967 54%,
+        #05070d 54%, #05070d 70%,
+        #232e48 70%, #232e48 100%);
+    --chrome-edge-hi: rgba(255, 255, 255, 0.95);
+    --chrome-edge-lo: rgba(5, 10, 25, 0.5);
+
+    /* ---- Literal fasteners: tiny flat SVG hardware (hex bolt, phillips screw,
+       domed nail head) dropped onto the bezel ring of every console frame
+       (.page, .studio) -- the chassis metaphor made literal instead of just
+       implied by the bezel lines. Flat-shaded, no blur, same rule as
+       everything else here. ---- */
+    --fastener-bolt: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpolygon points='12,2 20,7 20,17 12,22 4,17 4,7' fill='%23b7c0d3' stroke='%23414e66' stroke-width='1.6'/%3E%3Ccircle cx='12' cy='12' r='4' fill='%23eef1f7'/%3E%3C/svg%3E");
+    --fastener-screw: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Ccircle cx='12' cy='12' r='9' fill='%23c3cbdc' stroke='%23414e66' stroke-width='1.6'/%3E%3Cpath d='M12 5v14M5 12h14' stroke='%23414e66' stroke-width='2'/%3E%3C/svg%3E");
+    --fastener-nail: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Ccircle cx='12' cy='12' r='8' fill='%23aab4c9' stroke='%23414e66' stroke-width='1.6'/%3E%3Ccircle cx='9' cy='9' r='1.6' fill='%23f4f6fb' opacity='0.85'/%3E%3C/svg%3E");
 }
 
 * {
@@ -84,12 +130,7 @@ body {
     line-height: 1.65;
     color: var(--ink-2);
     background-color: var(--bg);
-    /* Graph-paper grid: busy, technical texture in the margins. The console sits
-       opaque on top, so text never fights it. */
-    background-image:
-        linear-gradient(var(--grid-line) 1px, transparent 1px),
-        linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
-    background-size: 26px 26px;
+    background-image: var(--metal-texture);
     -webkit-font-smoothing: antialiased;
     display: flex;
     flex-direction: column;
@@ -98,14 +139,35 @@ body {
 
 /* ---- The console frame ------------------------------------------------- */
 .page {
+    position: relative;
     width: 100%;
     max-width: 1080px;
     margin: 0 auto;
     flex: 1;
     background: var(--surface);
     border: 1px solid var(--line-strong);
-    /* Hard, blur-free offset — brutalist/angular, not a soft card. */
-    box-shadow: var(--shadow-card);
+    /* A white/dark two-tone bezel ring where the console meets the metal chassis
+       -- the "screen sits in a machined frame" beat -- then the usual hard,
+       blur-free offset shadow underneath it. */
+    box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.6), 0 0 0 4px rgba(13, 20, 38, 0.28), var(--shadow-card);
+}
+
+/* Four fasteners sitting right on the bezel ring, just outside the console's
+   own border box (negative inset) so they're never covered by its full-width
+   children -- the panel really does read as bolted to the chassis. */
+.page::before {
+    content: "";
+    position: absolute;
+    inset: -9px;
+    pointer-events: none;
+    background-repeat: no-repeat;
+    background-size: 15px 15px;
+    background-image: var(--fastener-bolt), var(--fastener-screw), var(--fastener-nail), var(--fastener-bolt);
+    background-position:
+        6px 6px,
+        calc(100% - 6px) 6px,
+        6px calc(100% - 6px),
+        calc(100% - 6px) calc(100% - 6px);
 }
 
 /* ---- Top status bar ---------------------------------------------------- */
@@ -118,6 +180,9 @@ body {
     padding: 11px 18px;
     border-bottom: 1px solid var(--line);
     background: var(--surface-2);
+    /* Hairline top/bottom bezel — a machined-panel groove, not a color change,
+       so the text sitting on top keeps its contrast. */
+    box-shadow: inset 0 1px 0 0 var(--chrome-edge-hi), inset 0 -1px 0 0 rgba(20, 45, 120, 0.08);
 }
 
 .brand {
@@ -135,8 +200,11 @@ body {
     place-items: center;
     width: 30px;
     height: 30px;
-    background: var(--ink);
+    background: var(--chrome-dark);
     border: 1px solid #000;
+    /* Bezel: a bright top edge, a dark bottom edge — the tile reads as a
+       machined steel housing for the RGB bars, not a flat sticker. */
+    box-shadow: inset 0 1px 0 0 var(--chrome-edge-hi), inset 0 -1px 0 0 var(--chrome-edge-lo);
     animation: rgb-cycle 9s linear infinite;
 }
 
@@ -174,8 +242,9 @@ body {
     letter-spacing: 0.04em;
     color: var(--ink-3);
     padding: 2px 7px;
-    background: var(--surface);
-    border: 1px solid var(--line);
+    background: var(--chrome-light);
+    border: 1px solid var(--line-strong);
+    box-shadow: inset 0 1px 0 0 var(--chrome-edge-hi), inset 0 -1px 0 0 rgba(154, 167, 189, 0.45);
 }
 
 .bar-meta {
@@ -220,9 +289,11 @@ body {
     animation: pip-scan 1.5s ease-in-out infinite;
 }
 
-.pips i:nth-child(1) { background: var(--neon-1); box-shadow: 0 0 5px var(--neon-1), 0 0 10px var(--neon-1); animation-delay: 0s; }
-.pips i:nth-child(2) { background: var(--neon-2); box-shadow: 0 0 5px var(--neon-2), 0 0 10px var(--neon-2); animation-delay: 0.2s; }
-.pips i:nth-child(3) { background: var(--neon-3); box-shadow: 0 0 5px var(--neon-3), 0 0 10px var(--neon-3); animation-delay: 0.4s; }
+/* A thin dark ring under the glow — each LED reads as mounted in a metal
+   bezel, not floating as a bare dot of color. */
+.pips i:nth-child(1) { background: var(--neon-1); box-shadow: 0 0 0 1px var(--chrome-edge-lo), 0 0 5px var(--neon-1), 0 0 10px var(--neon-1); animation-delay: 0s; }
+.pips i:nth-child(2) { background: var(--neon-2); box-shadow: 0 0 0 1px var(--chrome-edge-lo), 0 0 5px var(--neon-2), 0 0 10px var(--neon-2); animation-delay: 0.2s; }
+.pips i:nth-child(3) { background: var(--neon-3); box-shadow: 0 0 0 1px var(--chrome-edge-lo), 0 0 5px var(--neon-3), 0 0 10px var(--neon-3); animation-delay: 0.4s; }
 
 @keyframes pip-scan {
     0%, 100% { opacity: 0.35; transform: scale(0.72); }
@@ -351,12 +422,35 @@ h1 {
 }
 
 /* Spec panel: a dense key/value block that fills the hero's right side — real
-   engine metadata, and busywork that reads as an instrument nameplate. */
+   engine metadata, and busywork that reads as an instrument nameplate. Brushed
+   steel fill + a bright top bezel + two corner rivets carry the metaphor all
+   the way through, not just the name. */
 .masthead-spec {
-    border-left: 1px solid var(--line);
-    background: var(--surface-2);
+    position: relative;
+    border-left: 1px solid var(--line-strong);
+    background: var(--chrome-light);
+    box-shadow: inset 0 1px 0 0 var(--chrome-edge-hi);
     display: flex;
     flex-direction: column;
+}
+
+.masthead-spec::before,
+.masthead-spec::after {
+    content: "";
+    position: absolute;
+    right: 10px;
+    width: 11px;
+    height: 11px;
+    background-image: var(--fastener-screw);
+    background-size: 100%;
+}
+
+.masthead-spec::before {
+    top: 10px;
+}
+
+.masthead-spec::after {
+    bottom: 10px;
 }
 
 .spec-row {
@@ -530,7 +624,10 @@ button {
 }
 
 /* Chip: a hard square control. White at rest, hairline border; hover tints and
-   throws a hard offset; active fills solid accent with a hard offset shadow. */
+   throws a hard offset; active fills solid accent with a hard offset shadow.
+   A crisp 1px bezel (bright top, dark bottom) rides along on every state —
+   a machined toggle, not a flat swatch — and inverts on .is-active so a
+   selected chip reads as pressed in rather than just recolored. */
 .channel {
     padding: 8px 15px;
     font-size: 0.84rem;
@@ -539,6 +636,7 @@ button {
     color: var(--ink-2);
     background: var(--surface);
     border: 1px solid var(--line-strong);
+    box-shadow: inset 0 1px 0 0 var(--chrome-edge-hi), inset 0 -1px 0 0 rgba(154, 167, 189, 0.4);
     transition: color 0.14s ease, background-color 0.14s ease,
         border-color 0.14s ease, box-shadow 0.14s ease;
 }
@@ -547,14 +645,16 @@ button {
     color: var(--accent-strong);
     border-color: var(--accent);
     background: var(--accent-soft);
-    box-shadow: 4px 4px 0 -1px var(--accent-line);
+    box-shadow: inset 0 1px 0 0 var(--chrome-edge-hi), inset 0 -1px 0 0 rgba(154, 167, 189, 0.4),
+        4px 4px 0 -1px var(--accent-line);
 }
 
 .channel.is-active {
     color: #fff;
     background: var(--accent);
     border-color: var(--accent);
-    box-shadow: 4px 4px 0 -1px var(--accent-strong);
+    box-shadow: inset 0 1px 0 0 rgba(5, 10, 25, 0.45), inset 0 -1px 0 0 rgba(255, 255, 255, 0.3),
+        4px 4px 0 -1px var(--accent-strong);
 }
 
 .channel.is-active:hover {
@@ -1055,6 +1155,58 @@ button {
     white-space: normal;
 }
 
+/* Compact horizontal bar chart for a handful of same-scale stats (mean/median/
+   min/max/std, or a distribution's q1/q3/iqr/skewness/kurtosis) -- so the
+   shape of a result reads at a glance next to the stat-list's exact figures. */
+.stat-chart {
+    border-top: 1px solid var(--line);
+    border-left: 1px solid var(--line);
+    padding: 10px 14px;
+}
+
+.stat-chart-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 5px 0;
+}
+
+.stat-chart-label {
+    flex: 0 0 96px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--ink-3);
+    white-space: nowrap;
+}
+
+.stat-chart-track {
+    flex: 1 1 auto;
+    height: 12px;
+    min-width: 40px;
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+}
+
+.stat-chart-bar {
+    fill: var(--accent);
+}
+
+.stat-chart-bar.is-neg {
+    fill: var(--err);
+}
+
+.stat-chart-value {
+    flex: 0 0 auto;
+    min-width: 64px;
+    text-align: right;
+    font-size: 0.86rem;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+    color: var(--ink);
+}
+
 /* Nested tier output: an indented module hung off a strong rail with a neon
    tick at the title. Top-level sections get real air between them so the rail
    reads as a stack of distinct blocks, not one unbroken line down the page. */
@@ -1198,6 +1350,12 @@ button {
     font-size: 1rem;
     font-variant-numeric: tabular-nums;
     color: var(--ink);
+}
+
+/* Heatmap shading: --heat (0..1) is set per cell by script.js, normalized
+   within that column's own range, so each metric shades independently. */
+.matrix td.value.is-heat {
+    background: color-mix(in srgb, var(--accent) calc(var(--heat, 0) * 55%), var(--surface));
 }
 
 /* Sticky first column: the group/row identifier, accent-strong with a glowing
@@ -1361,6 +1519,29 @@ button {
     color: var(--accent-strong);
 }
 
+/* Chip row: a set of link/pill choices (e.g. the 404 page's "try one of
+   these" list, Studio's column/tier pickers). */
+.chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.chips a {
+    font-size: 0.86rem;
+    font-weight: 600;
+    padding: 6px 14px;
+    text-decoration: none;
+    border: 1px solid var(--line-strong);
+    color: var(--ink-2);
+    background: var(--surface);
+}
+
+.chips a:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
 .token {
     font-family: var(--font);
     font-weight: 700;
@@ -1434,10 +1615,7 @@ button {
     justify-content: center;
     padding: 24px;
     background-color: var(--bg);
-    background-image:
-        linear-gradient(var(--grid-line) 1px, transparent 1px),
-        linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
-    background-size: 26px 26px;
+    background-image: var(--metal-texture);
     transition: opacity 0.5s ease, visibility 0.5s ease;
 }
 
@@ -1651,10 +1829,7 @@ button {
     display: grid;
     place-items: center;
     background-color: var(--bg);
-    background-image:
-        linear-gradient(var(--grid-line) 1px, transparent 1px),
-        linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
-    background-size: 26px 26px;
+    background-image: var(--metal-texture);
     opacity: 1;
     transition: opacity 0.5s ease, transform 0.5s ease;
     will-change: opacity, transform;

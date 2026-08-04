@@ -55,15 +55,19 @@ figures/
 *.jpg
 *.svg
 
-# ---- Data artifacts (keep source Data/data.csv tracked, ignore scratch) ----
+# ---- Data artifacts (keep the small, curated CSVs tracked, ignore scratch) ----
 *.parquet
 *.feather
 *.pkl
 *.h5
 *.hdf5
 *.csv
-# ...but keep the small practice dataset tracked.
+# ...but keep the small tracked datasets: the original practice file, and the
+# curated NHANES subset the live engine actually runs on (18 renamed, labeled
+# columns out of nhanes_analytic.csv's 412 raw-coded ones -- small enough to
+# commit; the full raw export stays gitignored, see Data/nhanes_analytic.csv).
 !Data/data.csv
+!Data/nhanes.csv
 
 # ---- Django ----
 # Local run log. The host has no persistent disk, so this is never shared state.

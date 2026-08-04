@@ -142,8 +142,9 @@
             <span class="module-meta">Live compute</span>
         </div>
         <div class="module-body">
-            <p class="text">Pick an analysis tier and a column from <code>data.csv</code> — optionally grouped by a
-                category — and the engine computes the rest.</p>
+            <p class="text">Pick an analysis tier and a column from <code>nhanes.csv</code> — a curated slice of the
+                NHANES 2017–2018 data behind this project — optionally grouped by a category — and the engine
+                computes the rest.</p>
 
             <div class="fields">
                 <div class="field">
@@ -174,7 +175,7 @@
             <span class="module-index">02</span>
             <span class="module-tick" aria-hidden="true"></span>
             <h2 id="tel-title" class="module-title">Dataset Telemetry</h2>
-            <span class="module-meta">Source <code id="tel-source">data.csv</code></span>
+            <span class="module-meta">Source <code id="tel-source">nhanes.csv</code></span>
         </div>
         <div class="module-body">
             <p class="text">Live readout from the source this engine is wired to.</p>
@@ -182,27 +183,27 @@
             <div class="stat-grid">
                 <div class="stat-cell">
                     <p class="stat-k">Records</p>
-                    <p class="stat-v" id="tel-rows">50</p>
+                    <p class="stat-v" id="tel-rows">9254</p>
                 </div>
                 <div class="stat-cell">
                     <p class="stat-k">Fields</p>
-                    <p class="stat-v" id="tel-cols">12</p>
+                    <p class="stat-v" id="tel-cols">18</p>
                 </div>
                 <div class="stat-cell">
                     <p class="stat-k">Analyzable</p>
-                    <p class="stat-v" id="tel-numeric">10</p>
+                    <p class="stat-v" id="tel-numeric">15</p>
                 </div>
                 <div class="stat-cell">
                     <p class="stat-k">Categorical</p>
-                    <p class="stat-v" id="tel-categorical">2</p>
+                    <p class="stat-v" id="tel-categorical">3</p>
                 </div>
                 <div class="stat-cell">
-                    <p class="stat-k">Complete <span class="stat-note">n=50</span></p>
-                    <p class="stat-v" id="tel-complete">5</p>
+                    <p class="stat-k">Complete</p>
+                    <p class="stat-v" id="tel-complete">0</p>
                 </div>
                 <div class="stat-cell">
-                    <p class="stat-k">Reduced <span class="stat-note">n=49</span></p>
-                    <p class="stat-v" id="tel-reduced">5</p>
+                    <p class="stat-k">Reduced</p>
+                    <p class="stat-v" id="tel-reduced">15</p>
                 </div>
             </div>
         </div>
@@ -263,8 +264,9 @@
                 <span class="legend-note-key">Missing data</span>
                 Cells that can't be read as a number — a blank, <span class="token">NA</span>,
                 <span class="token">?</span>, or <span class="token">null</span> — are dropped, never
-                filled in. Five of the ten columns each lose exactly one such cell, so their stats
-                summarize 49 values instead of 50. Nothing is invented to close the gap.
+                filled in. Every column here is reduced by a different amount — <span class="token">Age</span>
+                summarizes 8,897 of 9,254 participants, <span class="token">Triglycerides</span> (a fasting-only
+                test) just 2,834. Nothing is invented to close either gap.
             </p>
         </div>
     </section>

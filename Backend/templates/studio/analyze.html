@@ -4,6 +4,18 @@
 {% block body %}
 <h2>{{ tier }} tier &mdash; {{ column }}{% if group %} by {{ group }}{% endif %}</h2>
 
+{% if available_tiers and available_tiers|length > 1 %}
+  <div class="chips">
+    {% for other in available_tiers %}
+      {% if other == tier %}
+        <a href="/studio/analyze/{{ other|urlencode }}/{{ column|urlencode }}/" aria-current="page">{{ other }}</a>
+      {% else %}
+        <a href="/studio/analyze/{{ other|urlencode }}/{{ column|urlencode }}/">{{ other }}</a>
+      {% endif %}
+    {% endfor %}
+  </div>
+{% endif %}
+
 {% if error %}
   <p class="notice">{{ error }}</p>
 {% else %}
@@ -16,6 +28,18 @@
       {% endfor %}
     </tbody>
   </table>
+
+  {% if chart %}
+    <div class="studio-chart" role="img" aria-label="Bar chart of {{ chart|map(attribute='label')|join(', ') }}">
+      {% for bar in chart %}
+        <div class="studio-chart-row">
+          <span class="studio-chart-label">{{ bar.label }}</span>
+          <span class="studio-chart-track"><span class="studio-chart-fill{% if bar.is_neg %} is-neg{% endif %}" style="width: {{ bar.pct }}%"></span></span>
+          <span class="studio-chart-value">{{ bar.value }}</span>
+        </div>
+      {% endfor %}
+    </div>
+  {% endif %}
 
   {#
   POST, not a link: saving writes a row, and a GET that writes would let every

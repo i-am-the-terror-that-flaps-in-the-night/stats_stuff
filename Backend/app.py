@@ -9,7 +9,10 @@ WHY THIS EXISTS
       * exposes a health check (for Render's health probe),
       * serves the static preview (index.html at the repo root, assets under Web/), and
       * exposes a small JSON API (backed by engine.py) that the preview calls to
-        compute descriptive stats on Data/data.csv.
+        compute descriptive stats on Data/nhanes.csv -- a curated, human-readable
+        subset (18 renamed columns) of the NHANES 2017-2018 data this project
+        analyzes, built from Data/nhanes_analytic.csv (see that file's docstring
+        note for provenance; the full 412-column raw export stays local-only).
 
 RUNNING IT
     Locally:   uvicorn app:app --reload          (from this Backend/ directory)
@@ -19,7 +22,7 @@ RUNNING IT
 ROUTES
     GET /healthz             -> {"status": "ok"}     liveness probe for Render
     GET /                    -> the static preview (index.html), or info JSON if absent
-    GET /api/columns         -> numeric/analyzable columns in Data/data.csv
+    GET /api/columns         -> numeric/analyzable columns in Data/nhanes.csv
     GET /api/stats/{column}  -> descriptive stats for one analyzable column
     /Web/*                   -> the Web/ directory (CSS/JS), served as static files
 
@@ -48,11 +51,13 @@ from contextlib import asynccontextmanager
 from functools import lru_cache
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request, Response
+from fastapi.exception_handlers import http_exception_handler
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 # NOTE: pandas and engine.py are imported lazily inside get_dataframe(),
 # analyzable_columns() and compute_stats() -- deliberately NOT at module top --
@@ -63,8 +68,10 @@ from fastapi.staticfiles import StaticFiles
 # directory. index.html, Web/ and Data/ all live at the repo root, one level up.
 ROOT = Path(__file__).resolve().parent.parent
 WEB_DIR = ROOT / "Web"
-DATA_CSV = ROOT / "Data" / "data.csv"
+DATA_CSV = ROOT / "Data" / "nhanes.csv"
 INDEX_HTML = ROOT / "index.html"  # references Web/CSS and Web/JS (served at /Web)
+NOT_FOUND_HTML = ROOT / "404.html"
+FAVICON = WEB_DIR / "favicon.ico"
 
 # Cache-Control for the static frontend. The assets aren't content-hashed and we
 # redeploy them in place, so a long max-age is a trap: after a deploy a returning
@@ -82,6 +89,16 @@ INDEX_HTML = ROOT / "index.html"  # references Web/CSS and Web/JS (served at /We
 STATIC_CACHE_CONTROL = "no-cache"
 INDEX_CACHE_CONTROL = "no-cache"
 
+# Cache-Control for the JSON analysis endpoints. Unlike the static assets above,
+# these responses are pure functions of the (already-cached) dataframe -- same
+# tier/column/group always yields the same bytes for the life of a running
+# process -- so the browser can skip the round-trip entirely instead of just
+# revalidating it. A short max-age (not "immutable") caps how long a stale
+# result can outlive a redeploy: 5 minutes is enough to make repeat views in
+# one session free, without letting a bug-fix deploy hide behind a long-lived
+# client cache the way a longer TTL would.
+API_CACHE_CONTROL = "public, max-age=300"
+
 
 def _load_engine():
     """Import the stats engine lazily. Works whether launched from inside
@@ -97,7 +114,7 @@ def _load_engine():
 
 @lru_cache(maxsize=1)
 def get_dataframe():
-    """Load and clean Data/data.csv once, then reuse it across requests."""
+    """Load and clean Data/nhanes.csv once, then reuse it across requests."""
     import pandas as pd
 
     _, df_cleanup = _load_engine()
@@ -264,13 +281,36 @@ def healthz():
     return {"status": "ok"}
 
 
+@app.get("/favicon.ico")
+def favicon():
+    """Browsers request this automatically; without a route it 404s on every
+    page load. Served from the same asset index.html already links to."""
+    if FAVICON.is_file():
+        return FileResponse(FAVICON, headers={"Cache-Control": STATIC_CACHE_CONTROL})
+    raise HTTPException(status_code=404, detail="favicon.ico not found")
+
+
+@app.exception_handler(StarletteHTTPException)
+async def not_found_handler(request: Request, exc: StarletteHTTPException):
+    """Serve the styled 404 page for browser navigations to an unknown route.
+    API routes (/api/..., /studio/..., /guide/...) keep their own JSON/HTML
+    error bodies -- this only covers genuinely unmatched paths, and only when
+    the client is a browser expecting HTML, not a script expecting JSON."""
+    is_api_path = request.url.path.startswith(("/api", "/studio", "/guide"))
+    wants_html = "text/html" in request.headers.get("accept", "")
+    if exc.status_code == 404 and wants_html and not is_api_path and NOT_FOUND_HTML.is_file():
+        return FileResponse(NOT_FOUND_HTML, status_code=404, headers={"Cache-Control": INDEX_CACHE_CONTROL})
+    return await http_exception_handler(request, exc)
+
+
 @app.get("/api/columns")
-def list_columns():
+def list_columns(response: Response):
     """List the analyzable (numeric) and categorical (label) columns in the CSV.
 
     `columns` stays the numeric list it has always been; `categorical` is added
     for the categorical tier and the group-by picker.
     """
+    response.headers["Cache-Control"] = API_CACHE_CONTROL
     return {
         "dataset": DATA_CSV.name,
         "columns": sorted(analyzable_columns()),
@@ -279,13 +319,14 @@ def list_columns():
 
 
 @app.get("/api/overview")
-def overview():
+def overview(response: Response):
     """Dataset telemetry (shape, analyzable/categorical split, complete vs reduced)."""
+    response.headers["Cache-Control"] = API_CACHE_CONTROL
     return dataset_overview()
 
 
 @app.get("/api/stats/{column}")
-def column_stats(column: str):
+def column_stats(column: str, response: Response):
     """Return mean/median/mode/min/max/std/variance for one analyzable column.
 
     Retained for backward compatibility; it's the basic tier of /api/analyze.
@@ -296,11 +337,12 @@ def column_stats(column: str):
     result = compute_stats(column)
     if "error" in result:
         raise HTTPException(status_code=422, detail=result["error"])
+    response.headers["Cache-Control"] = API_CACHE_CONTROL
     return result
 
 
 @app.get("/api/analyze/{tier}/{column}")
-def analyze_column(tier: str, column: str, group: str | None = None):
+def analyze_column(tier: str, column: str, response: Response, group: str | None = None):
     """Run any analysis tier for a column.
 
     tier -> one of basic/medium/advanced/expert (numeric columns) or categorical
@@ -329,6 +371,7 @@ def analyze_column(tier: str, column: str, group: str | None = None):
     result = compute_tier(tier, column, group)
     if isinstance(result, dict) and "error" in result:
         raise HTTPException(status_code=422, detail=result["error"])
+    response.headers["Cache-Control"] = API_CACHE_CONTROL
     return result
 
 

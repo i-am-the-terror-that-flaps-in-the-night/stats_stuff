@@ -53,11 +53,14 @@ RUNS_DB = HERE / "studio_runs.db"  # local lab-notebook; gitignored, not deploye
 templates = Jinja2Templates(directory=str(HERE / "templates"))
 router = APIRouter()
 
-# Datasets shown on the index and the guide. Only the practice file ships with
-# the project; the larger research exports stay on the lab machine, so "absent"
-# is the expected online state. Availability is derived, never hard-coded.
+# Datasets shown on the index and the guide. nhanes.csv and data.csv ship with
+# the project; the raw NHANES export and the larger research files stay on the
+# lab machine, so "absent" is the expected online state for those. Availability
+# is derived, never hard-coded.
 DATASETS = (
-    {"file": "data.csv", "blurb": "Practice dataset that ships with the project."},
+    {"file": "nhanes.csv", "blurb": "Curated NHANES 2017-2018 subset -- the dataset the live engine runs on."},
+    {"file": "data.csv", "blurb": "Small synthetic practice dataset, kept for quick local testing."},
+    {"file": "nhanes_analytic.csv", "blurb": "Full raw NHANES merge (412 columns) nhanes.csv was curated from -- stays on the lab machine."},
     {"file": "trial_full.csv", "blurb": "Full research export -- stays on the lab machine."},
     {"file": "followup.csv", "blurb": "Follow-up measurements -- stays on the lab machine."},
 )
@@ -113,6 +116,50 @@ def _scalar(value) -> str:
     if isinstance(value, dict):
         return ", ".join(f"{k}: {_scalar(v)}" for k, v in value.items()) or "n/a"
     return str(value)
+
+
+# Same-scale figures worth plotting side by side (mirrors the dashboard's
+# PLOTTABLE_KEYS in Web/JS/script.js) -- everything else (n, column, flags,
+# lists) stays ledger-only.
+PLOTTABLE_KEYS = {
+    "mean", "median", "min", "max", "std", "variance",
+    "q1", "q3", "iqr", "skewness", "kurtosis",
+}
+
+
+def _chart_rows(result: dict):
+    """Raw numeric values (not the stringified _scalar() output the ledger
+    uses) for the plottable keys, found at the top level or one level of
+    nesting (e.g. medium's "distribution" group)."""
+    rows = []
+
+    def collect(d):
+        for key, value in d.items():
+            is_number = isinstance(value, (int, float)) and not isinstance(value, bool)
+            if key in PLOTTABLE_KEYS and is_number and value == value:  # value == value: not NaN
+                rows.append((key, float(value)))
+            elif isinstance(value, dict):
+                collect(value)
+
+    collect(result)
+    return rows
+
+
+def _chart_bars(rows):
+    """_chart_rows() output, ready to render: label, display value, and a
+    0-100 width percentage scaled to the largest magnitude in the set."""
+    if not rows:
+        return []
+    max_abs = max(abs(v) for _, v in rows) or 1.0
+    return [
+        {
+            "label": key.replace("_", " "),
+            "value": _scalar(value),
+            "pct": round(abs(value) / max_abs * 100, 2),
+            "is_neg": value < 0,
+        }
+        for key, value in rows
+    ]
 
 
 def _result_rows(result: dict):
@@ -242,6 +289,12 @@ def studio_analyze(request: Request, tier: str, column: str, group: str | None =
     result, group, elapsed_ms = _run_analysis(app, tier, column, group)
 
     error = result["error"] if isinstance(result, dict) and "error" in result else None
+    # The tiers this column can run under -- numeric tiers for an analyzable
+    # column, just the categorical tier for a label column -- so the page can
+    # offer a way to pivot depth without a trip back through /studio/.
+    available_tiers = (
+        list(app.NUMERIC_TIERS) if column in app.analyzable_columns() else ["categorical"]
+    )
     return templates.TemplateResponse(
         request,
         "studio/analyze.html",
@@ -252,7 +305,9 @@ def studio_analyze(request: Request, tier: str, column: str, group: str | None =
             "error": error,
             "elapsed_ms": elapsed_ms,
             "result": None if error else _result_rows(result),
+            "chart": [] if error else _chart_bars(_chart_rows(result)),
             "data": _build_data(),
+            "available_tiers": available_tiers,
         },
     )
 

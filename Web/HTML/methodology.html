@@ -167,9 +167,11 @@
                 column's statistics</strong>, never replaced with a zero or an average. Filling a gap with a
                 made-up number would quietly pull the mean, shrink the variance, and dress a hole up as a data
                 point. So the engine refuses to.</p>
-            <p class="prose">The visible cost is honest: in the bundled dataset, five of the ten numeric columns
-                each lose exactly one unreadable cell, so their figures summarize <strong>49 values, not 50</strong>.
-                The <span class="expr">count</span> is reported alongside every result precisely so that reduction is
+            <p class="prose">The visible cost is honest: in the live NHANES dataset, every numeric column is
+                reduced, and by very different amounts — <span class="expr">Age</span> is present for 8,897 of
+                9,254 participants, while <span class="expr">Triglycerides</span> — only measured for the fasting
+                subsample — is present for just <strong>2,834</strong>. Neither gap is filled in. The
+                <span class="expr">count</span> is reported alongside every result precisely so that reduction is
                 never hidden.</p>
         </div>
     </section>
@@ -203,6 +205,7 @@
     </footer>
 </div>
 
+<script src="../JS/transition.js"></script>
 <script src="../JS/script.js"></script>
 <script src="../JS/nav.js"></script>
 </body>
