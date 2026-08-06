@@ -110,3 +110,11 @@ Desktop.ini
 
 # Studio run-log (local lab notebook; free tier has no persistent disk)
 Backend/studio_runs.db
+
+# Frontend (Vite + React + TypeScript). The bundle is built on deploy from
+# source (see render.yaml), never committed -- a checked-in build can drift from
+# the source it was made from without anything failing to say so.
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+frontend/node_modules/.tmp/

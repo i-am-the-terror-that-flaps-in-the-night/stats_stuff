@@ -12,7 +12,18 @@ services:
     # and the free tier has no persistent disk anyway -- rows written at runtime
     # don't survive the next deploy, which is why the log is a local-only tool
     # and nothing on the live site depends on it.
-    buildCommand: pip install -r requirements.txt
+    # Two toolchains, one build. Render's native build image ships node/npm
+    # alongside python regardless of the runtime chosen, so the frontend is
+    # built from source here rather than committed to git -- there is no
+    # generated bundle in the repo that could silently go stale against the
+    # source it came from.
+    #
+    # `npm ci` (not `npm install`) so the deploy resolves the exact tree in
+    # package-lock.json. The frontend build runs first: if it fails, the deploy
+    # fails before touching Python, and the previous version stays live.
+    buildCommand: >-
+      cd frontend && npm ci && npm run build && cd ..
+      && pip install -r requirements.txt
     startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
     # Render probes this for zero-downtime deploys; app.py returns 200 here.
     healthCheckPath: /healthz
@@ -20,5 +31,9 @@ services:
       # Match the version pinned in .python-version / pyproject.toml (>=3.14.6).
       - key: PYTHON_VERSION
         value: 3.14.6
+      # Pinned because the build image's default Node is unspecified and could
+      # move under us. Vite 8 requires ^20.19 || >=22.12; 24 is the current LTS.
+      - key: NODE_VERSION
+        value: "24"
       - key: PYTHONUNBUFFERED
         value: "1"

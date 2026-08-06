@@ -1,7 +1,7 @@
 # stats-and-more
 
-A small Python project pairing a **descriptive-statistics engine** with a minimal
-**FastAPI web service** and a static web preview. The live demo runs on a curated slice of
+A small project pairing a **descriptive-statistics engine** with a minimal
+**FastAPI web service** and a React + TypeScript frontend. The live demo runs on a curated slice of
 [NHANES 2017–2018](https://wwwn.cdc.gov/nchs/nhanes/continuousnhanes/) data — the same dataset
 this project's underlying research analyzes.
 
@@ -9,10 +9,10 @@ this project's underlying research analyzes.
 
 | Component         | Entry point             | What it does                                                            |
 |-------------------|-------------------------|------------------------------------------------------------------------|
-| **Web service**   | `Backend/app.py`        | FastAPI app: `/healthz` probe, a JSON analysis API, and serves the `Web/` preview + a styled 404; deploys to Render |
+| **Web service**   | `Backend/app.py`        | FastAPI app: `/healthz` probe, the JSON analysis API, and serves the built frontend; deploys to Render |
 | **Stats engine**  | `Backend/engine.py`     | Basic/medium/advanced/expert/categorical analysis tiers on `Data/nhanes.csv`; the engine behind the API |
-| **Studio**        | `Backend/studio.py`     | Server-rendered `/studio/` and `/guide/` pages (Jinja templates) — a browsable, no-JS view of the same engine, with a local run log |
-| **Web preview**   | `index.html`            | Static page that calls the API to show column stats                    |
+| **Studio API**    | `Backend/studio.py`     | `/api/datasets` and `/api/runs` — the dataset inventory and the local SQLite run log |
+| **Frontend**      | `frontend/`             | React 19 + Vite 8 + TypeScript 7 single-page app: the dashboard, the static pages and the Studio |
 
 > **Note on history:** earlier versions of this repo included a survey-weighted NHANES
 > pipeline (`stats_test.py`, `weighted_stats.py`) and an XPT→CSV converter (`main.py`). Those
@@ -25,14 +25,11 @@ this project's underlying research analyzes.
 
 ```
 stats_and_more/
-├── index.html             # Static preview, served at / by the FastAPI app
-├── 404.html               # Styled 404 page, served for unmatched HTML routes
 ├── main.py                # Root deploy entry point: re-exports Backend/app.py (Render's `uvicorn main:app`)
 ├── Backend/
-│   ├── app.py             # FastAPI service: /healthz, /favicon.ico, the JSON analysis API, 404 handler, serves index.html
+│   ├── app.py             # FastAPI service: /healthz, the JSON analysis API, serves frontend/dist + SPA fallback
 │   ├── engine.py          # Stats engine: basic/medium/advanced/expert/categorical analysis tiers on Data/nhanes.csv
-│   ├── studio.py          # /studio/ and /guide/ routes: server-rendered Jinja pages + local SQLite run log
-│   └── templates/studio/  # Jinja templates for Studio (index, analyze, runs, guide) + shared base.html
+│   └── studio.py          # /api/datasets and /api/runs: dataset inventory + local SQLite run log
 ├── Data/
 │   ├── nhanes.csv         # Live dataset: 18 curated, human-readable NHANES columns (tracked in git)
 │   ├── data.csv           # Small synthetic practice dataset, kept for quick local testing (tracked in git)
@@ -41,14 +38,19 @@ stats_and_more/
 ├── extra_data/            # Retained NHANES source files (analysis scripts removed)
 │   ├── csv_data/          # NHANES component CSV files (gitignored)
 │   └── PDF_explanations/  # Variable documentation PDFs
-├── Web/                   # Static preview assets (served at /Web)
-│   ├── CSS/styles.css     # Main site styles
-│   ├── CSS/studio.css     # Studio-specific styles
-│   ├── HTML/              # Methodology/Benchmarks/Changelog pages
-│   ├── JS/script.js       # Dashboard logic (calls the API, renders results/charts)
-│   ├── JS/nav.js          # Client-side SPA navigation between the static pages
-│   ├── JS/transition.js   # Boot-splash-to-page transition
-│   └── favicon.ico
+├── frontend/              # React + Vite + TypeScript SPA (built to frontend/dist, gitignored)
+│   ├── index.html         # Vite entry document
+│   ├── vite.config.ts     # base "/" (required for nested routes) + /api dev proxy
+│   ├── tsconfig*.json     # TypeScript 7, strict
+│   └── src/
+│       ├── main.tsx       # Mounts <BootLoader><App/></BootLoader>
+│       ├── App.tsx        # Routes
+│       ├── lib/api.ts     # Typed API client + backend-origin discovery
+│       ├── lib/format.ts  # Shape guards driving the generic result renderer
+│       ├── types/         # API payload types
+│       ├── components/    # Shell, BootLoader, ResultView
+│       ├── routes/        # Overview, Methodology, Benchmarks, Changelog, Studio, Guide
+│       └── styles/        # styles.css, studio.css
 ├── figures/               # Generated plots (gitignored)
 ├── render.yaml            # Render Blueprint (deploys Backend/app.py)
 ├── pyproject.toml         # Dependencies (managed with uv)
@@ -90,51 +92,94 @@ uv run uvicorn main:app --reload
 
 Then open <http://127.0.0.1:8000/> and pick a column to analyze. Routes:
 
-- `GET /` — serves the static preview (`index.html`)
+- `GET /` — serves the built frontend (`frontend/dist/index.html`)
 - `GET /healthz` — liveness probe, returns `{"status": "ok"}`
 - `GET /favicon.ico` — the site favicon (avoids a stray 404 on every page load)
 - `GET /api/overview` — dataset telemetry: shape, analyzable/categorical split, complete vs reduced columns
 - `GET /api/columns` — numeric and categorical columns available in `Data/nhanes.csv`
 - `GET /api/stats/{column}` — mean/median/mode/min/max/std/variance for one column (the basic tier; kept for backward compatibility)
 - `GET /api/analyze/{tier}/{column}` — run any analysis tier (`basic`/`medium`/`advanced`/`expert`/`categorical`) for a column, optionally with `?group=` for the tiers that support group comparisons
-- `GET /studio/`, `GET /studio/analyze/{tier}/{column}/`, `POST /studio/analyze/{tier}/{column}/save/`, `GET /studio/runs/`, `GET /guide/` — the server-rendered Studio pages (see `Backend/studio.py`)
-- `/Web/*` — the `Web/` directory (CSS/JS/favicon), served as static files
-- Any other unmatched path — a styled `404.html` for browser navigations, or the default JSON error for API/Studio paths
+- `GET /api/datasets` — the dataset inventory, each with a live `available` flag
+- `GET /api/runs`, `POST /api/runs` — the Studio run log (see `Backend/studio.py`)
+- `/assets/*` — the fingerprinted Vite bundle, cached immutably
+- Any other unmatched path that accepts HTML — the SPA shell, so client-side routes deep-link correctly; `/api/*` keeps its JSON error body
 
 The API is backed by `engine.py`: `df_cleanup()` coerces mostly-numeric columns
 (stripping `$`/`,`), and `DataAnalyzer` computes each tier's stats — from
 `basic_analysis()` up to `expert_analysis()` (collinearity/VIF, regression
-diagnostics, clinical cutoffs, trend tests).
+diagnostics, published clinical thresholds, trend tests).
 
-### Studio (`/studio/`, `/guide/`)
+Every block of output carries a `layer` key — `descriptive`, `inferential` or
+`predictive` — naming how strong a claim it supports. Nothing is ever labelled
+causal: the engine reports adjusted *associations*, and only when the caller
+names the exposure and confounders itself (`advanced_analysis(..., exposure=...,
+confounders=[...])`). Every p-value ships with an effect size, because
+statistical significance and practical importance are different questions.
 
-`Backend/studio.py` adds a second, server-rendered front end alongside the JSON
-API and the JS-driven dashboard: plain HTML pages (Jinja templates in
-`Backend/templates/studio/`) that call the same cached `app.py` functions
-directly, no HTTP round-trip. `/studio/` lists datasets and tiers, `/studio/analyze/{tier}/{column}/`
-renders one analysis as a ledger table (with an inline chart) and a "Save to
-run log" button, and `/studio/runs/` shows that log. The log is a local SQLite
-file (`Backend/studio_runs.db`, gitignored) — Render's free tier has no
-persistent disk, so it's a personal lab notebook, not shared state the site
-depends on. `/guide/` is a "how it's built" write-up.
+Clinical thresholds come from `CLINICAL_THRESHOLDS` (published adult guideline
+values, each with its source), never from the dataset's own median. Because a
+cutoff is a number *plus a unit*, each entry stores its cutoff per unit and the
+band a population median plausibly falls in for that unit. Before applying
+anything, the engine checks the column's median against that band: if the data
+looks like mmol/L when the cutoff is mg/dL, it refuses and names the unit it
+suspects rather than reporting a precise, confident, wrong prevalence. Declare
+units explicitly with `expert_analysis(column, units="mmol/L")`.
 
-### Deploying to Render
+### Studio (`/studio`, `/guide`)
 
-`render.yaml` is a [Render Blueprint](https://render.com/docs/blueprint-spec). Push the repo,
-then in the Render dashboard choose **New + → Blueprint** and point it at this repo. It builds
-and runs from the repo root, with:
+The Studio is a route in the SPA, not a server-rendered page. `/studio` lists the
+columns, datasets and recent runs; `/studio/analyze/:tier/:column` renders one
+analysis as a ledger table with an inline chart and a "Save this run" button; and
+`/studio/runs` shows the log.
 
-- **Build command:** `pip install -r requirements.txt`
-- **Start command:** `uvicorn main:app --host 0.0.0.0 --port $PORT`
-- **Health check path:** `/healthz`
+`Backend/studio.py` keeps only what the browser genuinely cannot work out for
+itself: the dataset inventory (a filesystem question) and the run log (a SQLite
+question). It still calls `app.py`'s cached functions in-process, with no HTTP
+round-trip. The log is a local SQLite file (`Backend/studio_runs.db`, gitignored)
+— Render's free tier has no persistent disk, so it's a personal lab notebook, not
+shared state the site depends on. An empty log is the normal online state.
 
-The root `main.py` re-exports the app from `Backend/app.py`, so Render's default
-`uvicorn main:app` start command works without any extra configuration.
+## Frontend
 
-> **If you created the service manually** (not via Blueprint), Render ignores `render.yaml` —
-> set those same values in the dashboard under **Settings → Build & Deploy**. The
-> `Could not import module "main"` error means the start command can't find an app; with the
-> root `main.py` in place and the start command above, it resolves.
+```bash
+./run.sh           # both servers: API on :8000, app on :5173  <- open :5173
+./run.sh build     # build the frontend, then serve it from FastAPI at :8000
+```
+
+`./run.sh` is the everyday command. It runs uvicorn and the Vite dev server
+together, installs `frontend/node_modules` on first use, and shuts both down as
+one — Ctrl-C, or either server crashing, stops the other. Open **:5173**, not
+:8000: Vite serves the app with hot reload and proxies `/api` through to uvicorn,
+so there is no CORS in the loop. Port 8000 serves whatever was last built into
+`frontend/dist`, which in development is usually stale.
+
+Use `./run.sh build` before deploying — it produces the real bundle and serves it
+exactly the way Render will.
+
+To run either side alone:
+
+```bash
+cd frontend && npm run dev   # frontend only (no API)
+uv run uvicorn main:app --reload   # backend only
+```
+
+```bash
+npm run build      # tsc -b (typecheck) then vite build -> frontend/dist
+npm run typecheck  # types only
+```
+
+`frontend/dist` is gitignored and built on deploy (see `render.yaml`), so there
+is no committed bundle that can drift from the source it came from.
+
+Two things worth knowing before changing the build:
+
+- **`base` must stay `"/"`.** `index.html` is served for every deep link, so a
+  relative base makes `/studio/runs` resolve `./assets/index.js` against
+  `/studio/` and 404 — the HTML still returns 200, so the page just goes blank
+  with no build or type error to warn you.
+- **Import from `react-router`, not `react-router-dom`.** v7 merged everything
+  into the one package; `react-router-dom` is a legacy re-export whose 7.12–8.2
+  range carries a CSRF advisory.
 
 ## Live dataset
 

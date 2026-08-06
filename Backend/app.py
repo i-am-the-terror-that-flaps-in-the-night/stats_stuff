@@ -7,24 +7,40 @@ WHY THIS EXISTS
     is that entry point: a minimal FastAPI app that
 
       * exposes a health check (for Render's health probe),
-      * serves the static preview (index.html at the repo root, assets under Web/), and
-      * exposes a small JSON API (backed by engine.py) that the preview calls to
-        compute descriptive stats on Data/nhanes.csv -- a curated, human-readable
+      * serves the built React frontend (frontend/dist), and
+      * exposes a JSON API (backed by engine.py) that the frontend calls to
+        compute statistics on Data/nhanes.csv -- a curated, human-readable
         subset (18 renamed columns) of the NHANES 2017-2018 data this project
         analyzes, built from Data/nhanes_analytic.csv (see that file's docstring
         note for provenance; the full 412-column raw export stays local-only).
 
+    The frontend is a Vite + React + TypeScript app under frontend/. It owns all
+    presentation and its own URLs; this module is a pure JSON API plus a static
+    file server. There is no server-side rendering left -- the Studio pages that
+    used to be Jinja templates are routes in the SPA now, fed by studio.py's
+    /api/datasets and /api/runs.
+
 RUNNING IT
-    Locally:   uvicorn app:app --reload          (from this Backend/ directory)
-    On Render:  see ../render.yaml (runs from the repo root: uvicorn main:app)
-    Then open:  http://127.0.0.1:8000/
+    Backend only:  uvicorn app:app --reload      (from this Backend/ directory)
+    On Render:     see ../render.yaml (from the repo root: uvicorn main:app)
+
+    In development, run the Vite dev server alongside it for hot reload:
+        cd frontend && npm run dev      -> http://localhost:5173
+    Vite proxies /api to :8000, so the browser stays on one origin and there is
+    no CORS in the loop. To serve the built bundle from FastAPI instead:
+        cd frontend && npm run build    -> then open http://127.0.0.1:8000/
 
 ROUTES
-    GET /healthz             -> {"status": "ok"}     liveness probe for Render
-    GET /                    -> the static preview (index.html), or info JSON if absent
-    GET /api/columns         -> numeric/analyzable columns in Data/nhanes.csv
-    GET /api/stats/{column}  -> descriptive stats for one analyzable column
-    /Web/*                   -> the Web/ directory (CSS/JS), served as static files
+    GET  /healthz                       {"status": "ok"} -- Render's probe
+    GET  /api/columns                   numeric + categorical column lists
+    GET  /api/overview                  dataset telemetry
+    GET  /api/stats/{column}            descriptive stats (the basic tier)
+    GET  /api/analyze/{tier}/{column}   any tier, optional ?group=
+    GET  /api/datasets                  dataset inventory        (studio.py)
+    GET  /api/runs, POST /api/runs      the saved-run log        (studio.py)
+    GET  /                              the SPA shell (frontend/dist/index.html)
+    /assets/*                           the fingerprinted Vite bundle
+    anything else that accepts HTML     the SPA shell, for client-side routes
 
 SPEED ON RENDER
     Render's free plan spins the service down when idle and cold-starts it on the
@@ -34,7 +50,7 @@ SPEED ON RENDER
         them), not at module load. Importing pandas+numpy is by far the biggest
         chunk of boot time -- on a shared free-tier CPU it's seconds. Keeping it
         off the import path means uvicorn binds the port, the health probe
-        answers, and index.html + the static assets serve immediately; only the
+        answers, and the SPA shell + its assets serve immediately; only the
         first /api call pays the import (and it's cached after that).
       * a background warm-up on startup (see `lifespan`) pre-imports pandas and
         pre-loads/cleans the CSV off the request path, so even the first /api
@@ -65,28 +81,29 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 # "SPEED ON RENDER" note in the module docstring.
 
 # Resolve paths from __file__ so they're correct regardless of the working
-# directory. index.html, Web/ and Data/ all live at the repo root, one level up.
+# directory. Data/ lives at the repo root, one level up; the frontend is the
+# Vite build output under frontend/dist (see frontend/vite.config.ts).
 ROOT = Path(__file__).resolve().parent.parent
-WEB_DIR = ROOT / "Web"
 DATA_CSV = ROOT / "Data" / "nhanes.csv"
-INDEX_HTML = ROOT / "index.html"  # references Web/CSS and Web/JS (served at /Web)
-NOT_FOUND_HTML = ROOT / "404.html"
-FAVICON = WEB_DIR / "favicon.ico"
+DIST_DIR = ROOT / "frontend" / "dist"
+ASSETS_DIR = DIST_DIR / "assets"
+INDEX_HTML = DIST_DIR / "index.html"
+FAVICON = DIST_DIR / "favicon.ico"
 
-# Cache-Control for the static frontend. The assets aren't content-hashed and we
-# redeploy them in place, so a long max-age is a trap: after a deploy a returning
-# visitor keeps serving stale JS/CSS for the whole TTL *without revalidating*. Worse,
-# index.html and its assets then fall out of sync -- the HTML (shorter TTL) can
-# update to reference new files while the browser still serves the old ones, so a
-# change spanning several files (e.g. the boot transition: index.html + script.js +
-# styles.css + a new transition.js) loads half-old and silently breaks.
+# Cache-Control, split by what the file actually is.
 #
-# "no-cache" fixes that: the browser may store the file but must revalidate before
-# reusing it. StaticFiles sends ETag/Last-Modified, so an unchanged asset comes back
-# as a tiny 304 (no re-download) and a changed one is picked up immediately. Cost is
-# one conditional request per asset per load -- negligible, and it does NOT touch
-# Render's cold-start path (that's the server-side pandas import, not asset fetches).
-STATIC_CACHE_CONTROL = "no-cache"
+# Vite fingerprints everything under dist/assets (index-CYwdBGtm.js), so those
+# names change whenever their contents do and can be cached hard and forever --
+# a returning visitor re-downloads nothing, and a deploy can't serve a stale
+# asset because the new HTML asks for a different filename.
+#
+# index.html is the opposite: its name never changes and it is the thing that
+# points at the fingerprinted assets, so it must be revalidated every time or a
+# deploy would leave browsers requesting bundles that no longer exist.
+# "no-cache" means "store it, but check before reusing" -- an unchanged file
+# comes back as a tiny 304. Neither setting touches Render's cold-start path;
+# that's the server-side pandas import, not asset fetches.
+STATIC_CACHE_CONTROL = "public, max-age=31536000, immutable"
 INDEX_CACHE_CONTROL = "no-cache"
 
 # Cache-Control for the JSON analysis endpoints. Unlike the static assets above,
@@ -195,7 +212,8 @@ def compute_stats(column: str):
 # The analysis tiers that operate on a numeric column. The categorical branch is
 # handled separately (it works on label columns), so it's kept out of this set.
 # "expert" is the deepest numeric tier (collinearity/VIF, regression diagnostics,
-# clinical cutoffs, trend tests) -- see engine.py's expert_analysis().
+# published clinical thresholds where one exists, trend tests) -- see engine.py's
+# expert_analysis().
 NUMERIC_TIERS = ("basic", "medium", "advanced", "expert")
 
 
@@ -291,15 +309,27 @@ def favicon():
 
 
 @app.exception_handler(StarletteHTTPException)
-async def not_found_handler(request: Request, exc: StarletteHTTPException):
-    """Serve the styled 404 page for browser navigations to an unknown route.
-    API routes (/api/..., /studio/..., /guide/...) keep their own JSON/HTML
-    error bodies -- this only covers genuinely unmatched paths, and only when
-    the client is a browser expecting HTML, not a script expecting JSON."""
-    is_api_path = request.url.path.startswith(("/api", "/studio", "/guide"))
+async def spa_fallback_handler(request: Request, exc: StarletteHTTPException):
+    """Hand unmatched browser navigations to the client-side router.
+
+    The frontend owns its URLs now (/studio/runs, /methodology, ...), and those
+    paths exist only in the browser -- the server has no route for them. So a 404
+    on a *navigation* is not an error: it means "a deep link the SPA knows about",
+    and the right answer is index.html, which boots the router and renders it.
+    React Router then decides whether it is a real page or its own 404.
+
+    Two guards keep that from swallowing genuine errors:
+      * /api/... keeps its JSON error body, so a bad column still returns 404
+        with a useful detail instead of a page of HTML a fetch() can't read;
+      * only requests that actually accept HTML get the fallback, so a script
+        never receives a document where it asked for data.
+    """
+    is_api_path = request.url.path.startswith("/api")
     wants_html = "text/html" in request.headers.get("accept", "")
-    if exc.status_code == 404 and wants_html and not is_api_path and NOT_FOUND_HTML.is_file():
-        return FileResponse(NOT_FOUND_HTML, status_code=404, headers={"Cache-Control": INDEX_CACHE_CONTROL})
+    if exc.status_code == 404 and wants_html and not is_api_path and INDEX_HTML.is_file():
+        # 200, not 404: this is a real page being served, and the router will
+        # emit its own not-found view if the path matches nothing.
+        return FileResponse(INDEX_HTML, headers={"Cache-Control": INDEX_CACHE_CONTROL})
     return await http_exception_handler(request, exc)
 
 
@@ -377,10 +407,20 @@ def analyze_column(tier: str, column: str, response: Response, group: str | None
 
 @app.get("/")
 def root():
-    """Serve the static preview (index.html), falling back to info if it's gone."""
+    """Serve the built SPA shell.
+
+    If frontend/dist is missing the build simply hasn't run, so say that plainly
+    rather than 404-ing: it is the one failure here a developer can fix in one
+    command, and the API below it still works meanwhile.
+    """
     if INDEX_HTML.is_file():
         return FileResponse(INDEX_HTML, headers={"Cache-Control": INDEX_CACHE_CONTROL})
-    return {"service": "Data Analysis", "status": "ok", "preview": None}
+    return {
+        "service": "Data Analysis",
+        "status": "ok",
+        "frontend": "not built",
+        "hint": "cd frontend && npm ci && npm run build",
+    }
 
 
 # The /studio/ and /guide/ pages. Included here at the bottom -- after every
@@ -394,8 +434,10 @@ except ModuleNotFoundError:
     from Backend.studio import router as studio_router
 app.include_router(studio_router)
 
-# Mount the static frontend last so it can't shadow the routes above. index.html
-# lives at the repo root (served by "/") and pulls its CSS/JS from /Web, so we
-# mount Web/ at /Web to match the page's Web/CSS and Web/JS links.
-if WEB_DIR.is_dir():
-    app.mount("/Web", CachedStaticFiles(directory=WEB_DIR), name="web")
+# Mount the built assets last so they can't shadow the routes above. Vite emits
+# fingerprinted files into dist/assets and references them from dist/index.html
+# by ABSOLUTE path (base: "/" in vite.config.ts) -- required, because index.html
+# is served for deep links too, and a relative reference would resolve against
+# /studio/ on /studio/runs and 404.
+if ASSETS_DIR.is_dir():
+    app.mount("/assets", CachedStaticFiles(directory=ASSETS_DIR), name="assets")

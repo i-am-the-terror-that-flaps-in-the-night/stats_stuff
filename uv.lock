@@ -1043,15 +1043,11 @@ version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
     { name = "fastapi" },
-    { name = "ipykernel" },
     { name = "jinja2" },
     { name = "matplotlib" },
     { name = "numpy" },
     { name = "pandas" },
-    { name = "pandas-stubs" },
-    { name = "ruff" },
     { name = "scipy" },
-    { name = "scipy-stubs" },
     { name = "statsmodels" },
     { name = "uvicorn", extra = ["standard"] },
     { name = "websockets" },
@@ -1059,22 +1055,21 @@ dependencies = [
 
 [package.dev-dependencies]
 dev = [
+    { name = "ipykernel" },
+    { name = "pandas-stubs" },
     { name = "pytest" },
     { name = "ruff" },
+    { name = "scipy-stubs" },
 ]
 
 [package.metadata]
 requires-dist = [
     { name = "fastapi", specifier = "==0.139.0" },
-    { name = "ipykernel", specifier = ">=7.3.0" },
     { name = "jinja2", specifier = ">=3.1.6" },
     { name = "matplotlib", specifier = ">=3.11.0" },
     { name = "numpy", specifier = "==2.5.1" },
     { name = "pandas", specifier = ">=3.0.3" },
-    { name = "pandas-stubs", specifier = ">=3.0.3.260530" },
-    { name = "ruff", specifier = "==0.15.21" },
     { name = "scipy", specifier = ">=1.18.0" },
-    { name = "scipy-stubs", specifier = "==1.18.0.1" },
     { name = "statsmodels", specifier = ">=0.14.6" },
     { name = "uvicorn", extras = ["standard"], specifier = "==0.51.0" },
     { name = "websockets", specifier = "==16.1" },
@@ -1082,8 +1077,11 @@ requires-dist = [
 
 [package.metadata.requires-dev]
 dev = [
+    { name = "ipykernel", specifier = ">=7.3.0" },
+    { name = "pandas-stubs", specifier = ">=3.0.3.260530" },
     { name = "pytest", specifier = ">=8.0.0" },
-    { name = "ruff", specifier = ">=0.15.20" },
+    { name = "ruff", specifier = "==0.15.21" },
+    { name = "scipy-stubs", specifier = "==1.18.0.1" },
 ]
 
 [[package]]

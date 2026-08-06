@@ -1003,6 +1003,21 @@ button {
     color: var(--accent);
 }
 
+/* The claim layer the engine stamps on a result: descriptive / inferential /
+   predictive. Deliberately given its own chip rather than being left to blend
+   into the stat list -- it is the label that says how much weight the numbers
+   below it can carry, so it should be the second thing you read after the tier. */
+.results-head-layer {
+    padding: 2px 8px;
+    font-size: 0.64rem;
+    font-weight: 800;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--ink-2);
+    background: var(--surface-3);
+    border: 1px solid var(--line);
+}
+
 .results-head-ms {
     margin-left: auto;
     padding: 2px 10px;
@@ -1011,6 +1026,47 @@ button {
     font-variant-numeric: tabular-nums;
     color: var(--ok);
     background: var(--ok-soft);
+}
+
+/* The engine's explanatory prose -- what a p-value does and doesn't mean, why a
+   threshold was refused, the caveat on a standardized beta. These are sentences,
+   not statistics, so they get a full-width note block instead of being crushed
+   into a label-value cell sized for "median 87". The left rule marks them as
+   commentary on the figures above rather than another figure. */
+.result-note {
+    display: grid;
+    grid-template-columns: 132px 1fr;
+    gap: 12px;
+    align-items: baseline;
+    margin: 0;
+    padding: 10px 14px;
+    border-left: 3px solid var(--line-strong);
+    background: var(--surface-2);
+}
+
+.result-note + .result-note {
+    border-top: 1px solid var(--line);
+}
+
+.result-note-k {
+    font-size: 0.64rem;
+    font-weight: 800;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+}
+
+.result-note-v {
+    font-size: 0.82rem;
+    line-height: 1.55;
+    color: var(--ink-2);
+}
+
+@media (max-width: 640px) {
+    .result-note {
+        grid-template-columns: 1fr;
+        gap: 4px;
+    }
 }
 
 /* ---- Expert results: full-RGB "power" bookend ------------------------- */

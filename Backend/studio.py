@@ -1,21 +1,26 @@
 """
-studio.py -- the server-rendered /studio/ and /guide/ pages.
+studio.py -- JSON endpoints backing the Studio pages.
 
 WHY THIS EXISTS
-    app.py serves the dashboard, the JSON API and the static assets. This module
-    adds the human-readable browser on top: a set of FastAPI routes that render
-    the Jinja2 templates in templates/studio/ and call app.py's *own* cached
-    functions directly -- same process, same memory -- so drawing a table never
-    makes a second HTTP hop. It's mounted by app.py (app.include_router) at the
-    very bottom of that file, after every cached helper is defined, because we
-    call back into it (see WHY THE IMPORTS ARE LAZY).
+    The Studio used to be server-rendered Jinja: this module built HTML tables and
+    bar widths in Python. The frontend is now a React + TypeScript app (frontend/),
+    so presentation moved to the client and this module kept only what the client
+    genuinely cannot compute for itself -- the dataset inventory (a filesystem
+    question) and the saved-run log (a SQLite question).
+
+    It still calls app.py's *own* cached functions directly -- same process, same
+    memory -- so a request never makes a second HTTP hop. It's mounted by app.py
+    (app.include_router) at the very bottom of that file, after every cached
+    helper is defined, because we call back into it (see WHY THE IMPORTS ARE LAZY).
 
 WHAT IT SERVES
-    GET  /studio/                              index: dataset summary + tier chips
-    GET  /studio/analyze/{tier}/{column}/      one analysis, rendered as a ledger
-    POST /studio/analyze/{tier}/{column}/save/ append that run to the log, redirect
-    GET  /studio/runs/                         the saved-run log, newest first
-    GET  /guide/                               the "how it's built" write-up
+    GET  /api/datasets   the dataset inventory, each with a live `available` flag
+    GET  /api/runs       the saved-run log, newest first (?limit=N to cap it)
+    POST /api/runs       append a run to the log, returns the stored row
+
+    The analysis itself is /api/analyze/{tier}/{column} in app.py -- the Studio
+    and the dashboard now share exactly one analysis endpoint instead of having
+    a rendered twin each.
 
 THE RUN LOG
     Saved runs go in a local SQLite file next to this module. Render's free tier
@@ -35,22 +40,17 @@ WHY THE IMPORTS ARE LAZY
 from __future__ import annotations
 
 import sqlite3
-import time
 from datetime import datetime
 from pathlib import Path
-from types import SimpleNamespace
-from urllib.parse import parse_qs
 
-from fastapi import APIRouter, HTTPException, Request
-from fastapi.responses import RedirectResponse
-from fastapi.templating import Jinja2Templates
+from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel, Field
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent
 DATA_DIR = ROOT / "Data"
 RUNS_DB = HERE / "studio_runs.db"  # local lab-notebook; gitignored, not deployed
 
-templates = Jinja2Templates(directory=str(HERE / "templates"))
 router = APIRouter()
 
 # Datasets shown on the index and the guide. nhanes.csv and data.csv ship with
@@ -77,23 +77,8 @@ def _app():
 
 
 # ----------------------------------------------------------------------------
-# Data assembly
+# Dataset inventory
 # ----------------------------------------------------------------------------
-
-def _build_data():
-    """The dataset summary the templates read as `data`: its overview telemetry
-    and its numeric/categorical column lists. Returns None if the CSV can't be
-    loaded, which the templates render as a graceful "nothing to report" notice
-    rather than a 500."""
-    app = _app()
-    try:
-        overview = app.dataset_overview()
-        numeric = sorted(app.analyzable_columns())
-        categorical = sorted(app.categorical_columns())
-    except Exception:
-        return None
-    return SimpleNamespace(overview=overview, numeric=numeric, categorical=categorical)
-
 
 def _datasets():
     """DATASETS with a live `available` flag from the filesystem."""
@@ -101,81 +86,6 @@ def _datasets():
         {"label": d["file"], "available": (DATA_DIR / d["file"]).is_file(), "blurb": d["blurb"]}
         for d in DATASETS
     ]
-
-
-def _scalar(value) -> str:
-    """Render one statistic for the ledger table -- readable, never raw repr."""
-    if isinstance(value, bool):
-        return "yes" if value else "no"
-    if value is None:
-        return "n/a"
-    if isinstance(value, float):
-        return "n/a" if value != value else f"{value:.4g}"  # value != value catches NaN
-    if isinstance(value, (list, tuple)):
-        return ", ".join(_scalar(v) for v in value) or "n/a"
-    if isinstance(value, dict):
-        return ", ".join(f"{k}: {_scalar(v)}" for k, v in value.items()) or "n/a"
-    return str(value)
-
-
-# Same-scale figures worth plotting side by side (mirrors the dashboard's
-# PLOTTABLE_KEYS in Web/JS/script.js) -- everything else (n, column, flags,
-# lists) stays ledger-only.
-PLOTTABLE_KEYS = {
-    "mean", "median", "min", "max", "std", "variance",
-    "q1", "q3", "iqr", "skewness", "kurtosis",
-}
-
-
-def _chart_rows(result: dict):
-    """Raw numeric values (not the stringified _scalar() output the ledger
-    uses) for the plottable keys, found at the top level or one level of
-    nesting (e.g. medium's "distribution" group)."""
-    rows = []
-
-    def collect(d):
-        for key, value in d.items():
-            is_number = isinstance(value, (int, float)) and not isinstance(value, bool)
-            if key in PLOTTABLE_KEYS and is_number and value == value:  # value == value: not NaN
-                rows.append((key, float(value)))
-            elif isinstance(value, dict):
-                collect(value)
-
-    collect(result)
-    return rows
-
-
-def _chart_bars(rows):
-    """_chart_rows() output, ready to render: label, display value, and a
-    0-100 width percentage scaled to the largest magnitude in the set."""
-    if not rows:
-        return []
-    max_abs = max(abs(v) for _, v in rows) or 1.0
-    return [
-        {
-            "label": key.replace("_", " "),
-            "value": _scalar(value),
-            "pct": round(abs(value) / max_abs * 100, 2),
-            "is_neg": value < 0,
-        }
-        for key, value in rows
-    ]
-
-
-def _result_rows(result: dict):
-    """Flatten an engine result dict into (label, value) rows for analyze.html.
-    Nested dicts (the medium/advanced tiers return them) are expanded one level
-    as "parent.child" so the table stays flat and readable."""
-    rows = []
-    for key, value in result.items():
-        if key == "error":
-            continue
-        if isinstance(value, dict):
-            for subkey, subvalue in value.items():
-                rows.append((f"{key}.{subkey}", _scalar(subvalue)))
-        else:
-            rows.append((key, _scalar(value)))
-    return rows
 
 
 def _validate(app, tier: str, column: str):
@@ -186,21 +96,6 @@ def _validate(app, tier: str, column: str):
     valid = app.analyzable_columns() if tier in app.NUMERIC_TIERS else app.categorical_columns()
     if column not in valid:
         raise HTTPException(status_code=404, detail=f"Unknown column: {column!r}")
-
-
-def _run_analysis(app, tier: str, column: str, group: str | None):
-    """Run one tier and time it. Grouping only applies to medium/advanced, and a
-    non-existent group column is treated as no grouping (mirrors app.py). Returns
-    (result_dict, effective_group, elapsed_ms)."""
-    if tier in ("medium", "advanced", "expert") and group:
-        if group not in set(app.load_data().columns):
-            group = None
-    else:
-        group = None
-    started = time.perf_counter()
-    result = app.compute_tier(tier, column, group)
-    elapsed_ms = int(round((time.perf_counter() - started) * 1000))
-    return result, group, elapsed_ms
 
 
 # ----------------------------------------------------------------------------
@@ -243,7 +138,7 @@ def _read_runs(limit: int | None = None):
 
 
 def _run_view(row: sqlite3.Row) -> dict:
-    """Shape one DB row for the templates, with both short and long timestamps."""
+    """Shape one DB row for the client, with both short and long timestamps."""
     try:
         stamp = datetime.fromisoformat(row["ts"])
         when_short = stamp.strftime("%m-%d %H:%M")
@@ -251,6 +146,7 @@ def _run_view(row: sqlite3.Row) -> dict:
     except ValueError:  # unparseable timestamp -- show it raw rather than crash
         when_short = when_long = row["ts"]
     return {
+        "id": row["id"],
         "when_short": when_short,
         "when_long": when_long,
         "tier": row["tier"],
@@ -266,77 +162,54 @@ def _run_view(row: sqlite3.Row) -> dict:
 # Routes
 # ----------------------------------------------------------------------------
 
-@router.get("/studio/")
-def studio_index(request: Request):
+
+class RunIn(BaseModel):
+    """A run the client asks us to log. The duration is the client's measured
+    round trip; the dataset is filled in server-side so a caller can't misreport
+    which file the numbers came from."""
+
+    tier: str
+    column: str
+    group: str | None = None
+    duration_ms: int = Field(ge=0)
+
+
+@router.get("/api/datasets")
+def list_datasets():
+    """The dataset inventory with a live availability flag.
+
+    Availability is a filesystem fact the browser can't see, which is why this
+    stays on the server: the raw NHANES export and the larger research files are
+    deliberately absent online, and the UI says so rather than pretending.
+    """
+    return _datasets()
+
+
+@router.get("/api/runs")
+def list_runs(limit: int | None = None):
+    """The saved-run log, newest first."""
+    if limit is not None and limit <= 0:
+        raise HTTPException(status_code=422, detail="limit must be positive")
+    return _read_runs(limit=limit)
+
+
+@router.post("/api/runs", status_code=201)
+def create_run(run: RunIn):
+    """Append a run to the log.
+
+    The (tier, column) pair is validated the same way /api/analyze validates it,
+    so the log can't accumulate rows for analyses that could never have run.
+    """
     app = _app()
-    return templates.TemplateResponse(
-        request,
-        "studio/index.html",
-        {
-            "data": _build_data(),
-            "tiers": app.NUMERIC_TIERS,
-            "datasets": _datasets(),
-            "recent": _read_runs(limit=5),
-        },
-    )
+    tier = run.tier.lower()
+    _validate(app, tier, run.column)
 
+    group = run.group if tier in ("medium", "advanced", "expert") else None
+    if group and group not in set(app.load_data().columns):
+        group = None
 
-@router.get("/studio/analyze/{tier}/{column}/")
-def studio_analyze(request: Request, tier: str, column: str, group: str | None = None):
-    app = _app()
-    tier = tier.lower()
-    _validate(app, tier, column)
-    result, group, elapsed_ms = _run_analysis(app, tier, column, group)
-
-    error = result["error"] if isinstance(result, dict) and "error" in result else None
-    # The tiers this column can run under -- numeric tiers for an analyzable
-    # column, just the categorical tier for a label column -- so the page can
-    # offer a way to pivot depth without a trip back through /studio/.
-    available_tiers = (
-        list(app.NUMERIC_TIERS) if column in app.analyzable_columns() else ["categorical"]
-    )
-    return templates.TemplateResponse(
-        request,
-        "studio/analyze.html",
-        {
-            "tier": tier,
-            "column": column,
-            "group": group,
-            "error": error,
-            "elapsed_ms": elapsed_ms,
-            "result": None if error else _result_rows(result),
-            "chart": [] if error else _chart_bars(_chart_rows(result)),
-            "data": _build_data(),
-            "available_tiers": available_tiers,
-        },
-    )
-
-
-@router.post("/studio/analyze/{tier}/{column}/save/")
-async def studio_save(request: Request, tier: str, column: str):
-    app = _app()
-    tier = tier.lower()
-    _validate(app, tier, column)
-
-    # Parse the form body by hand (a single `group` field) so we don't need the
-    # python-multipart dependency just for one hidden input.
-    body = (await request.body()).decode("utf-8", "replace")
-    group = (parse_qs(body).get("group") or [""])[0] or None
-
-    result, group, elapsed_ms = _run_analysis(app, tier, column, group)
-    if isinstance(result, dict) and "error" in result:
-        raise HTTPException(status_code=422, detail=result["error"])
-
-    _record_run(tier, column, group, app.DATA_CSV.name, elapsed_ms)
-    # 303 so the browser re-fetches with GET -- a refresh won't re-submit the save.
-    return RedirectResponse("/studio/runs/", status_code=303)
-
-
-@router.get("/studio/runs/")
-def studio_runs(request: Request):
-    return templates.TemplateResponse(request, "studio/runs.html", {"runs": _read_runs()})
-
-
-@router.get("/guide/")
-def studio_guide(request: Request):
-    return templates.TemplateResponse(request, "studio/docs.html", {"datasets": _datasets()})
+    _record_run(tier, run.column, group, app.DATA_CSV.name, run.duration_ms)
+    latest = _read_runs(limit=1)
+    if not latest:  # pragma: no cover -- the insert above just succeeded
+        raise HTTPException(status_code=500, detail="Run was not stored")
+    return latest[0]

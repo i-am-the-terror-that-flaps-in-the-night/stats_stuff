@@ -1,7 +1,49 @@
-fastapi==0.138.1
+# Runtime dependencies for the Render web service (render.yaml runs
+# `pip install -r requirements.txt`).
+#
+# GENERATED -- do not hand-edit. To refresh after changing pyproject.toml:
+#     uv lock
+#     uv export --no-dev --no-hashes --no-emit-project --format requirements-txt
+# then drop the matplotlib subtree (see below). Versions are the exact
+# resolution recorded in uv.lock, so the server runs what local dev runs.
+#
+# DELIBERATELY EXCLUDED, and why:
+#   * dev tooling (pytest, ruff, ipykernel, pandas-stubs, scipy-stubs) lives in
+#     the dev dependency-group -- not needed to serve a request.
+#   * matplotlib, plus the 6 packages only it pulls in (contourpy, cycler,
+#     fonttools, kiwisolver, pillow, pyparsing). engine.py imports matplotlib
+#     lazily inside figure_production(), which no route calls, so leaving it out
+#     keeps the build lean without affecting boot or any served response. If you
+#     add a figures endpoint, put matplotlib back or it will fail at runtime.
+
+annotated-doc==0.0.4
+annotated-types==0.7.0
+anyio==4.14.0
+click==8.4.2
+colorama==0.4.6 ; sys_platform == 'win32'
+fastapi==0.139.0
+h11==0.16.0
+httptools==0.8.0
+idna==3.18
 jinja2==3.1.6
-numpy==2.5.0
+markupsafe==3.0.3
+numpy==2.5.1
+packaging==26.2
 pandas==3.0.3
+patsy==1.0.2
+pydantic==2.13.4
+pydantic-core==2.46.4
+python-dateutil==2.9.0.post0
+python-dotenv==1.2.2
+pyyaml==6.0.3
 scipy==1.18.0
+six==1.17.0
+starlette==1.3.1
 statsmodels==0.14.6
-uvicorn[standard]==0.49.0
+typing-extensions==4.15.0
+typing-inspection==0.4.2
+tzdata==2026.2 ; sys_platform == 'emscripten' or sys_platform == 'win32'
+uvicorn==0.51.0
+uvloop==0.22.1 ; platform_python_implementation != 'PyPy' and sys_platform != 'cygwin' and sys_platform != 'win32'
+watchfiles==1.2.0
+websockets==16.1
