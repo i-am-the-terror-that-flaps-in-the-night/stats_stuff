@@ -49,7 +49,12 @@ ipython_config.py
 # ---- Generated output ----
 # Figures are generated artifacts (no current script reproduces them).
 # Delete the lines below if you want to version specific figures.
-figures/
+#
+# ANCHORED to the repo root. Unanchored, `figures/` matches a directory of that
+# name at ANY depth, which silently swallowed frontend/src/components/figures/ --
+# the chart components -- when it was added. This rule is about the exported
+# PDFs at the top level and nothing else.
+/figures/
 *.pdf
 *.png
 *.jpg

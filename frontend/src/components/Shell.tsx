@@ -50,7 +50,7 @@ export function Shell(): JSX.Element {
             <BrandMark />
           </span>
           <span className="brand-name">Data Analysis Engine</span>
-          <span className="brand-ver">v1.0.0</span>
+          <span className="brand-ver">v1.2.0</span>
         </span>
         <div className="bar-meta">
           <span className="bar-meta-item">Engine · FastAPI</span>
@@ -72,6 +72,9 @@ export function Shell(): JSX.Element {
       <nav className="mainnav" aria-label="Primary">
         <NavLink className={navClass} to="/" end>
           Overview
+        </NavLink>
+        <NavLink className={navClass} to="/figures">
+          Figures
         </NavLink>
         <NavLink className={navClass} to="/methodology">
           Methodology

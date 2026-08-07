@@ -12,14 +12,14 @@ import type { RibbonCell, SpecRow, StatCell } from "../components/Page";
 const SPEC: SpecRow[] = [
   { k: "Dataset", v: "9,254 × 18" },
   { k: "Worker", v: "1 · free tier" },
-  { k: "Cache", v: "LRU · in-proc" },
+  { k: "Cache", v: "Unbounded · warmed" },
   { k: "Runtime", v: "Pandas" },
 ];
 
 const HEADLINE: RibbonCell[] = [
-  { v: <>0.6<small> ms</small></>, k: "Median first compute" },
-  { v: <>~0<small> ms</small></>, k: "Cached lookup" },
-  { v: "256", k: "Memoised results" },
+  { v: <>0.9<small> ms</small></>, k: "Warm response" },
+  { v: <>0.3<small> s</small></>, k: "Boot to ready" },
+  { v: <>0.9<small> s</small></>, k: "Background warm-up" },
   { v: "1", k: "Load per process" },
 ];
 
@@ -29,7 +29,35 @@ const LATENCY: StatCell[] = [
   { k: "Cached · any tier", v: "<0.01", note: "ms" },
   { k: "Dataframe load", v: "175", note: "ms · once" },
   { k: "Resident memory", v: "~170", note: "MB" },
-  { k: "Cache capacity", v: "256", note: "results" },
+  { k: "Cache capacity", v: "∞", note: "bounded key space" },
+];
+
+/** The four places an answer can be waiting, from furthest out to nearest. */
+const LAYERS: [string, string, string, string][] = [
+  [
+    "Browser",
+    "1 h fresh + 24 h stale",
+    "0 ms",
+    "Reuse without asking; then serve the stored copy while refreshing behind you.",
+  ],
+  [
+    "Revalidate",
+    "ETag → 304",
+    "~200 B",
+    "When it does ask, an unchanged answer costs headers instead of its payload.",
+  ],
+  [
+    "Process",
+    "lru_cache, unbounded",
+    "0.9 ms",
+    "Every compute path memoised. Nothing is ever evicted and recomputed.",
+  ],
+  [
+    "Startup",
+    "background thread",
+    "0.9 s, once",
+    "Fills the memos before the first visitor asks, off the readiness path.",
+  ],
 ];
 
 const BY_TIER: [string, string, string, string][] = [
@@ -83,7 +111,37 @@ export function Benchmarks(): JSX.Element {
         />
       </Module>
 
-      <Module index="03" title="How These Were Taken" meta="Scope &amp; honesty">
+      <Module index="03" title="Caching" meta="Four layers">
+        <p className="text">
+          Nothing in the service can change while it runs — the CSV is read once and is
+          immutable after that — so every answer is a pure function of its inputs and is worth
+          keeping. Four layers keep it, and a request stops at the first one that already has
+          the answer.
+        </p>
+        <Table
+          corner="Layer"
+          head={["Mechanism", "Repeat cost", "What it does"]}
+          rows={LAYERS}
+          numeric={[2]}
+        />
+        <p className="prose">
+          The long browser TTL is only safe because of the layer under it: every API response
+          carries an <span className="expr">ETag</span> derived from the deployed code and data,
+          so a redeploy changes every tag at once and the first revalidation after it returns
+          real bytes. Without that, an hour of <span className="expr">max-age</span> would mean
+          an hour of serving a bug that had already been fixed.
+        </p>
+        <p className="prose">
+          The caches are <strong>unbounded on purpose</strong>, which is only defensible because
+          the key space is small and closed: 5 tiers × 15 numeric columns × 4 grouping choices,
+          every one validated before it reaches a cache. There is no user input that can grow
+          it, so &ldquo;unbounded&rdquo; is a few hundred entries and a bounded LRU could only
+          ever evict something that will be asked for again. Live hit counts are at{" "}
+          <span className="expr">/api/cache</span>.
+        </p>
+      </Module>
+
+      <Module index="04" title="How These Were Taken" meta="Scope &amp; honesty">
         <p className="prose">
           Figures are <strong>indicative, measured locally</strong> against the curated NHANES
           dataset — <strong>9,254 rows by 18 fields</strong> — on a single worker, the same
@@ -95,6 +153,13 @@ export function Benchmarks(): JSX.Element {
           <span className="expr">(tier, column, group)</span>, anyone re-opening a figure — or a
           second visitor asking the same question — is served from memory. The point of publishing
           the cold numbers too is that nothing here is hidden behind the cache.
+        </p>
+        <p className="prose">
+          The <strong>first-call</strong> column above is now the rarer path, not the common one:
+          the startup warm-up computes the basic and medium tiers for all 15 columns and all four
+          figures before anyone asks, so most cold numbers are paid by a background thread rather
+          than by a visitor. They are published anyway — they are what the engine actually costs,
+          and a benchmark that only reported the warmed path would be measuring the cache.
         </p>
       </Module>
     </>

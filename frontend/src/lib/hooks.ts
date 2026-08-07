@@ -9,12 +9,23 @@ import { useCallback, useEffect, useState } from "react";
 import {
   analyze,
   ApiError,
+  fetchBox,
   fetchColumns,
+  fetchCorrelation,
   fetchDatasets,
+  fetchHistogram,
   fetchOverview,
   fetchRuns,
+  fetchScatter,
 } from "./api";
-import type { DatasetInfo, EngineObject } from "../types/engine";
+import type {
+  BoxResponse,
+  CorrelationResponse,
+  DatasetInfo,
+  EngineObject,
+  HistogramResponse,
+  ScatterResponse,
+} from "../types/engine";
 
 /** Turn any thrown value into a message worth showing a person. */
 function messageOf(err: unknown, fallback: string): string {
@@ -109,6 +120,58 @@ export function useRuns() {
 export function useDatasets(): DatasetInfo[] {
   const { data } = useAsync(() => fetchDatasets(), [], "Could not read the dataset list.");
   return data ?? [];
+}
+
+// ---- Figures --------------------------------------------------------------
+//
+// One hook per figure rather than one hook for the page. The four charts change
+// on different inputs -- picking a new group column must not refetch the
+// correlation matrix -- and useAsync already re-runs on exactly the deps it is
+// given, so keeping them separate keeps each fetch minimal by construction.
+//
+// `column === null` is the pre-columns-loaded state; the hooks idle until they
+// have something real to ask for.
+
+/** Everything the Figures page needs to populate its pickers. */
+export function useFigureColumns() {
+  const { data, error } = useAsync(
+    () => fetchColumns(),
+    [],
+    "Could not reach the backend. Start it with: uvicorn main:app",
+  );
+  return { columns: data?.columns ?? [], categorical: data?.categorical ?? [], error };
+}
+
+export function useHistogram(column: string | null) {
+  return useAsync<HistogramResponse | null>(
+    () => (column ? fetchHistogram(column) : Promise.resolve(null)),
+    [column],
+    "Could not load the distribution.",
+  );
+}
+
+export function useBox(column: string | null, group: string) {
+  return useAsync<BoxResponse | null>(
+    () => (column ? fetchBox(column, group || null) : Promise.resolve(null)),
+    [column, group],
+    "Could not load the group summaries.",
+  );
+}
+
+export function useScatter(x: string | null, y: string | null) {
+  return useAsync<ScatterResponse | null>(
+    () => (x && y && x !== y ? fetchScatter(x, y) : Promise.resolve(null)),
+    [x, y],
+    "Could not load the scatter.",
+  );
+}
+
+export function useCorrelation() {
+  return useAsync<CorrelationResponse | null>(
+    () => fetchCorrelation(),
+    [],
+    "Could not load the correlation matrix.",
+  );
 }
 
 export interface AnalysisState {

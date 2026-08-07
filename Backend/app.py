@@ -34,8 +34,13 @@ ROUTES
     GET  /healthz                       {"status": "ok"} -- Render's probe
     GET  /api/columns                   numeric + categorical column lists
     GET  /api/overview                  dataset telemetry
+    GET  /api/cache                     live memo hit/miss counts
     GET  /api/stats/{column}            descriptive stats (the basic tier)
     GET  /api/analyze/{tier}/{column}   any tier, optional ?group=
+    GET  /api/figures/histogram/{col}   binned distribution      (figures.py)
+    GET  /api/figures/box/{col}         five-number summaries    (figures.py)
+    GET  /api/figures/scatter/{x}/{y}   sampled cloud + fit line (figures.py)
+    GET  /api/figures/correlation       the r matrix             (figures.py)
     GET  /api/datasets                  dataset inventory        (studio.py)
     GET  /api/runs, POST /api/runs      the saved-run log        (studio.py)
     GET  /                              the SPA shell (frontend/dist/index.html)
@@ -56,13 +61,33 @@ SPEED ON RENDER
         pre-loads/cleans the CSV off the request path, so even the first /api
         call usually finds the caches already warm -- without delaying readiness.
 
-    Responses are gzip-compressed, and static assets are served "no-cache" with
-    ETag/Last-Modified so repeat visits revalidate cheaply (a tiny 304 for unchanged
-    CSS/JS) while any redeploy is picked up immediately rather than after a TTL.
+CACHING, IN FOUR LAYERS
+    Nothing in this app can change while it runs -- the CSV is read once and is
+    immutable thereafter -- so every answer is a pure function of its arguments
+    and is worth keeping. The layers, outermost first:
+
+      1. The browser. API responses carry a long max-age plus
+         stale-while-revalidate, so a repeat view costs no network at all and a
+         stale one is served instantly while it refreshes behind the reader.
+      2. Revalidation. Every API GET carries an ETag built from the deployed
+         code+data and the URL (see etag_middleware), so when the browser does
+         ask, an unchanged answer is a ~200-byte 304 rather than its payload.
+         This is what makes layer 1 safe: a redeploy changes every tag at once.
+      3. The process. lru_cache on every compute path, unbounded, because the
+         key space is small and fully validated -- 15 columns, 5 tiers, 4 group
+         choices. Nothing can ever be evicted and recomputed.
+      4. Startup. A background thread fills layer 3 before anyone asks (see
+         _warm_caches), so the first visitor after a cold start finds the
+         answers already there.
+
+    Static assets are separate and simpler: fingerprinted bundles are immutable
+    for a year, and index.html is "no-cache" with an ETag so a redeploy is picked
+    up on the next navigation rather than after a TTL.
 """
 
 from __future__ import annotations
 
+import hashlib
 from contextlib import asynccontextmanager
 from functools import lru_cache
 from pathlib import Path
@@ -106,15 +131,46 @@ FAVICON = DIST_DIR / "favicon.ico"
 STATIC_CACHE_CONTROL = "public, max-age=31536000, immutable"
 INDEX_CACHE_CONTROL = "no-cache"
 
-# Cache-Control for the JSON analysis endpoints. Unlike the static assets above,
-# these responses are pure functions of the (already-cached) dataframe -- same
-# tier/column/group always yields the same bytes for the life of a running
-# process -- so the browser can skip the round-trip entirely instead of just
-# revalidating it. A short max-age (not "immutable") caps how long a stale
-# result can outlive a redeploy: 5 minutes is enough to make repeat views in
-# one session free, without letting a bug-fix deploy hide behind a long-lived
-# client cache the way a longer TTL would.
-API_CACHE_CONTROL = "public, max-age=300"
+# Cache-Control for the JSON analysis endpoints.
+#
+# These responses are pure functions of the (already-cached) dataframe: the same
+# tier/column/group yields the same bytes for the life of the deploy. So the
+# browser is told to reuse them WITHOUT asking, for an hour -- and then, for the
+# next day, to keep using the stored copy while it refreshes in the background
+# (stale-while-revalidate). A returning visitor therefore never waits on the
+# network for a figure they have already seen, even after the freshness window
+# closes, and never waits on a Render cold start for one either.
+#
+# What makes that safe rather than reckless is the ETag on every one of these
+# responses (see etag_middleware). The tag is derived from the deployed code and
+# data, so a redeploy changes every tag at once: the first revalidation after a
+# deploy returns new bytes, and every unchanged response after that is a ~200-byte
+# 304 instead of a payload. The old 5-minute no-ETag setting had the opposite
+# trade -- it re-downloaded everything every 5 minutes to protect against a
+# staleness window that revalidation closes properly.
+API_CACHE_CONTROL = "public, max-age=3600, stale-while-revalidate=86400"
+
+
+@lru_cache(maxsize=1)
+def deploy_version() -> str:
+    """A token that changes when the deployed code or data changes, and not
+    otherwise. It is the identity every API ETag is built on.
+
+    Built from the size and mtime of the dataset and of the modules that decide
+    what an answer looks like. Cheap (a few stat() calls, once per process) and
+    honest about the two things that can actually change an answer: a new CSV or
+    new engine code. A random per-process token would also be correct but would
+    throw away every client's cache on each restart -- and Render restarts a free
+    service constantly.
+    """
+    parts = []
+    for path in (DATA_CSV, Path(__file__), Path(__file__).with_name("engine.py")):
+        try:
+            info = path.stat()
+            parts.append(f"{path.name}:{info.st_size}:{info.st_mtime_ns}")
+        except OSError:
+            parts.append(f"{path.name}:missing")
+    return hashlib.sha256("|".join(parts).encode()).hexdigest()[:16]
 
 
 def _load_engine():
@@ -196,7 +252,7 @@ def dataset_overview() -> dict[str, str | int]:
     }
 
 
-@lru_cache(maxsize=128)
+@lru_cache(maxsize=None)
 def compute_stats(column: str):
     """Descriptive stats for one column, memoized.
 
@@ -204,6 +260,11 @@ def compute_stats(column: str):
     changes over the process lifetime, so a given column's stats are stable --
     caching them makes repeat requests for the same column O(1) instead of
     re-running the pandas reductions each time.
+
+    Unbounded (maxsize=None), because the key space is: the input is one of 15
+    column names, validated against analyzable_columns() before this is called,
+    so "unbounded" tops out at 15 entries of a few hundred bytes. An LRU bound
+    here could only ever evict an entry that will be asked for again.
     """
     DataAnalyzer, _ = _load_engine()
     return DataAnalyzer(load_data()).basic_analysis(column)
@@ -217,7 +278,7 @@ def compute_stats(column: str):
 NUMERIC_TIERS = ("basic", "medium", "advanced", "expert")
 
 
-@lru_cache(maxsize=256)
+@lru_cache(maxsize=None)
 def compute_tier(tier: str, column: str, group: str | None):
     """Run one analysis tier for a column, memoized on (tier, column, group).
 
@@ -225,6 +286,13 @@ def compute_tier(tier: str, column: str, group: str | None):
     lifetime, so each (tier, column, group) answer is stable and worth caching --
     it also means the one-time statsmodels import the advanced tier pays is
     only paid once per distinct request.
+
+    Unbounded, and bounded in practice by the inputs: 5 tiers × 15 numeric
+    columns × (no group + 3 label columns) is 240 possible keys, every one of
+    them validated before it reaches here. The old 256-entry LRU was therefore
+    sized just under the point where it would start evicting the most expensive
+    answers in the app -- an expert-tier result costs ~40 ms to recompute, and
+    the whole space costs a few megabytes to simply keep.
     """
     DataAnalyzer, _ = _load_engine()
     analyzer = DataAnalyzer(load_data())
@@ -242,15 +310,72 @@ def compute_tier(tier: str, column: str, group: str | None):
 
 
 def _warm_caches() -> None:
-    """Pre-import pandas and pre-load/clean the CSV so the first real /api call
-    finds the caches warm. Runs in a background thread on startup; any failure
-    (e.g. a missing CSV) is swallowed so the request path can retry it lazily and
-    startup is never blocked on it."""
+    """Fill every cache the first visitor would otherwise fill for us.
+
+    Runs in a background thread on startup, so none of it delays readiness --
+    uvicorn has already bound the port and /healthz already answers by the time
+    this starts. That is what lets it be greedy: the work below costs a few
+    seconds of one background thread, once, and in exchange the first visitor
+    after a cold start finds the answers already computed instead of paying for
+    them one click at a time.
+
+    Ordered cheapest-and-most-likely-first, so if the process is killed partway
+    through (Render can, mid-boot) the highest-value entries are already there.
+    Every stage is individually guarded: a column the engine cannot analyze must
+    not stop the warm-up for the fourteen that follow.
+    """
+
+    def attempt(label, work) -> None:
+        try:
+            work()
+        except Exception:
+            # A warm-up failure is not an error -- it just means the request path
+            # computes that answer lazily, exactly as it did before. Swallowed
+            # rather than logged so a missing CSV doesn't fill the log on every
+            # boot of a service that is otherwise fine.
+            _ = label
+
+    # 1. The dataframe itself. Imports pandas and reads+cleans the CSV -- by far
+    #    the biggest single cost, and everything below depends on it.
+    attempt("dataframe", analyzable_columns)
+    attempt("overview", dataset_overview)
+    attempt("categorical", categorical_columns)
+    attempt("version", deploy_version)
+
     try:
-        analyzable_columns()  # -> load_data() -> get_dataframe(): imports pandas, reads+cleans the CSV
-        dataset_overview()  # derives the telemetry the landing page reads on load
+        columns = sorted(analyzable_columns())
+        labels = sorted(categorical_columns())
     except Exception:
-        pass
+        return
+
+    # 2. The basic tier for every numeric column. This is what the landing page
+    #    asks for first, it is cheap (~0.6 ms each), and it covers the whole
+    #    column list rather than guessing which one gets clicked.
+    for column in columns:
+        attempt(f"basic:{column}", lambda c=column: compute_tier("basic", c, None))
+
+    # 3. The figures. Each is one pandas pass and they are what the Figures page
+    #    opens with; the correlation matrix is the most expensive single answer
+    #    in the app (105 pairwise correlations) and the most reused.
+    try:
+        from figures_api import box_plot, correlation_matrix, histogram
+    except ModuleNotFoundError:
+        from Backend.figures_api import box_plot, correlation_matrix, histogram
+
+    attempt("correlation", correlation_matrix)
+    for column in columns:
+        attempt(f"hist:{column}", lambda c=column: histogram(c))
+    for label in labels:
+        attempt(f"box:{label}", lambda g=label: box_plot("BMI" if "BMI" in columns else columns[0], g))
+
+    # 4. The medium tier, ungrouped. The deepest thing worth precomputing: the
+    #    advanced and expert tiers pull in statsmodels and take tens of
+    #    milliseconds each, so warming all 15 would spend real CPU on answers
+    #    most visitors never open. Their statsmodels import IS worth paying for
+    #    up front, though, which one call buys for all of them.
+    for column in columns:
+        attempt(f"medium:{column}", lambda c=column: compute_tier("medium", c, None))
+    attempt("statsmodels", lambda: compute_tier("advanced", columns[0], None))
 
 
 @asynccontextmanager
@@ -278,10 +403,60 @@ class CachedStaticFiles(StaticFiles):
 
 app = FastAPI(title="Data Analysis", lifespan=lifespan)
 
+
+@app.middleware("http")
+async def etag_middleware(request: Request, call_next):
+    """Give every API GET a strong ETag, and answer If-None-Match with a 304.
+
+    This is what makes the long max-age above safe. The tag identifies the
+    deploy plus the exact request, so:
+
+      * an unchanged answer costs a ~200-byte 304 instead of its payload -- the
+        correlation matrix and the scatter cloud are the ones that matter, at
+        1.6 KB and 17 KB;
+      * a redeploy changes deploy_version(), so every tag changes at once and
+        the first revalidation after a deploy returns real bytes. Nothing can
+        be pinned to a stale answer by a long TTL.
+
+    The tag is built from the URL rather than from the response body on purpose.
+    Hashing the body would mean serializing and digesting every response on
+    every request -- paying CPU on the server to save bytes on the wire, which
+    is backwards on a single free-tier worker. The URL plus the deploy token
+    already identifies the answer uniquely, because that is exactly the pair the
+    lru_caches are keyed on.
+    """
+    response = await call_next(request)
+
+    is_api = request.url.path.startswith("/api")
+    if request.method not in ("GET", "HEAD") or not is_api or response.status_code != 200:
+        return response
+
+    # blake2b, not the builtin hash(): Python randomizes string hashing per
+    # process, so hash() would mint a different tag for the same URL after every
+    # restart -- and a free-tier service restarts constantly. The whole point is
+    # that a client's stored copy survives a restart.
+    url_digest = hashlib.blake2b(str(request.url).encode(), digest_size=6).hexdigest()
+    etag = f'"{deploy_version()}-{url_digest}"'
+    response.headers["ETag"] = etag
+
+    if request.headers.get("if-none-match") == etag:
+        # 304 carries no body, so hand back only the headers that still describe
+        # the cached copy the client already holds.
+        keep = {"etag", "cache-control", "vary"}
+        headers = {k: v for k, v in response.headers.items() if k.lower() in keep}
+        return Response(status_code=304, headers=headers)
+    return response
+
+
 # Compress text responses (HTML/CSS/JS/JSON) so less goes over the wire -- Render
 # doesn't gzip dynamic responses for you. Added before CORS so CORS stays the
 # outermost layer and still short-circuits preflight requests.
-app.add_middleware(GZipMiddleware, minimum_size=500)
+#
+# 256, not 500: the JSON here is highly compressible (repeated keys, long prose
+# caveats, digit strings) and several real responses -- /api/columns, a basic
+# tier result, a box summary -- land in the 300-500 byte gap the old floor let
+# through uncompressed.
+app.add_middleware(GZipMiddleware, minimum_size=256)
 
 # Allow the static page to call the API even when it's opened from a different
 # origin (e.g. a separate dev server or file://). Permissive is fine for a demo.
@@ -353,6 +528,61 @@ def overview(response: Response):
     """Dataset telemetry (shape, analyzable/categorical split, complete vs reduced)."""
     response.headers["Cache-Control"] = API_CACHE_CONTROL
     return dataset_overview()
+
+
+@app.get("/api/cache")
+def cache_stats(response: Response):
+    """Live hit/miss counts for every memo in the process.
+
+    Real numbers, read straight off each function's cache_info(), so the caching
+    claims elsewhere on the site are checkable rather than asserted -- and so a
+    regression that silently stops caching something shows up as a hit rate that
+    fell, instead of as a page that merely feels slower.
+
+    Deliberately NOT cached itself: a cached view of the cache would be stale by
+    definition, and would count its own hits.
+    """
+    try:
+        from figures_api import box_plot, correlation_matrix, histogram, scatter
+    except ModuleNotFoundError:
+        from Backend.figures_api import box_plot, correlation_matrix, histogram, scatter
+
+    memos = {
+        "dataframe": get_dataframe,
+        "columns": analyzable_columns,
+        "overview": dataset_overview,
+        "stats": compute_stats,
+        "tiers": compute_tier,
+        "histogram": histogram,
+        "box": box_plot,
+        "scatter": scatter,
+        "correlation": correlation_matrix,
+    }
+
+    caches = {}
+    hits = misses = 0
+    for name, fn in memos.items():
+        info = fn.cache_info()
+        hits += info.hits
+        misses += info.misses
+        caches[name] = {
+            "hits": info.hits,
+            "misses": info.misses,
+            "stored": info.currsize,
+            # None means unbounded -- see the note on compute_tier for why the
+            # bounded key space makes that the right choice here.
+            "capacity": info.maxsize,
+        }
+
+    total = hits + misses
+    response.headers["Cache-Control"] = "no-store"
+    return {
+        "version": deploy_version(),
+        "hits": hits,
+        "misses": misses,
+        "hit_rate": round(hits / total, 4) if total else None,
+        "caches": caches,
+    }
 
 
 @app.get("/api/stats/{column}")
@@ -433,6 +663,19 @@ try:
 except ModuleNotFoundError:
     from Backend.studio import router as studio_router
 app.include_router(studio_router)
+
+# The /api/figures/* aggregates the Figures page draws from. Included here for
+# the same reason as studio.py: figures_api.py reaches back into this module for
+# the cached dataframe and column lists, so it can only be imported once those
+# exist. The module is figures_api and not figures because the repo root holds a
+# `figures/` directory of PDFs -- launched from the root (uvicorn main:app, which
+# is what Render runs) a bare `figures` resolves to that directory as a namespace
+# package and the import fails on a name, not on the module.
+try:
+    from figures_api import router as figures_router
+except ModuleNotFoundError:
+    from Backend.figures_api import router as figures_router
+app.include_router(figures_router)
 
 # Mount the built assets last so they can't shadow the routes above. Vite emits
 # fingerprinted files into dist/assets and references them from dist/index.html

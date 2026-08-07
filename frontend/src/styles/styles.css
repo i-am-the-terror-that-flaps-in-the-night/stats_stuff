@@ -6,14 +6,22 @@
  * rather than elevation. Everything is square (zero radius), the type is all
  * sans (no monospace — data columns align via tabular-nums), and the palette
  * inside the console is high-contrast near-black-on-white so it stays readable
- * on cheap laptop panels. The only color that shouts is a thin neon R-G-B
- * signature line plus a few tiny status pips — a LITTLE neon, deliberately
- * rationed, same as the chrome: a bezel here, a rivet there, not a skin over
- * everything.
+ * on cheap laptop panels.
  *
- * Web/JS/script.js and transition.js drive this markup, so every hook is kept:
- * .channel/.is-active chips, the .result-group readout, the boot loader
- * (.boot-channel*, .boot-log*, .boot-status*) and the .boot-transition overlay.
+ * Neon: R-G-B light runs along most of the console's structural seams — the
+ * frame, the nameplate edge, module and ribbon ticks, table heads, the
+ * signature rule — at 85% strength. Those are structure, and the rule there is
+ * WIDE over LOUD: colour marks where the machine's edges are, and never blooms
+ * hard enough to tint the text next to it.
+ *
+ * Two things are exempt and run FULL BRIGHT: the brand mark and the status
+ * pips. Both sit in the console bar, both are lit-hardware signals rather than
+ * structure, and neither has data next to it to wash out — so they carry the
+ * gamer-RGB identity at full strength while everything else stays quiet.
+ *
+ * There is no literal hardware. An earlier pass dropped SVG screws, bolts and
+ * nail heads onto the frame corners; those are gone, and the seams they sat on
+ * are lit instead.
  */
 
 :root {
@@ -54,15 +62,30 @@
     --accent-soft: #e7edff;
     --accent-line: rgba(31, 79, 255, 0.5);
 
-    /* ---- Gamer neon: a vivid RGB spectrum that BLOOMS and slowly cycles hue,
-       like RGB peripheral lighting. Rationed to the signature rule, ticks,
-       logo and status pips — a little, but it glows. ---- */
+    /* ---- Gamer neon: a vivid RGB spectrum that slowly cycles hue, like RGB
+       peripheral lighting. It runs across MOST of the console (frame ring,
+       nameplate edge, ribbon ticks, table heads) rather than screaming from two
+       or three spots — spread wide, so no single edge has to be loud. The
+       levels below are 85% of the original design strength: bright enough that
+       a seam reads as lit on a washed-out laptop panel, held back far enough
+       that the bloom never tints the data sitting beside it. The brand mark and
+       the status pips do NOT draw from these tokens — they run full bright, see
+       .brand-mark svg and .pips. ---- */
     --neon-1: #ff2bd6;   /* magenta */
     --neon-2: #8b5cf6;   /* violet  */
     --neon-3: #22d3ee;   /* cyan    */
     --rgb: linear-gradient(90deg, #ff2bd6 0%, #b429ff 26%, #4d6bff 54%, #22d3ee 80%, #24ffc7 100%);
-    --rgb-glow: 0 0 8px rgba(255, 43, 214, 0.8), 0 0 22px rgba(34, 211, 238, 0.65);
-    --rgb-glow-sm: 0 0 6px rgba(180, 41, 255, 0.75), 0 0 14px rgba(34, 211, 238, 0.6);
+    --rgb-glow: 0 0 7px rgba(255, 43, 214, 0.68), 0 0 19px rgba(34, 211, 238, 0.55);
+    --rgb-glow-sm: 0 0 5px rgba(180, 41, 255, 0.64), 0 0 12px rgba(34, 211, 238, 0.51);
+
+    /* The quiet tier, for the surfaces that only just gained neon. Same hues,
+       held a step under the tiers above so a stat-cell edge or a table rule
+       still yields to the signature rule under the console bar. */
+    --rgb-soft: linear-gradient(90deg,
+        rgba(255, 43, 214, 0.64) 0%, rgba(180, 41, 255, 0.6) 26%,
+        rgba(77, 107, 255, 0.6) 54%, rgba(34, 211, 238, 0.6) 80%,
+        rgba(36, 255, 199, 0.64) 100%);
+    --rgb-glow-xs: 0 0 3px rgba(180, 41, 255, 0.27);
 
     --ok: #0a8f57;
     --ok-soft: #e2f5ec;
@@ -103,15 +126,6 @@
         #232e48 70%, #232e48 100%);
     --chrome-edge-hi: rgba(255, 255, 255, 0.95);
     --chrome-edge-lo: rgba(5, 10, 25, 0.5);
-
-    /* ---- Literal fasteners: tiny flat SVG hardware (hex bolt, phillips screw,
-       domed nail head) dropped onto the bezel ring of every console frame
-       (.page, .studio) -- the chassis metaphor made literal instead of just
-       implied by the bezel lines. Flat-shaded, no blur, same rule as
-       everything else here. ---- */
-    --fastener-bolt: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpolygon points='12,2 20,7 20,17 12,22 4,17 4,7' fill='%23b7c0d3' stroke='%23414e66' stroke-width='1.6'/%3E%3Ccircle cx='12' cy='12' r='4' fill='%23eef1f7'/%3E%3C/svg%3E");
-    --fastener-screw: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Ccircle cx='12' cy='12' r='9' fill='%23c3cbdc' stroke='%23414e66' stroke-width='1.6'/%3E%3Cpath d='M12 5v14M5 12h14' stroke='%23414e66' stroke-width='2'/%3E%3C/svg%3E");
-    --fastener-nail: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Ccircle cx='12' cy='12' r='8' fill='%23aab4c9' stroke='%23414e66' stroke-width='1.6'/%3E%3Ccircle cx='9' cy='9' r='1.6' fill='%23f4f6fb' opacity='0.85'/%3E%3C/svg%3E");
 }
 
 * {
@@ -152,22 +166,22 @@ body {
     box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.6), 0 0 0 4px rgba(13, 20, 38, 0.28), var(--shadow-card);
 }
 
-/* Four fasteners sitting right on the bezel ring, just outside the console's
-   own border box (negative inset) so they're never covered by its full-width
-   children -- the panel really does read as bolted to the chassis. */
+/* A thin neon ring tracing the bezel, just outside the console's own border box
+   (negative inset) so it's never covered by its full-width children. The panel
+   reads as lit along its seam rather than fastened down.
+   Two horizontal hairlines rather than a full ring: --rgb-soft runs left-to-
+   right, so painting it into a 1px-wide vertical strip would squeeze the whole
+   spectrum into one indeterminate blended pixel. Top and bottom is where the
+   gradient actually reads as a gradient. */
 .page::before {
     content: "";
     position: absolute;
-    inset: -9px;
+    inset: -5px;
     pointer-events: none;
+    background-image: var(--rgb-soft), var(--rgb-soft);
     background-repeat: no-repeat;
-    background-size: 15px 15px;
-    background-image: var(--fastener-bolt), var(--fastener-screw), var(--fastener-nail), var(--fastener-bolt);
-    background-position:
-        6px 6px,
-        calc(100% - 6px) 6px,
-        6px calc(100% - 6px),
-        calc(100% - 6px) calc(100% - 6px);
+    background-size: 100% 1px;
+    background-position: 0 0, 0 100%;
 }
 
 /* ---- Top status bar ---------------------------------------------------- */
@@ -214,8 +228,14 @@ body {
     width: 19px;
     height: 19px;
     display: block;
-    /* Neon bloom around the bars, so they read as backlit on the dark tile. */
-    filter: drop-shadow(0 0 2px rgba(255, 43, 214, 0.85)) drop-shadow(0 0 3px rgba(34, 211, 238, 0.6));
+    /* Neon bloom around the bars. Deliberately the hottest light on the page,
+       alongside the pips: the mark is the brand, it sits on a near-black tile
+       where nothing can be washed out by it, and it is the one place the RGB is
+       meant to shout. Three stacked shadows -- tight magenta core, cyan mid,
+       wide violet halo -- so the bars read as genuinely backlit. */
+    filter: drop-shadow(0 0 2px rgba(255, 43, 214, 1))
+            drop-shadow(0 0 6px rgba(34, 211, 238, 0.9))
+            drop-shadow(0 0 12px rgba(180, 41, 255, 0.55));
 }
 
 /* Gamer-RGB on two tempos in one 9s loop: the hue spins FAST (three full turns
@@ -291,12 +311,16 @@ body {
 
 /* A thin dark ring under the glow — each LED reads as mounted in a metal
    bezel, not floating as a bare dot of color. */
-.pips i:nth-child(1) { background: var(--neon-1); box-shadow: 0 0 0 1px var(--chrome-edge-lo), 0 0 5px var(--neon-1), 0 0 10px var(--neon-1); animation-delay: 0s; }
-.pips i:nth-child(2) { background: var(--neon-2); box-shadow: 0 0 0 1px var(--chrome-edge-lo), 0 0 5px var(--neon-2), 0 0 10px var(--neon-2); animation-delay: 0.2s; }
-.pips i:nth-child(3) { background: var(--neon-3); box-shadow: 0 0 0 1px var(--chrome-edge-lo), 0 0 5px var(--neon-3), 0 0 10px var(--neon-3); animation-delay: 0.4s; }
+.pips i:nth-child(1) { background: var(--neon-1); box-shadow: 0 0 0 1px var(--chrome-edge-lo), 0 0 6px var(--neon-1), 0 0 13px var(--neon-1); animation-delay: 0s; }
+.pips i:nth-child(2) { background: var(--neon-2); box-shadow: 0 0 0 1px var(--chrome-edge-lo), 0 0 6px var(--neon-2), 0 0 13px var(--neon-2); animation-delay: 0.2s; }
+.pips i:nth-child(3) { background: var(--neon-3); box-shadow: 0 0 0 1px var(--chrome-edge-lo), 0 0 6px var(--neon-3), 0 0 13px var(--neon-3); animation-delay: 0.4s; }
 
+/* The floor is high (0.72, not 0.35): the pips are supposed to read as lit
+   LEDs pulsing, and a 0.35 trough let the light body colour blend toward the
+   white bar behind them -- magenta came out pastel pink. The scan now reads
+   mostly in the scale change, with the brightness only dipping. */
 @keyframes pip-scan {
-    0%, 100% { opacity: 0.35; transform: scale(0.72); }
+    0%, 100% { opacity: 0.72; transform: scale(0.72); }
     45% { opacity: 1; transform: scale(1); }
 }
 
@@ -423,8 +447,7 @@ h1 {
 
 /* Spec panel: a dense key/value block that fills the hero's right side — real
    engine metadata, and busywork that reads as an instrument nameplate. Brushed
-   steel fill + a bright top bezel + two corner rivets carry the metaphor all
-   the way through, not just the name. */
+   steel fill + a bright top bezel + a neon seam where it meets the hero. */
 .masthead-spec {
     position: relative;
     border-left: 1px solid var(--line-strong);
@@ -434,23 +457,19 @@ h1 {
     flex-direction: column;
 }
 
-.masthead-spec::before,
-.masthead-spec::after {
+/* The seam itself. A vertical strip, so this uses its own 180deg gradient
+   rather than --rgb-soft (see the note on .page::before). */
+.masthead-spec::before {
     content: "";
     position: absolute;
-    right: 10px;
-    width: 11px;
-    height: 11px;
-    background-image: var(--fastener-screw);
-    background-size: 100%;
-}
-
-.masthead-spec::before {
-    top: 10px;
-}
-
-.masthead-spec::after {
-    bottom: 10px;
+    top: 0;
+    bottom: 0;
+    left: -1px;
+    width: 2px;
+    background: linear-gradient(180deg,
+        rgba(255, 43, 214, 0.6) 0%, rgba(180, 41, 255, 0.54) 40%,
+        rgba(34, 211, 238, 0.54) 100%);
+    box-shadow: var(--rgb-glow-xs);
 }
 
 .spec-row {
@@ -704,7 +723,7 @@ button {
     background: var(--rgb);
     border-image: var(--rgb) 1;
     animation: rgb-cycle 9s linear infinite;
-    box-shadow: var(--rgb-glow), 4px 4px 0 -1px rgba(139, 92, 246, 0.55);
+    box-shadow: var(--rgb-glow), 4px 4px 0 -1px rgba(139, 92, 246, 0.47);
 }
 
 .channel[data-tier="expert"].is-active::after,
@@ -970,7 +989,7 @@ button {
 
 .compute.is-expert .compute-stage.is-active .compute-glyph {
     border-color: var(--neon-2);
-    box-shadow: 0 0 0 1px var(--neon-2), 0 0 12px -1px var(--neon-2);
+    box-shadow: 0 0 0 1px var(--neon-2), 0 0 10px -1px rgba(139, 92, 246, 0.85);
 }
 
 .compute.is-expert .compute-stage.is-active .compute-glyph::after {
@@ -1074,7 +1093,7 @@ button {
    tag — so a completed deep-tier readout still signals it was the heavy one. */
 .results.is-expert::before {
     height: 4px;
-    box-shadow: var(--rgb-glow), 0 0 34px rgba(139, 92, 246, 0.5);
+    box-shadow: var(--rgb-glow), 0 0 29px rgba(139, 92, 246, 0.42);
 }
 
 .results.is-expert .results-head {
@@ -1470,6 +1489,7 @@ button {
 }
 
 .stat-cell {
+    position: relative;
     padding: 14px 16px;
     border-right: 1px solid var(--line-strong);
     border-bottom: 1px solid var(--line-strong);
@@ -1477,8 +1497,27 @@ button {
     transition: background-color 0.14s ease;
 }
 
+/* Hovering a cell lights its bottom edge. Painted always and revealed by
+   opacity rather than toggled on, so the transition has something to animate
+   from -- a background-image appearing from nothing would pop. */
+.stat-cell::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: -1px;
+    height: 2px;
+    background: var(--rgb-soft);
+    opacity: 0;
+    transition: opacity 0.14s ease;
+}
+
 .stat-cell:hover {
     background: var(--accent-soft);
+}
+
+.stat-cell:hover::after {
+    opacity: 1;
 }
 
 .stat-k {
@@ -2072,6 +2111,28 @@ body.boot-page-enter .page {
     .field-label {
         padding-top: 0;
     }
+
+    /* The comparison matrix carried 18px of padding per side per cell, which on
+       a phone pushed it ~84px past the viewport and made .results-scroll swipe
+       sideways. Half the padding and let the headers wrap onto two lines: the
+       real matrices (3-4 metric columns) now fit outright. .results-scroll
+       keeps its overflow-x as a fallback for a genuinely wide matrix, but it is
+       no longer reached by anything the app actually renders. */
+    .matrix thead th,
+    .matrix td,
+    .matrix .matrix-row-label {
+        padding: 10px 9px;
+    }
+
+    .matrix thead th {
+        white-space: normal;
+    }
+
+    .matrix .matrix-row-label {
+        padding-left: 14px;
+        white-space: normal;
+    }
+
 }
 
 /* =========================================================================
@@ -2080,7 +2141,7 @@ body.boot-page-enter .page {
    nav that rides under the status bar on every page, plus the components the
    new pages are built from (capability ribbon, breadcrumb, document sheet,
    release timeline, status tags). Everything below reuses the tokens above,
-   so the extra pages read as the same instrument, not a bolted-on section.
+   so the extra pages read as the same instrument, not a grafted-on section.
    ========================================================================= */
 
 /* ---- Primary navigation ------------------------------------------------- */
@@ -2090,13 +2151,12 @@ body.boot-page-enter .page {
     padding: 0 8px;
     background: var(--surface);
     border-bottom: 1px solid var(--line);
-    /* One line on narrow panels: swipe sideways rather than wrap into a block. */
-    overflow-x: auto;
-    scrollbar-width: none;
-}
-
-.mainnav::-webkit-scrollbar {
-    display: none;
+    /* WRAPS, never scrolls. This used to be `overflow-x: auto` with the
+       scrollbar hidden, which on a phone put four of the seven links past the
+       right edge with no affordance at all -- the last visible one was sliced
+       mid-word and nothing said there was more. A nav is the one thing on the
+       page that must never be hidden, so it takes a second line instead. */
+    flex-wrap: wrap;
 }
 
 .mainnav-link {
@@ -2151,9 +2211,23 @@ body.boot-page-enter .page {
     background: var(--surface-2);
 }
 
+/* Each headline figure sits under its own short neon tick — the same mark the
+   module heads use, at the quiet strength, so the ribbon reads as part of the
+   same lit instrument without four more things blooming at the reader. */
 .ribbon-cell {
-    padding: 14px 18px;
+    position: relative;
+    padding: 16px 18px 14px;
     border-left: 1px solid var(--line);
+}
+
+.ribbon-cell::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 18px;
+    width: 26px;
+    height: 2px;
+    background: var(--rgb-soft);
 }
 
 .ribbon-cell:first-child {
@@ -2240,13 +2314,29 @@ body.boot-page-enter .page {
     vertical-align: top;
 }
 
+/* The header rule is neon rather than grey: it's the one line in a data table
+   that is chrome rather than data, so it's the one that can carry colour
+   without competing with the figures below it.
+   Painted on the ROW, not the cells. A `th` background box stops at the cell
+   edge, so per-cell the spectrum restarts in every column and the header reads
+   as N separate gradients instead of one sweep. The row is the only box that
+   spans the full width, which also means the cells must stay transparent --
+   a background-color on `th` paints over the row underneath it. */
+.sheet thead tr {
+    background-color: var(--surface-2);
+    background-image: var(--rgb-soft);
+    background-repeat: no-repeat;
+    background-size: 100% 2px;
+    background-position: 0 100%;
+}
+
 .sheet thead th {
     font-size: 0.68rem;
     letter-spacing: 0.07em;
     text-transform: uppercase;
     color: var(--ink-faint);
     font-weight: 700;
-    background: var(--surface-2);
+    background: transparent;
     border-bottom: 1px solid var(--line-strong);
 }
 
@@ -2404,5 +2494,573 @@ body.boot-page-enter .page {
 
     .ribbon-cell:nth-child(n + 3) {
         border-top: 1px solid var(--line);
+    }
+}
+
+/* This block has to live at the BOTTOM of the file, not up in the other
+   max-width:560 block near the console styles. Everything in the multi-page
+   chrome section is defined below that point, and these overrides carry the
+   same specificity as the rules they override -- from up there they lost the
+   cascade tie and silently did nothing. */
+@media (max-width: 560px) {
+    /* The document sheets ran past the viewport on a phone, so .results-scroll
+       started swiping sideways. Two causes: 12px of padding on both sides of
+       every cell, and .rowkey being nowrap, which meant a long metric name
+       could not break and dragged the table out on its own. A wrapped row key
+       beats a table you have to swipe. */
+    .sheet th,
+    .sheet td {
+        padding: 8px 8px;
+    }
+
+    .sheet .rowkey {
+        white-space: normal;
+    }
+
+    /* Long unbroken tokens in a narrow column (a column name, a file name)
+       would otherwise overflow the cell. `break-word`, NOT `anywhere`: the two
+       break identically at paint time, but `anywhere` also counts the break
+       opportunities when computing min-content width, which let the table
+       collapse its columns to nearly nothing -- the tier table came out reading
+       "basi / c" and "medi / um". `break-word` leaves the intrinsic width
+       alone and only breaks a word that genuinely cannot fit. */
+    .sheet td {
+        overflow-wrap: break-word;
+    }
+
+    /* .expr is an inline-block, so a formula like the sample-SD one is a single
+       unbreakable box that alone set the Formula column's minimum width -- it
+       was 182px of a 302px table. It stays a bordered token, it is just allowed
+       to break inside now. */
+    .expr {
+        overflow-wrap: anywhere;
+    }
+}
+
+/* Small phones. The six-column runs table cannot fit at 360px on cell padding
+   alone -- at some point the type has to come down with it. 0.82rem is still
+   above the 0.75rem floor where figures start being hard to read on a cheap
+   panel, which is the constraint that matters for this project. */
+@media (max-width: 430px) {
+    .sheet {
+        font-size: 0.82rem;
+    }
+
+    .sheet th,
+    .sheet td {
+        padding: 7px 4px;
+    }
+
+    .sheet thead th {
+        font-size: 0.62rem;
+        letter-spacing: 0.04em;
+    }
+
+    /* The last few pixels come from .expr. It is an inline-block, so even with
+       overflow-wrap it reserves its widest unbreakable run; the sample-SD
+       formula was setting the Formula column's floor. Below 430px the token
+       gives up its border box and becomes plain inline text, which wraps like
+       any other word.
+       (`table-layout: fixed` was the other candidate and is worse: fixed
+       columns take their widths from the first row and cannot shrink to fit
+       later ones, so the same table went from 6px over to 56px over.) */
+    .expr {
+        display: inline;
+        padding: 0;
+        border: none;
+        background: none;
+        color: var(--accent-strong);
+        font-weight: 700;
+    }
+}
+
+/* =========================================================================
+   FIGURES
+   The charts on /figures. Inline SVG drawn by components/figures/*.tsx, so
+   every mark below is a real element in the document and wears these tokens
+   rather than colours baked into a charting library's own theme.
+
+   THE COLOUR RULE HERE IS THE INVERSE OF THE REST OF THE PAGE.
+   Everywhere else, neon marks STRUCTURE and ink carries DATA -- that is what
+   keeps a dense table readable. In a chart the marks ARE the data, so they get
+   the accent and the chrome (grid, axes, tick text) recedes to the faintest
+   ink on the page. The neon does not appear inside a plot at all: a hue that
+   means "this is an edge of the machine" cannot also mean "this is a value".
+
+   Square marks, no rounded data-ends: the house style is zero-radius
+   throughout, and a chart is not the place to introduce the only curve on the
+   page.
+   ========================================================================= */
+
+:root {
+    /* Diverging pair for the correlation matrix. Blue and red read as opposites
+       at a glance; the neutral is the page's own inset grey, so "no
+       relationship" recedes into the surface instead of claiming a colour. */
+    --fig-pos: var(--accent);
+    --fig-neg: #d03b3b;
+    --fig-neutral: #f1f4fa;
+    /* Not-measured, drawn as a hatch rather than a pale fill: a colour close to
+       the neutral would read as "r near zero", and a missing correlation is a
+       different statement from a weak one. */
+    --fig-missing: repeating-linear-gradient(45deg,
+        #e9edf6 0 3px, #ffffff 3px 6px);
+    --fig-ink: var(--ink-faint);
+}
+
+.fig {
+    margin: 0;
+    padding: 0;
+}
+
+.fig + .fig {
+    margin-top: 26px;
+    padding-top: 22px;
+    border-top: 1px solid var(--line);
+}
+
+.fig-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.fig-title {
+    margin: 0;
+    font-size: 0.92rem;
+    font-weight: 800;
+    color: var(--ink);
+}
+
+.fig-meta {
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    font-variant-numeric: tabular-nums;
+}
+
+.fig-caption {
+    margin: 5px 0 0;
+    font-size: 0.84rem;
+    color: var(--ink-3);
+}
+
+/* Controls sit ABOVE the plot in one row -- never down the side, where they
+   compete with the y-axis for the reader's left-to-right entry into the chart. */
+.fig-controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px 18px;
+    align-items: center;
+    margin-top: 14px;
+    padding: 10px 12px;
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+}
+
+.fig-pick {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.fig-pick-label {
+    font-size: 0.66rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+}
+
+.fig-pick-input {
+    font: inherit;
+    font-size: 0.82rem;
+    font-weight: 700;
+    color: var(--ink);
+    padding: 5px 8px;
+    background: var(--surface);
+    border: 1px solid var(--line-strong);
+    border-radius: 0;
+}
+
+.fig-pick-input:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+}
+
+.fig-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 18px;
+    align-items: center;
+    margin-top: 12px;
+    font-size: 0.74rem;
+    color: var(--ink-3);
+    font-variant-numeric: tabular-nums;
+}
+
+.fig-key {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+}
+
+.fig-key b {
+    color: var(--ink);
+}
+
+/* The legend swatches. Each one mirrors the mark it stands for -- a dashed rule
+   for a dashed reference line, a hollow ring for the hollow mean dot -- so the
+   key is recognisable without reading it. */
+.fig-key-mark {
+    flex: none;
+    display: block;
+    width: 14px;
+    height: 10px;
+}
+
+.fig-key-mark.is-bar,
+.fig-key-mark.is-box {
+    background: var(--accent);
+    opacity: 0.72;
+    border: 1px solid var(--accent-strong);
+}
+
+.fig-key-mark.is-median,
+.fig-key-mark.is-medianline {
+    height: 0;
+    border-top: 2px solid var(--ink);
+}
+
+.fig-key-mark.is-mean {
+    height: 0;
+    border-top: 2px dashed var(--accent-strong);
+}
+
+.fig-key-mark.is-whisker {
+    height: 0;
+    border-top: 1px solid var(--ink-faint);
+}
+
+.fig-key-mark.is-meandot {
+    width: 9px;
+    height: 9px;
+    border: 2px solid var(--ink);
+    background: var(--surface);
+    border-radius: 50%;
+}
+
+.fig-key-mark.is-dot {
+    width: 9px;
+    height: 9px;
+    background: var(--accent);
+    opacity: 0.5;
+    border-radius: 50%;
+}
+
+.fig-key-mark.is-fit {
+    height: 0;
+    border-top: 2px solid var(--fig-neg);
+}
+
+/* position:relative is load-bearing: the tooltip is absolutely positioned
+   against this box, not against the SVG (whose coordinates are scaled). */
+.fig-plot {
+    position: relative;
+    margin-top: 14px;
+    padding: 10px 4px 2px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+}
+
+.fig-svg {
+    display: block;
+    width: 100%;
+    height: auto;
+    overflow: visible;
+}
+
+.fig-placeholder {
+    padding: 44px 12px;
+    text-align: center;
+    font-size: 0.8rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+}
+
+.fig-footnote {
+    margin: 10px 0 0;
+    font-size: 0.76rem;
+    line-height: 1.55;
+    color: var(--ink-faint);
+}
+
+.fig-toggle {
+    font: inherit;
+    font-size: 0.66rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    padding: 4px 9px;
+    margin: 0 0 8px;
+    background: var(--surface-2);
+    border: 1px solid var(--line-strong);
+    border-radius: 0;
+    cursor: pointer;
+}
+
+.fig-toggle:hover {
+    color: var(--accent);
+    border-color: var(--accent-line);
+}
+
+.fig-toggle[aria-pressed="true"] {
+    color: var(--accent);
+    background: var(--accent-soft);
+}
+
+/* ---- Tooltip ------------------------------------------------------------ */
+/* Offset up and right of the pointer so the cursor never covers the mark being
+   described, and pointer-events:none so it can't steal the hover that spawned
+   it -- which would make it flicker as the reader moves along a row of bars. */
+.fig-tip {
+    position: absolute;
+    transform: translate(12px, -100%);
+    pointer-events: none;
+    z-index: 5;
+    min-width: 118px;
+    padding: 7px 9px;
+    background: var(--surface);
+    border: 1px solid var(--line-strong);
+    box-shadow: 4px 4px 0 -1px rgba(31, 79, 255, 0.14);
+}
+
+.fig-tip-title {
+    margin: 0 0 4px;
+    font-size: 0.7rem;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--ink);
+}
+
+.fig-tip-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 14px;
+    margin: 0;
+    font-size: 0.76rem;
+    color: var(--ink-3);
+    font-variant-numeric: tabular-nums;
+}
+
+.fig-tip-row b {
+    color: var(--ink);
+}
+
+.fig-tip-note {
+    margin: 5px 0 0;
+    max-width: 190px;
+    font-size: 0.68rem;
+    line-height: 1.4;
+    color: var(--ink-faint);
+}
+
+/* ---- Marks -------------------------------------------------------------- */
+.fig-grid {
+    stroke: var(--line);
+    stroke-width: 1;
+}
+
+.fig-axis {
+    stroke: var(--line-strong);
+    stroke-width: 1;
+}
+
+.fig-axis-text {
+    font-size: 10px;
+    fill: var(--fig-ink);
+    font-variant-numeric: tabular-nums;
+}
+
+.fig-axis-text.is-title {
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    fill: var(--ink-3);
+}
+
+.fig-axis-text.is-faint {
+    font-size: 9px;
+    fill: var(--ink-faint);
+}
+
+.fig-bar {
+    fill: var(--accent);
+    fill-opacity: 0.68;
+    transition: fill-opacity 0.1s ease;
+}
+
+.fig-bar:hover {
+    fill-opacity: 1;
+}
+
+/* Reference lines. Told apart by dash AND colour, never by colour alone. */
+.fig-ref {
+    stroke-width: 2;
+}
+
+.fig-ref.is-median {
+    stroke: var(--ink);
+}
+
+.fig-ref.is-mean {
+    stroke: var(--accent-strong);
+    stroke-dasharray: 6 4;
+}
+
+.fig-box-body {
+    fill: var(--accent);
+    fill-opacity: 0.24;
+    stroke: var(--accent-strong);
+    stroke-width: 1;
+}
+
+.fig-box-median {
+    stroke: var(--ink);
+    stroke-width: 2.5;
+}
+
+.fig-box-mean {
+    fill: var(--surface);
+    stroke: var(--ink);
+    stroke-width: 2;
+}
+
+.fig-whisker,
+.fig-whisker-cap {
+    stroke: var(--ink-faint);
+    stroke-width: 1;
+}
+
+/* An invisible, generous hit target over each box. Must come after the marks in
+   document order so it wins the hover; fill:transparent (not none) is what makes
+   it hittable at all. */
+.fig-hit {
+    fill: transparent;
+}
+
+.fig-box:hover .fig-box-body {
+    fill-opacity: 0.4;
+}
+
+.fig-dot {
+    fill: var(--accent);
+    fill-opacity: 0.42;
+}
+
+.fig-dot:hover {
+    fill-opacity: 1;
+    stroke: var(--surface);
+    stroke-width: 2;
+}
+
+.fig-fit {
+    stroke: var(--fig-neg);
+    stroke-width: 2;
+}
+
+.fig-cell {
+    stroke: var(--surface);
+    stroke-width: 0;
+    cursor: pointer;
+}
+
+/* The diagonal is inert -- see DIAGONAL_FILL in CorrelationHeatmap.tsx. It gets
+   a hairline so the matrix's spine is still legible as a structure. */
+.fig-cell.is-diagonal {
+    cursor: default;
+    stroke: var(--line);
+    stroke-width: 1;
+}
+
+.fig-cell:hover {
+    stroke: var(--ink);
+    stroke-width: 1.5;
+}
+
+.fig-cell.is-selected {
+    stroke: var(--ink);
+    stroke-width: 2;
+}
+
+/* ---- Diverging colour key ----------------------------------------------- */
+.fig-scale {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 8px;
+    font-size: 0.7rem;
+    color: var(--ink-3);
+    max-width: 100%;
+}
+
+/* The swatch strip stays one unbroken ramp; only the two end labels wrap away
+   from it. See CorrelationLegend for why it is wrapped rather than flat. */
+.fig-scale-ramp {
+    display: flex;
+    flex: none;
+}
+
+.fig-scale-step {
+    display: block;
+    width: 17px;
+    height: 11px;
+    border: 1px solid var(--line);
+}
+
+.fig-scale-end {
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    white-space: nowrap;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .fig-bar {
+        transition: none;
+    }
+}
+
+@media (max-width: 560px) {
+    .fig-controls {
+        gap: 8px 12px;
+    }
+
+    .fig-pick {
+        flex: 1 1 100%;
+        justify-content: space-between;
+    }
+
+    .fig-pick-input {
+        flex: 1 1 auto;
+        min-width: 0;
+    }
+
+    /* NOTE: axis text is deliberately NOT bumped here. Under 560px the charts
+       switch to their own ~360-unit coordinate space (see useNarrowChart), so
+       one SVG unit is already about one pixel and 10px reads as 10px. Scaling
+       the font here as well would overflow the label gutters, whose offsets are
+       computed in those same units. */
+
+    /* 9 × 17px of swatch plus two labels does not fit a phone on one line; the
+       ramp keeps its shape and just gets narrower steps. */
+    .fig-scale-step {
+        width: 12px;
     }
 }

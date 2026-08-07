@@ -84,3 +84,86 @@ export interface RecordRunBody {
   group: string | null;
   duration_ms: number;
 }
+
+// ---- Figures -------------------------------------------------------------
+//
+// Unlike a tier result, these ARE precise interfaces. Backend/figures_api.py
+// returns a fixed shape per route by construction -- there is no branching on
+// the data the way engine.py branches on tier and column -- so the types can be
+// exact, and a chart that indexes a field the server stopped sending should
+// fail the typecheck rather than render an empty axis.
+
+/** One bar of a histogram: a half-open bin [lo, hi) and how many landed in it. */
+export interface HistogramBin {
+  lo: number;
+  hi: number;
+  count: number;
+}
+
+/** GET /api/figures/histogram/{column} */
+export interface HistogramResponse {
+  column: string;
+  n: number;
+  min: number;
+  max: number;
+  mean: number;
+  median: number;
+  q1: number;
+  q3: number;
+  std: number | null;
+  bins: HistogramBin[];
+}
+
+/** One box: the five-number summary plus what the whiskers excluded. */
+export interface BoxSummary {
+  label: string;
+  n: number;
+  q1: number;
+  median: number;
+  q3: number;
+  mean: number;
+  /** Whisker ends — the furthest real observations within 1.5 IQR of the box. */
+  low: number;
+  high: number;
+  outliers: number;
+}
+
+/** GET /api/figures/box/{column}?group= */
+export interface BoxResponse {
+  column: string;
+  group: string | null;
+  boxes: BoxSummary[];
+  /** Groups omitted for having fewer than `min_group_n` values. */
+  dropped_groups: number;
+  min_group_n: number;
+}
+
+/** GET /api/figures/scatter/{x}/{y} */
+export interface ScatterResponse {
+  x: string;
+  y: string;
+  /** Complete pairs in the dataset. `r` and the fit line are computed on all of them. */
+  n: number;
+  /** Points actually returned — capped, so a big dataset stays a small payload. */
+  drawn: number;
+  sampled: boolean;
+  xs: number[];
+  ys: number[];
+  r: number;
+  r_squared: number;
+  slope: number;
+  intercept: number;
+  x_min: number;
+  x_max: number;
+  y_min: number;
+  y_max: number;
+}
+
+/** GET /api/figures/correlation. `matrix[i][j]` is r for columns[i] vs columns[j]. */
+export interface CorrelationResponse {
+  columns: string[];
+  /** null where a pair had too little overlap to correlate — not zero. */
+  matrix: (number | null)[][];
+  method: string;
+  min_overlap: number;
+}

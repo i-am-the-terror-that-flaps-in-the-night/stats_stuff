@@ -8,8 +8,8 @@ import { Crumbs, Masthead, Module, Table } from "../components/Page";
 import type { SpecRow } from "../components/Page";
 
 const SPEC: SpecRow[] = [
-  { k: "Current", v: "v1.1.0" },
-  { k: "Released", v: "2026·08·05" },
+  { k: "Current", v: "v1.2.0" },
+  { k: "Released", v: "2026·08·06" },
   { k: "Cadence", v: "Iterative" },
   { k: "Status", v: "Stable" },
 ];
@@ -23,9 +23,31 @@ interface Release {
 
 const RELEASES: Release[] = [
   {
+    ver: "v1.2.0",
+    date: "06 Aug 2026",
+    current: true,
+    items: [
+      <>
+        <b>Figures</b> — the dataset drawn, not just reported: a distribution, group box plots, a
+        scatter with its fitted line, and a correlation matrix for all 105 numeric pairs. Inline
+        SVG in TypeScript, no charting library. Hover any mark for its numbers, click a matrix
+        cell to plot that pair, or switch any figure to its data table.
+      </>,
+      <>
+        <b>Aggressive caching</b> — four layers: an hour of browser freshness with a day of
+        stale-while-revalidate, <span className="expr">ETag</span> revalidation so an unchanged
+        answer is a 304 rather than a payload, unbounded in-process memos, and a startup warm-up
+        that computes the common answers before the first visitor asks.
+      </>,
+      <>
+        <b>No side-scrolling</b> — the nav wraps instead of hiding links off-screen, and the data
+        tables fit a 320px viewport rather than swiping sideways.
+      </>,
+    ],
+  },
+  {
     ver: "v1.1.0",
     date: "05 Aug 2026",
-    current: true,
     items: [
       <>
         <b>Honest statistics</b> — every p-value now ships with an effect size, results carry a{" "}

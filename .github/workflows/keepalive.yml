@@ -1,0 +1,84 @@
+# Keep the Render free-tier web service awake.
+#
+# Render's free plan spins an idle service down after ~15 minutes and the next
+# visitor pays a cold start (process boot + pandas import + CSV load). For a
+# science-fair demo that is the difference between "click and it's there" and
+# "click and stare at a blank tab for a minute", so this pings /healthz on a
+# schedule to keep the process resident.
+#
+# /healthz is the right target: it is the cheapest route in the app (a dict
+# literal, no dataframe), and the app already warms its own caches in a
+# background thread at startup, so keeping the *process* alive is all a pinger
+# needs to do. There is nothing for it to pre-warm beyond that.
+#
+# Setup, once:
+#   gh variable set SERVICE_URL --body https://<your-service>.onrender.com
+# The URL is a repo variable rather than hardcoded so this file does not ship a
+# guess at the hostname -- an unregistered onrender.com name can belong to
+# somebody else, and pinging a stranger's service every ten minutes is rude.
+
+name: keepalive
+
+on:
+  schedule:
+    # Every 10 minutes. See the ping loop below for why this alone is not enough.
+    - cron: "*/10 * * * *"
+  workflow_dispatch: # so it can be kicked off by hand before a demo
+
+# Overlapping runs are harmless (a redundant ping costs nothing) and are in fact
+# the point when GitHub's scheduler is running late, so runs are NOT cancelled.
+permissions: {}
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Ping until the next run is due
+        env:
+          SERVICE_URL: ${{ vars.SERVICE_URL }}
+        run: |
+          set -u
+          if [ -z "${SERVICE_URL}" ]; then
+            echo "::error::Repo variable SERVICE_URL is not set."
+            echo "Set it with: gh variable set SERVICE_URL --body https://<service>.onrender.com"
+            exit 1
+          fi
+
+          # GitHub's cron is best-effort, not punctual -- scheduled runs are
+          # routinely delivered 5-15 minutes late under load, and a 10-minute
+          # schedule that drifts to 20 leaves a gap wide enough for Render to
+          # spin the service down. So each run keeps pinging on its own clock
+          # for longer than the schedule interval, and consecutive runs overlap
+          # rather than leaving a hole. Public-repo Actions minutes are free, so
+          # the only cost of the overlap is a few extra HTTP requests.
+          url="${SERVICE_URL%/}/healthz"
+          failures=0
+
+          for attempt in 1 2 3 4; do
+            [ "${attempt}" -gt 1 ] && sleep 240
+
+            # --max-time 90, not the default: a ping that arrives while the
+            # service is cold IS the cold start, and cutting it off early would
+            # abandon the very boot it just paid for.
+            code=$(curl --silent --show-error --location \
+                        --max-time 90 --retry 2 --retry-delay 5 \
+                        --output /dev/null --write-out '%{http_code}' \
+                        "${url}") || code="000"
+
+            if [ "${code}" = "200" ]; then
+              echo "ping ${attempt}: ${code} $(date -u +%H:%M:%SZ)"
+            else
+              failures=$((failures + 1))
+              echo "::warning::ping ${attempt} got HTTP ${code} from ${url}"
+            fi
+          done
+
+          # One bad ping is a blip (a cold start that outran the timeout, a
+          # Render restart). All four failing means the service is actually
+          # down, which is worth a red X in the Actions tab rather than a
+          # workflow that goes green forever while the site is dead.
+          if [ "${failures}" -ge 4 ]; then
+            echo "::error::All 4 pings failed -- ${SERVICE_URL} looks down."
+            exit 1
+          fi
