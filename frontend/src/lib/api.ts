@@ -13,16 +13,21 @@
 // used; it is kept because the Live Server preview workflow depends on it.
 
 import type {
+  BootstrapResponse,
   BoxResponse,
+  CohortResponse,
   ColumnsResponse,
   CorrelationResponse,
   DatasetInfo,
   EngineObject,
   HistogramResponse,
+  OutliersResponse,
   OverviewResponse,
   RecordRunBody,
   RunRecord,
+  SampleSizeResponse,
   ScatterResponse,
+  ScreenResponse,
 } from "../types/engine";
 
 const API_CANDIDATES = ["", "http://127.0.0.1:8000", "http://localhost:8000"] as const;
@@ -163,6 +168,39 @@ export function fetchScatter(x: string, y: string): Promise<ScatterResponse> {
 
 export function fetchCorrelation(): Promise<CorrelationResponse> {
   return getJson<CorrelationResponse>("/api/figures/correlation");
+}
+
+// ---- The lab --------------------------------------------------------------
+// The Studio's experiments. Same memoization as everything else: a knob the
+// reader turns back to a position they already tried costs nothing.
+
+export function fetchCohort(column: string, filters: string[]): Promise<CohortResponse> {
+  // Filters go over as repeated `f` params rather than one joined string, so a
+  // value containing the join character cannot forge a second filter.
+  const query = filters.map((f) => `f=${enc(f)}`).join("&");
+  return getJson<CohortResponse>(`/api/lab/cohort/${enc(column)}${query ? `?${query}` : ""}`);
+}
+
+export function fetchSampleSize(column: string, seed: number): Promise<SampleSizeResponse> {
+  return getJson<SampleSizeResponse>(`/api/lab/sample-size/${enc(column)}?seed=${seed}`);
+}
+
+export function fetchBootstrap(
+  column: string,
+  statistic: string,
+  seed: number,
+): Promise<BootstrapResponse> {
+  return getJson<BootstrapResponse>(
+    `/api/lab/bootstrap/${enc(column)}?statistic=${enc(statistic)}&seed=${seed}`,
+  );
+}
+
+export function fetchOutliers(column: string): Promise<OutliersResponse> {
+  return getJson<OutliersResponse>(`/api/lab/outliers/${enc(column)}`);
+}
+
+export function fetchScreen(group: string, alpha: number): Promise<ScreenResponse> {
+  return getJson<ScreenResponse>(`/api/lab/screen?group=${enc(group)}&alpha=${alpha}`);
 }
 
 /** One analysis, with the round-trip time the UI reports. */

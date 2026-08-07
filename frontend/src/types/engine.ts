@@ -44,6 +44,13 @@ export interface ColumnsResponse {
   columns: string[];
   /** Label columns: the categorical tier and the group-by picker use these. */
   categorical: string[];
+  /**
+   * The distinct labels of each categorical column, most common first, so the
+   * Studio's cohort builder can offer them instead of asking for them typed.
+   * Optional: an older backend does not send it, and the builder falls back to
+   * a free-text box rather than rendering an empty dropdown.
+   */
+  values?: Record<string, string[]>;
 }
 
 /** GET /api/overview -- dataset telemetry for the ribbon and Studio. */
@@ -166,4 +173,118 @@ export interface CorrelationResponse {
   matrix: (number | null)[][];
   method: string;
   min_overlap: number;
+}
+
+// ---- The lab (Studio experiments) ----------------------------------------
+
+/** The summary block every experiment reports, so two can be read side by side. */
+export interface Summary {
+  n: number;
+  mean: number | null;
+  median: number | null;
+  std: number | null;
+  min: number | null;
+  max: number | null;
+}
+
+/** One filter as the server parsed it, with the rows left after applying it. */
+export interface AppliedFilter {
+  column: string;
+  op: string;
+  value: string;
+  remaining: number;
+}
+
+/** GET /api/lab/cohort/{column}?f=… */
+export interface CohortResponse {
+  column: string;
+  filters: AppliedFilter[];
+  rows_total: number;
+  rows_kept: number;
+  kept_share: number | null;
+  cohort: Summary;
+  overall: Summary;
+  /** How far the cohort mean sits from the overall mean, in overall SDs. */
+  shift_in_sds: number | null;
+  too_small: boolean;
+  min_cohort: number;
+}
+
+/** One rung of the sample-size ladder: what studies of this size concluded. */
+export interface SizeRung {
+  n: number;
+  mean_of_means: number;
+  lo: number;
+  hi: number;
+  width: number;
+  miss_rate: number;
+}
+
+/** GET /api/lab/sample-size/{column} */
+export interface SampleSizeResponse {
+  column: string;
+  seed: number;
+  population_n: number;
+  population_mean: number;
+  draws_per_rung: number;
+  rungs: SizeRung[];
+}
+
+/** GET /api/lab/bootstrap/{column} */
+export interface BootstrapResponse {
+  column: string;
+  statistic: string;
+  seed: number;
+  n: number;
+  draws: number;
+  observed: number;
+  ci_lower: number;
+  ci_upper: number;
+  std_error: number;
+  bins: HistogramBin[];
+}
+
+/** One outlier policy applied to a column. */
+export interface OutlierVariant extends Summary {
+  rule: string;
+  blurb: string;
+  removed: number;
+  removed_share: number;
+  mean_shift: number;
+  std_shift: number;
+}
+
+/** GET /api/lab/outliers/{column} */
+export interface OutliersResponse {
+  column: string;
+  fences: [number, number];
+  results: OutlierVariant[];
+}
+
+/** One column's test in the bulk screen, with each correction's verdict. */
+export interface ScreenTest {
+  column: string;
+  p_value: number;
+  f_statistic: number;
+  eta_squared: number;
+  n: number;
+  groups: number;
+  rank: number;
+  raw: boolean;
+  bonferroni: boolean;
+  benjamini_hochberg: boolean;
+  bh_threshold: number | null;
+}
+
+/** GET /api/lab/screen?group=… */
+export interface ScreenResponse {
+  group: string;
+  alpha: number;
+  tests_run: number;
+  /** How many "findings" you would expect if nothing were really different. */
+  false_positives_expected: number;
+  bonferroni_alpha: number;
+  counts: { raw: number; bonferroni: number; benjamini_hochberg: number };
+  tests: ScreenTest[];
+  not_causal: string;
 }

@@ -9,22 +9,32 @@ import { useCallback, useEffect, useState } from "react";
 import {
   analyze,
   ApiError,
+  fetchBootstrap,
   fetchBox,
+  fetchCohort,
   fetchColumns,
   fetchCorrelation,
   fetchDatasets,
   fetchHistogram,
+  fetchOutliers,
   fetchOverview,
   fetchRuns,
+  fetchSampleSize,
   fetchScatter,
+  fetchScreen,
 } from "./api";
 import type {
+  BootstrapResponse,
   BoxResponse,
+  CohortResponse,
   CorrelationResponse,
   DatasetInfo,
   EngineObject,
   HistogramResponse,
+  OutliersResponse,
+  SampleSizeResponse,
   ScatterResponse,
+  ScreenResponse,
 } from "../types/engine";
 
 /** Turn any thrown value into a message worth showing a person. */
@@ -171,6 +181,55 @@ export function useCorrelation() {
     () => fetchCorrelation(),
     [],
     "Could not load the correlation matrix.",
+  );
+}
+
+// ---- The lab --------------------------------------------------------------
+//
+// The cohort hook takes `filters` as a joined string rather than an array: the
+// dep list is compared by identity, and a fresh array literal every render
+// would re-fire the effect forever. The string is split back at the call.
+
+export function useCohort(column: string | null, filterKey: string) {
+  return useAsync<CohortResponse | null>(
+    () =>
+      column
+        ? fetchCohort(column, filterKey ? filterKey.split("\n") : [])
+        : Promise.resolve(null),
+    [column, filterKey],
+    "Could not apply that cohort.",
+  );
+}
+
+export function useSampleSize(column: string | null, seed: number) {
+  return useAsync<SampleSizeResponse | null>(
+    () => (column ? fetchSampleSize(column, seed) : Promise.resolve(null)),
+    [column, seed],
+    "Could not run the sample-size experiment.",
+  );
+}
+
+export function useBootstrap(column: string | null, statistic: string, seed: number) {
+  return useAsync<BootstrapResponse | null>(
+    () => (column ? fetchBootstrap(column, statistic, seed) : Promise.resolve(null)),
+    [column, statistic, seed],
+    "Could not run the bootstrap.",
+  );
+}
+
+export function useOutliers(column: string | null) {
+  return useAsync<OutliersResponse | null>(
+    () => (column ? fetchOutliers(column) : Promise.resolve(null)),
+    [column],
+    "Could not compare the outlier rules.",
+  );
+}
+
+export function useScreen(group: string | null, alpha: number) {
+  return useAsync<ScreenResponse | null>(
+    () => (group ? fetchScreen(group, alpha) : Promise.resolve(null)),
+    [group, alpha],
+    "Could not run the screen.",
   );
 }
 

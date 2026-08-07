@@ -1480,9 +1480,14 @@ button {
 }
 
 /* ---- Telemetry: ruled stat grid --------------------------------------- */
+/* Flex, not a fixed 6-column grid. The grid was `repeat(6, 1fr)` regardless of
+   how many cells it held, so a four-cell telemetry strip -- which several pages
+   have -- drew four cells and then two columns of ruled emptiness. Flex lets N
+   cells fill the row whatever N is, and the media queries below set a basis
+   rather than a column count. */
 .stat-grid {
-    display: grid;
-    grid-template-columns: repeat(6, 1fr);
+    display: flex;
+    flex-wrap: wrap;
     border-top: 1px solid var(--line-strong);
     border-left: 1px solid var(--line-strong);
     box-shadow: var(--shadow-soft);
@@ -1490,6 +1495,10 @@ button {
 
 .stat-cell {
     position: relative;
+    /* Grow to share the row, never shrink below something readable. 15% basis
+       so up to six sit on one line and a seventh wraps. */
+    flex: 1 1 15%;
+    min-width: 0;
     padding: 14px 16px;
     border-right: 1px solid var(--line-strong);
     border-bottom: 1px solid var(--line-strong);
@@ -2046,8 +2055,8 @@ body.boot-page-enter .page {
 }
 
 @media (max-width: 860px) {
-    .stat-grid {
-        grid-template-columns: repeat(3, 1fr);
+    .stat-cell {
+        flex-basis: 30%;
     }
 }
 
@@ -2087,8 +2096,8 @@ body.boot-page-enter .page {
         gap: 10px;
     }
 
-    .stat-grid {
-        grid-template-columns: repeat(2, 1fr);
+    .stat-cell {
+        flex-basis: 45%;
     }
 
     .masthead-spec {
@@ -2548,7 +2557,7 @@ body.boot-page-enter .page {
 
     .sheet th,
     .sheet td {
-        padding: 7px 4px;
+        padding: 7px 3px;
     }
 
     .sheet thead th {
@@ -3062,5 +3071,223 @@ body.boot-page-enter .page {
        ramp keeps its shape and just gets narrower steps. */
     .fig-scale-step {
         width: 12px;
+    }
+}
+
+/* =========================================================================
+   THE LAB
+   The Studio's controls and the marks its experiments add. Everything here
+   either takes input (filter chips, the value box) or is a chart mark the
+   Figures page had no use for.
+   ========================================================================= */
+
+/* ---- Filter chips ------------------------------------------------------- */
+/* A chip is a button, not a label with an × next to it: the whole thing is the
+   remove target, which is the only action it has. A 12px glyph would be a hit
+   target nobody hits on a phone. */
+.chip-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    list-style: none;
+    margin: 14px 0 0;
+    padding: 0;
+}
+
+.chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font: inherit;
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: var(--ink);
+    padding: 5px 9px;
+    background: var(--surface-2);
+    border: 1px solid var(--line-strong);
+    border-radius: 0;
+    font-variant-numeric: tabular-nums;
+}
+
+.chip b {
+    font-weight: 700;
+    font-size: 0.7rem;
+    color: var(--ink-faint);
+}
+
+.chip.is-removable {
+    cursor: pointer;
+}
+
+.chip.is-removable:hover {
+    color: var(--err);
+    border-color: var(--err);
+    background: var(--err-soft);
+}
+
+.chip.is-removable:hover b {
+    color: var(--err);
+}
+
+.chip span {
+    font-size: 0.9rem;
+    line-height: 1;
+    color: var(--ink-faint);
+}
+
+.chip.is-removable:hover span {
+    color: var(--err);
+}
+
+/* The typed filter value. Matches .fig-pick-input so a select and a text box in
+   the same control row are the same object at two widths. */
+input.fig-pick-input {
+    min-width: 7ch;
+    max-width: 14ch;
+}
+
+input.fig-pick-input::placeholder {
+    color: var(--ink-faint);
+    font-weight: 400;
+}
+
+/* ---- Experiment marks --------------------------------------------------- */
+/* The sample-size band. Fill only, no stroke: an outlined band reads as a
+   region with a hard boundary, and the 95% edge is anything but. */
+.fig-band {
+    fill: var(--accent);
+    fill-opacity: 0.16;
+}
+
+.fig-line {
+    stroke: var(--accent-strong);
+    stroke-width: 2;
+}
+
+.fig-point {
+    fill: var(--surface);
+    stroke: var(--accent-strong);
+    stroke-width: 2;
+}
+
+/* Bootstrap bars outside the 95% interval. Same hue, less of it -- they are the
+   same measurements, and a second colour would claim a distinction that is not
+   there. */
+.fig-bar.is-outside {
+    fill-opacity: 0.24;
+}
+
+/* ---- Multiple-comparison thresholds ------------------------------------- */
+/* Three lines that must never be confused with each other or with the data, so
+   each gets its own dash pattern as well as its own weight. */
+.fig-thresh {
+    fill: none;
+    stroke-width: 2;
+}
+
+.fig-thresh.is-alpha {
+    stroke: var(--ink-faint);
+    stroke-dasharray: 2 3;
+}
+
+.fig-thresh.is-bonferroni {
+    stroke: var(--err);
+    stroke-dasharray: 8 4;
+}
+
+.fig-thresh.is-bh {
+    stroke: var(--accent-strong);
+    stroke-dasharray: 5 3;
+}
+
+/* The screen's dots. Fill AND ring weight vary together, so the three states
+   survive a greyscale print and a colour-vision difference alike. */
+.fig-screen-dot {
+    stroke: var(--surface);
+    stroke-width: 1.5;
+}
+
+.fig-screen-dot.is-strong {
+    fill: var(--accent);
+}
+
+.fig-screen-dot.is-weak {
+    fill: var(--surface);
+    stroke: var(--accent-strong);
+    stroke-width: 2.5;
+}
+
+.fig-screen-dot.is-none {
+    fill: var(--ink-faint);
+    fill-opacity: 0.45;
+}
+
+/* ---- Legend swatches for the above -------------------------------------- */
+.fig-key-mark.is-band {
+    background: var(--accent);
+    opacity: 0.3;
+    border: 1px solid var(--accent-line);
+}
+
+.fig-key-mark.is-line {
+    height: 0;
+    border-top: 2px solid var(--accent-strong);
+}
+
+.fig-key-mark.is-bar-faint {
+    background: var(--accent);
+    opacity: 0.24;
+    border: 1px solid var(--accent-line);
+}
+
+.fig-key-mark.is-strong-dot,
+.fig-key-mark.is-weak-dot,
+.fig-key-mark.is-none-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+}
+
+.fig-key-mark.is-strong-dot {
+    background: var(--accent);
+}
+
+.fig-key-mark.is-weak-dot {
+    background: var(--surface);
+    border: 2px solid var(--accent-strong);
+}
+
+.fig-key-mark.is-none-dot {
+    background: var(--ink-faint);
+    opacity: 0.45;
+}
+
+.fig-key-mark.is-alpha-line {
+    height: 0;
+    border-top: 2px dotted var(--ink-faint);
+}
+
+.fig-key-mark.is-bh-line {
+    height: 0;
+    border-top: 2px dashed var(--accent-strong);
+}
+
+/* Small phones, the 320px floor. The seven-column experiment tables cannot fit
+   here on padding alone; below this width the type comes down with it. 0.74rem
+   is the smallest size still comfortably readable on a cheap panel, and it is
+   reached only on the narrowest screens anyone actually browses on. */
+@media (max-width: 380px) {
+    .sheet {
+        font-size: 0.72rem;
+    }
+
+    .sheet th,
+    .sheet td {
+        padding: 6px 2px;
+    }
+
+    .sheet thead th {
+        font-size: 0.58rem;
+        letter-spacing: 0.02em;
     }
 }

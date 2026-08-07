@@ -9,7 +9,7 @@
 // phone. So the tooltip is an absolutely-positioned <div> over the SVG, placed
 // from the pointer's position in the container's own coordinates.
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useId, useState } from "react";
 import type { JSX, ReactNode } from "react";
 
 /**
@@ -181,7 +181,10 @@ export function Picker({
   allowNone?: boolean;
   noneLabel?: string;
 }): JSX.Element {
-  const id = `pick-${label.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
+  // useId, not a slug of the label. Slugging stripped every non-ASCII character,
+  // so a picker labelled "α" got the id "pick-" — and two such pickers on a page
+  // would share it, pointing both <label for> attributes at the same control.
+  const id = useId();
   return (
     <span className="fig-pick">
       <label className="fig-pick-label" htmlFor={id}>

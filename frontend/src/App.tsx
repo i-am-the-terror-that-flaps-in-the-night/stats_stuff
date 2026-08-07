@@ -13,6 +13,7 @@ import { Benchmarks } from "./routes/Benchmarks";
 import { Changelog } from "./routes/Changelog";
 import { Figures } from "./routes/Figures";
 import { StudioIndex } from "./routes/StudioIndex";
+import { StudioExperiments } from "./routes/StudioExperiments";
 import { StudioAnalyze } from "./routes/StudioAnalyze";
 import { StudioRuns } from "./routes/StudioRuns";
 import { Guide } from "./routes/Guide";
@@ -29,6 +30,7 @@ const router = createBrowserRouter([
       { path: "benchmarks", element: <Benchmarks /> },
       { path: "changelog", element: <Changelog /> },
       { path: "studio", element: <StudioIndex /> },
+      { path: "studio/experiments", element: <StudioExperiments /> },
       { path: "studio/analyze/:tier/:column", element: <StudioAnalyze /> },
       { path: "studio/runs", element: <StudioRuns /> },
       { path: "guide", element: <Guide /> },

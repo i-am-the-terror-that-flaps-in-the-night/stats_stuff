@@ -40,6 +40,13 @@ const RELEASES: Release[] = [
         that computes the common answers before the first visitor asks.
       </>,
       <>
+        <b>The Studio is a bench</b> — build a cohort out of row filters and watch the summary
+        move, with a running count of how many people each filter leaves. Plus four experiments:
+        how much a result depends on the number of people in the study, where a confidence
+        interval actually comes from, how much a mean is a judgement call about outliers, and how
+        false positives appear from nothing when you ask fifteen questions at once.
+      </>,
+      <>
         <b>No side-scrolling</b> — the nav wraps instead of hiding links off-screen, and the data
         tables fit a 320px viewport rather than swiping sideways.
       </>,

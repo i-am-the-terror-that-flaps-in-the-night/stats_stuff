@@ -41,6 +41,11 @@ ROUTES
     GET  /api/figures/box/{col}         five-number summaries    (figures.py)
     GET  /api/figures/scatter/{x}/{y}   sampled cloud + fit line (figures.py)
     GET  /api/figures/correlation       the r matrix             (figures.py)
+    GET  /api/lab/cohort/{col}          filtered subset summary  (lab_api.py)
+    GET  /api/lab/sample-size/{col}     n vs. interval width     (lab_api.py)
+    GET  /api/lab/bootstrap/{col}       resampled distribution   (lab_api.py)
+    GET  /api/lab/outliers/{col}        four outlier policies    (lab_api.py)
+    GET  /api/lab/screen                bulk tests + corrections (lab_api.py)
     GET  /api/datasets                  dataset inventory        (studio.py)
     GET  /api/runs, POST /api/runs      the saved-run log        (studio.py)
     GET  /                              the SPA shell (frontend/dist/index.html)
@@ -226,6 +231,27 @@ def categorical_columns() -> frozenset[str]:
 
 
 @lru_cache(maxsize=1)
+def label_values() -> dict[str, list[str]]:
+    """The distinct values of each label column, most common first.
+
+    Exposed so the Studio's cohort builder can OFFER the labels rather than ask
+    the reader to type them. "Non-Hispanic White" typed from memory is a cohort
+    of nobody, and a filter that silently matches nothing is the worst possible
+    failure mode for a tool whose whole job is showing how cohorts shrink.
+
+    Capped at 24 per column: these are label columns by definition, and anything
+    with more distinct values than that is a free-text field that has been
+    misclassified, not a category worth listing in a dropdown.
+    """
+    df = load_data()
+    out: dict[str, list[str]] = {}
+    for column in sorted(categorical_columns()):
+        counts = df[column].dropna().astype(str).value_counts()
+        out[column] = [str(v) for v in counts.index[:24]]
+    return out
+
+
+@lru_cache(maxsize=1)
 def dataset_overview() -> dict[str, str | int]:
     """Real, derivable telemetry about the loaded dataset -- shape, how many
     columns are analyzable vs categorical, and how many numeric columns are
@@ -340,6 +366,7 @@ def _warm_caches() -> None:
     attempt("dataframe", analyzable_columns)
     attempt("overview", dataset_overview)
     attempt("categorical", categorical_columns)
+    attempt("labels", label_values)
     attempt("version", deploy_version)
 
     try:
@@ -520,6 +547,10 @@ def list_columns(response: Response):
         "dataset": DATA_CSV.name,
         "columns": sorted(analyzable_columns()),
         "categorical": sorted(categorical_columns()),
+        # Additive: existing callers read `columns` and `categorical` and are
+        # unaffected. The Studio's cohort builder needs the actual labels to
+        # offer them as choices.
+        "values": label_values(),
     }
 
 
@@ -676,6 +707,13 @@ try:
 except ModuleNotFoundError:
     from Backend.figures_api import router as figures_router
 app.include_router(figures_router)
+
+# The Studio's experiments (/api/lab/*). Same lazy-import reason as above.
+try:
+    from lab_api import router as lab_router
+except ModuleNotFoundError:
+    from Backend.lab_api import router as lab_router
+app.include_router(lab_router)
 
 # Mount the built assets last so they can't shadow the routes above. Vite emits
 # fingerprinted files into dist/assets and references them from dist/index.html
