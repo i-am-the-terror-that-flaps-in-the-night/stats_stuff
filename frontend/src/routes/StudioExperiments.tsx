@@ -19,6 +19,7 @@ import { Figure, Picker } from "../components/figures/ChartFrame";
 import { BootstrapChart, BootstrapLegend } from "../components/figures/BootstrapChart";
 import { SampleSizeChart, SampleSizeLegend } from "../components/figures/SampleSizeChart";
 import { ScreenChart, ScreenLegend } from "../components/figures/ScreenChart";
+import { OutlierRuleChart, OutlierRuleLegend } from "../components/figures/OutlierRuleChart";
 import {
   useBootstrap,
   useFigureColumns,
@@ -228,6 +229,18 @@ export function StudioExperiments(): JSX.Element {
         {!outliers.error && !outliers.data && <Loading what="four outlier policies" />}
         {outliers.data && (
           <>
+            {/* The chart first, the tables under it. Four means that differ in
+                the second decimal read as rounding noise in a column of digits;
+                on a shared axis the same numbers show the size of the
+                disagreement as a distance, which is the finding. */}
+            <Figure
+              title={`${labelOf(outliers.data.column)} — the answer under each rule`}
+              caption="Dot is the mean, bar is ±1 SD. Hover a row for its numbers; click to pin it."
+              meta={`${outliers.data.results.length} rules`}
+              legend={<OutlierRuleLegend data={outliers.data} />}
+            >
+              <OutlierRuleChart data={outliers.data} />
+            </Figure>
             {/* Two tables, not one seven-column one. They answer different
                 questions — what the rule threw away, and what throwing it away
                 did to the answer — and a seven-column numeric table does not

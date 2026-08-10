@@ -157,8 +157,11 @@ export function StatGrid({ cells }: { cells: StatCell[] }): JSX.Element {
  * a column of durations reads much better than the same numbers ragged-left.
  * Indices count the row-key column as 0.
  *
- * Always wrapped so a wide table scrolls inside itself rather than stretching
- * the page.
+ * NEVER scrolls sideways. Each cell carries `data-label`, its column's heading,
+ * which does nothing at normal widths and becomes the row label when the CSS
+ * stacks the table into one block per row on a narrow screen. That is the whole
+ * mechanism: the heading has to travel with the cell, because once the header
+ * row is gone a bare "0.032" has lost the only thing that said what it was.
  */
 export function Table({
   head,
@@ -174,9 +177,16 @@ export function Table({
   numeric?: number[];
 }): JSX.Element {
   const isNum = (index: number): boolean => numeric?.includes(index) ?? false;
+  // Five or more columns is where a phone stops being able to hold a grid: the
+  // four-column tables were already made to fit on cell padding and wrapping
+  // alone, and the six-column runs table never could. `is-wide` is what the
+  // stylesheet stacks below 560px -- decided here because CSS cannot count
+  // columns, and stacking every two-column table would be worse than the
+  // problem.
+  const columnCount = head.length + (corner === undefined ? 0 : 1);
   return (
     <div className="results-scroll">
-      <table className="sheet">
+      <table className={columnCount >= 5 ? "sheet is-wide" : "sheet"}>
         {caption && <caption>{caption}</caption>}
         <thead>
           <tr>
@@ -192,7 +202,14 @@ export function Table({
           {rows.map((row, i) => (
             <tr key={i}>
               {row.map((cell, j) => (
-                <td className={j === 0 ? "rowkey" : isNum(j) ? "num" : undefined} key={j}>
+                <td
+                  className={j === 0 ? "rowkey" : isNum(j) ? "num" : undefined}
+                  // The row-key cell titles its own stacked block, so it needs no
+                  // label of its own. `head` excludes the corner column, hence
+                  // the offset.
+                  {...(j === 0 ? {} : { "data-label": head[j - (corner === undefined ? 0 : 1)] })}
+                  key={j}
+                >
                   {cell}
                 </td>
               ))}

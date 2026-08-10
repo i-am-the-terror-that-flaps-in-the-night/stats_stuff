@@ -67,11 +67,97 @@ function Note({ noteKey, text }: { noteKey: string; text: string }): JSX.Element
 }
 
 /**
+ * Above this many metrics a grid cannot be made to fit, at any type size, on any
+ * screen this site targets. Five 8-character numbers plus a row label is about
+ * 340px of unavoidable content; the sixth is what pushes a phone over. Past it
+ * the records are stacked instead — see Records.
+ */
+const MAX_MATRIX_COLS = 5;
+
+/**
+ * The wide-matrix fallback: one titled block per record, each metric on its own
+ * line.
+ *
+ * This is the shape a table takes when it stops being a table. The alternative
+ * was a horizontal scroller, which this site does not have anywhere -- it hides
+ * the right-hand columns behind a gesture with no affordance, inside a page that
+ * already scrolls the other way. Stacking costs vertical space and keeps every
+ * number reachable, which is the trade worth making for a comparison nobody can
+ * complete if half of it is off-screen.
+ *
+ * What is genuinely lost is column-wise comparison: you can no longer run an eye
+ * down one metric across records. The heat shading survives to carry some of
+ * that -- a cell's tint still says where it sits in its own metric's range --
+ * but this is a worse view of the same data, chosen because the better one does
+ * not fit.
+ */
+function Records({
+  entries,
+  cols,
+  heatOf,
+}: {
+  entries: [string, EngineObject][];
+  cols: string[];
+  heatOf: (col: string, raw: EngineValue) => number | null;
+}): JSX.Element {
+  return (
+    <div className="records">
+      {entries.map(([name, rec]) => (
+        <article className="record" key={name}>
+          <h4 className="record-title">{prettify(name)}</h4>
+          <dl className="record-body">
+            {/* Only the keys this record actually has, in the union's order.
+                A grid needs the full union so its columns line up, and prints a
+                dash where a record is missing one. A card has no columns to line
+                up, so the same dashes are just rows of nothing -- and when two
+                "sibling" records turn out to share no keys at all, which the
+                engine does produce, every row of one card would be empty.
+                `in`, not a truthiness check: a key that is present and null is a
+                real reading and still prints its dash. */}
+            {cols
+              .filter((col) => col in rec)
+              .map((col) => {
+                const raw = rec[col] ?? null;
+                const heat = heatOf(col, raw);
+                // Long prose (an engine caveat, a "why") cannot share a line
+                // with its label and must not be right-aligned when it takes
+                // its own -- ragged-left body text is unreadable.
+                const prose = typeof raw === "string" && raw.length > 24;
+                const classes = ["value"];
+                if (heat !== null) classes.push("is-heat");
+                if (prose) classes.push("is-prose");
+                return (
+                  <div className="record-row" key={col}>
+                    <dt>{prettify(col)}</dt>
+                    <dd
+                      className={classes.join(" ")}
+                      {...(heat === null
+                        ? {}
+                        : { style: { ["--heat" as string]: heat.toFixed(3) } })}
+                    >
+                      <Value value={raw} />
+                    </dd>
+                  </div>
+                );
+              })}
+          </dl>
+        </article>
+      ))}
+    </div>
+  );
+}
+
+/**
  * Same-shaped record groups as one matrix: a row per group, a column per metric.
  * Columns are the union of the records' keys in first-seen order, so ragged
  * records still line up and gaps show as a dash. Each column shades against its
  * own range -- a duration_ms column and a p_value column live on wildly
  * different scales and must not share a gradient.
+ *
+ * Past MAX_MATRIX_COLS metrics the grid is abandoned for stacked records. The
+ * decision is made here, from the column count, rather than in a media query:
+ * CSS cannot count columns, and the width that breaks a 4-metric matrix is not
+ * the width that breaks a 12-metric one.
  */
 function Matrix({ entries }: { entries: [string, EngineObject][] }): JSX.Element {
   const cols: string[] = [];
@@ -93,6 +179,17 @@ function Matrix({ entries }: { entries: [string, EngineObject][] }): JSX.Element
     if (nums.length >= 2) ranges.set(col, [Math.min(...nums), Math.max(...nums)]);
   }
 
+  /** A cell's position in its own column's range, or null if it has none. */
+  const heatOf = (col: string, raw: EngineValue): number | null => {
+    const range = ranges.get(col);
+    if (!range || !isFiniteNumber(raw)) return null;
+    return range[1] > range[0] ? (raw - range[0]) / (range[1] - range[0]) : 0.5;
+  };
+
+  if (cols.length > MAX_MATRIX_COLS) {
+    return <Records entries={entries} cols={cols} heatOf={heatOf} />;
+  }
+
   return (
     <div className="results-scroll">
       <table className="matrix">
@@ -112,16 +209,11 @@ function Matrix({ entries }: { entries: [string, EngineObject][] }): JSX.Element
               </th>
               {cols.map((col) => {
                 const raw = col in rec ? (rec[col] ?? null) : null;
-                const range = ranges.get(col);
-                const heat =
-                  range && isFiniteNumber(raw)
-                    ? range[1] > range[0]
-                      ? (raw - range[0]) / (range[1] - range[0])
-                      : 0.5
-                    : null;
+                const heat = heatOf(col, raw);
                 return (
                   <td
                     key={col}
+                    data-label={prettify(col)}
                     className={heat === null ? "value" : "value is-heat"}
                     {...(heat === null
                       ? {}

@@ -15,6 +15,7 @@ import { Crumbs, Masthead, Module, Status, Table } from "../components/Page";
 import type { SpecRow } from "../components/Page";
 import { Figure, Picker } from "../components/figures/ChartFrame";
 import { Histogram, HistogramLegend } from "../components/figures/Histogram";
+import { EcdfChart, EcdfLegend } from "../components/figures/EcdfChart";
 import { BoxLegend, BoxPlot } from "../components/figures/BoxPlot";
 import { ScatterLegend, ScatterPlot } from "../components/figures/ScatterPlot";
 import {
@@ -86,6 +87,34 @@ function HistogramTable({ data }: { data: HistogramResponse }): JSX.Element {
         formatCount(bin.count),
         `${((bin.count / data.n) * 100).toFixed(1)}%`,
       ])}
+    />
+  );
+}
+
+/**
+ * The cumulative curve as numbers: each bin's upper edge and the share at or
+ * below it. Running total rather than per-bin count, so the table answers the
+ * same question the chart does instead of repeating the histogram's.
+ */
+function EcdfTable({ data }: { data: HistogramResponse }): JSX.Element {
+  let running = 0;
+  const rows = data.bins.map((bin) => {
+    running += bin.count;
+    const share = data.n > 0 ? running / data.n : 0;
+    return [
+      `≤ ${formatTick(bin.hi)}`,
+      formatCount(running),
+      `${(share * 100).toFixed(1)}%`,
+      `${((1 - share) * 100).toFixed(1)}%`,
+    ];
+  });
+  return (
+    <Table
+      corner="Value"
+      head={["Cumulative", "At or below", "Above"]}
+      numeric={[1, 2, 3]}
+      caption={`${labelOf(data.column)} — running total over ${formatCount(data.n)} values`}
+      rows={rows}
     />
   );
 }
@@ -165,7 +194,7 @@ export function Figures(): JSX.Element {
         title="Figures"
         tagline={
           <>
-            Four views of the same NHANES slice the engine reports on. A statistic is a
+            Five views of the same NHANES slice the engine reports on. A statistic is a
             summary — these show what it is a summary <em>of</em>, which is where a long
             tail or a fat cloud stops being invisible.
           </>
@@ -220,7 +249,53 @@ export function Figures(): JSX.Element {
         </Figure>
       </Module>
 
-      <Module index="02" title="Group Comparison" meta="Split by a label">
+      <Module index="02" title="Cumulative Share" meta="Same column, read as percentiles">
+        <p className="text">
+          The same values as the histogram above, accumulated. This is the view a threshold
+          question wants: the expert tier can tell you what share of the sample clears one
+          published cutoff, and this tells you the share that clears <em>any</em> value you
+          point at — including the ones no guideline picked.
+        </p>
+        <Figure
+          title={column ? `${labelOf(column)} — cumulative share` : "Cumulative share"}
+          caption="Height is the share of people at or below that value. Point anywhere to read it."
+          meta={histogram.data ? `n = ${formatCount(histogram.data.n)}` : undefined}
+          controls={
+            <Picker
+              label="Column"
+              value={column ?? ""}
+              options={columns}
+              onChange={(next) => setColumn(next)}
+            />
+          }
+          legend={histogram.data ? <EcdfLegend data={histogram.data} /> : undefined}
+          footnote={
+            histogram.data ? (
+              <>
+                Built from the same bins as the histogram, so the curve rises straight across
+                each bin instead of stepping at every observation — a reading between two bin
+                edges is an interpolation, accurate to about one bin width. The exact curve
+                would need all {formatCount(histogram.data.n)} raw values in the browser, which
+                costs far more than the precision is worth at this size.
+              </>
+            ) : undefined
+          }
+        >
+          {histogram.error && <Status message={histogram.error} isError />}
+          {!histogram.error && !histogram.data && <Loading what="the cumulative share" />}
+          {histogram.data && (
+            <Switchable
+              showTable={tables.ecdf ?? false}
+              onToggle={toggle("ecdf")}
+              table={<EcdfTable data={histogram.data} />}
+            >
+              <EcdfChart data={histogram.data} />
+            </Switchable>
+          )}
+        </Figure>
+      </Module>
+
+      <Module index="03" title="Group Comparison" meta="Split by a label">
         <p className="text">
           The same column, one box per group. This is the picture that belongs beside the
           medium tier&rsquo;s ANOVA: the test says whether the groups are distinguishable, and
@@ -299,7 +374,7 @@ export function Figures(): JSX.Element {
         </Figure>
       </Module>
 
-      <Module index="03" title="Relationship" meta="Two columns">
+      <Module index="04" title="Relationship" meta="Two columns">
         <p className="text">
           Two columns plotted against each other, with the least-squares line. The advanced
           tier reports r for this pair; the cloud shows the spread that r is a summary of —
@@ -363,7 +438,7 @@ export function Figures(): JSX.Element {
         </Figure>
       </Module>
 
-      <Module index="04" title="Correlation Matrix" meta="Every pair">
+      <Module index="05" title="Correlation Matrix" meta="Every pair">
         <p className="text">
           Fifteen numeric columns make 105 pairs, which is more than anyone will open one at a
           time. This is the map: blue where two columns rise together, red where one rises as

@@ -1373,22 +1373,133 @@ button {
     color: var(--ink-faint);
 }
 
+/* ---- Stacked records (the wide-matrix fallback) ------------------------- */
+/* What ResultView renders instead of a grid once a matrix passes five metrics.
+   One block per record, one line per metric. It takes more vertical space than
+   the table it replaces, and vertical space is the cheap axis: the page already
+   scrolls that way, so nothing here is hidden behind a gesture. */
+.records {
+    display: grid;
+    gap: 10px;
+    /* auto-fit, not a fixed count: two records sit side by side on a desktop and
+       fall to one column when the track can no longer hold 260px. minmax with a
+       0 floor is what keeps the track from refusing to shrink -- `260px` as a
+       hard minimum is the classic way a grid overflows its parent. */
+    grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr));
+}
+
+.record {
+    border: 1px solid var(--line);
+    background: var(--surface);
+    box-shadow: var(--shadow-soft);
+}
+
+.record-title {
+    margin: 0;
+    padding: 9px 14px;
+    background: var(--surface-3);
+    border-bottom: 2px solid var(--accent);
+    font-size: 0.74rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--accent-strong);
+    overflow-wrap: break-word;
+}
+
+.record-body {
+    margin: 0;
+    padding: 0;
+}
+
+.record-row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 4px 10px;
+    padding: 9px 14px;
+    border-bottom: 1px solid var(--line);
+    /* Label and value share a line when both fit, and the value drops to its own
+       line when it does not. Without the wrap the two fight over the row and
+       flexbox settles it by shrinking each to min-content -- which for text that
+       is allowed to break mid-word is ONE CHARACTER. A label reading "W / H / Y"
+       down the left edge is what that looks like. */
+    flex-wrap: wrap;
+}
+
+.record-row:last-child {
+    border-bottom: none;
+}
+
+.record-row dt {
+    /* Grows into spare space, shrinks only to 6ch. That floor is the fix for the
+       one-letter column: below it the label stops being a word. */
+    flex: 1 1 auto;
+    min-width: 6ch;
+    font-size: 0.74rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--ink-3);
+    overflow-wrap: break-word;
+}
+
+.record-row dd {
+    /* 14ch basis: a value narrower than that sits beside its label, and anything
+       wider takes the next line and the full width. */
+    flex: 1 1 14ch;
+    min-width: 0;
+    margin: 0;
+    text-align: right;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+    color: var(--ink);
+    overflow-wrap: break-word;
+}
+
+/* A sentence, not a reading. Full width, left-aligned, and at body weight --
+   right-aligned bold prose is the one thing worse than a wide table. */
+.record-row dd.is-prose {
+    flex: 1 1 100%;
+    text-align: left;
+    font-weight: 600;
+    font-size: 0.88rem;
+    color: var(--ink-2);
+}
+
+.record-row dd.is-heat {
+    padding: 0 6px;
+    background: color-mix(in srgb, var(--accent) calc(var(--heat, 0) * 55%), var(--surface));
+}
+
 /* ---- Comparison matrix (same-shaped sibling records) ------------------- */
-/* Rows = each result (a column, a group…), columns = the shared metrics. Scrolls
-   sideways when wide; the row-label column is sticky so it stays anchored. */
+/* Rows = each result (a column, a group…), columns = the shared metrics.
+   WRAPS, never scrolls -- the same rule the primary nav follows, for the same
+   reason. This used to be `overflow-x: auto`, which put the right-hand metrics
+   past the edge of a swipeable box nested inside a vertically-scrolling page:
+   the gesture is ambiguous, the scrollbar is invisible until you touch it, and
+   nothing on screen says the row continues. Tables here reflow instead, and the
+   ones that genuinely cannot fit (more than five metrics) are rendered as
+   stacked records by ResultView rather than as a grid nobody can reach the end
+   of. The class stays because the layout rules below hang margins off it. */
 .results-scroll {
-    overflow-x: auto;
+    display: block;
+    max-width: 100%;
 }
 
 .matrix {
     width: 100%;
     border-collapse: collapse;
+    /* Cells may break mid-word rather than setting a floor the container has to
+       grow past. A column named "HDLCholesterol" is one unbreakable token
+       otherwise, and one such token is all it takes to push a table wide. */
+    overflow-wrap: break-word;
 }
 
 .matrix thead th {
     padding: 12px 18px;
     text-align: right;
-    white-space: nowrap;
+    white-space: normal;
     font-size: 0.72rem;
     font-weight: 800;
     text-transform: uppercase;
@@ -1420,7 +1531,9 @@ button {
 
 .matrix td.value {
     text-align: right;
-    white-space: nowrap;
+    /* Numbers still get tabular figures, but a long one is allowed to wrap. A
+       nowrap value column is the other classic way a table outgrows its box. */
+    white-space: normal;
     font-weight: 800;
     font-size: 1rem;
     font-variant-numeric: tabular-nums;
@@ -1433,14 +1546,15 @@ button {
     background: color-mix(in srgb, var(--accent) calc(var(--heat, 0) * 55%), var(--surface));
 }
 
-/* Sticky first column: the group/row identifier, accent-strong with a glowing
-   RGB tick so each row reads as its own thing. */
+/* First column: the group/row identifier, accent-strong with a glowing RGB tick
+   so each row reads as its own thing. It used to be `position: sticky; left: 0`
+   so it survived the sideways scroll -- with the scroll gone there is nothing to
+   stay anchored against, and sticky on a non-scrolling table only costs a
+   containing block. */
 .matrix .matrix-corner,
 .matrix .matrix-row-label {
-    position: sticky;
-    left: 0;
     text-align: left;
-    white-space: nowrap;
+    white-space: normal;
 }
 
 .matrix .matrix-corner {
@@ -2122,24 +2236,19 @@ body.boot-page-enter .page {
     }
 
     /* The comparison matrix carried 18px of padding per side per cell, which on
-       a phone pushed it ~84px past the viewport and made .results-scroll swipe
-       sideways. Half the padding and let the headers wrap onto two lines: the
-       real matrices (3-4 metric columns) now fit outright. .results-scroll
-       keeps its overflow-x as a fallback for a genuinely wide matrix, but it is
-       no longer reached by anything the app actually renders. */
+       a phone pushed it ~84px past the viewport. Half the padding: the real
+       matrices (3-4 metric columns) now fit outright. Wrapping and the stacked
+       fallback are no longer phone-only — they apply at every width, up in the
+       .matrix rules — because a wide matrix in a narrow browser window is the
+       same problem as a narrow phone. */
     .matrix thead th,
     .matrix td,
     .matrix .matrix-row-label {
         padding: 10px 9px;
     }
 
-    .matrix thead th {
-        white-space: normal;
-    }
-
     .matrix .matrix-row-label {
         padding-left: 14px;
-        white-space: normal;
     }
 
 }
@@ -2543,6 +2652,84 @@ body.boot-page-enter .page {
        to break inside now. */
     .expr {
         overflow-wrap: anywhere;
+    }
+
+    /* ---- Wide tables stack instead of scrolling ------------------------- */
+    /* Five or more columns (the class is set in Page.tsx, which can count them)
+       cannot be shrunk into a phone by padding and wrapping -- past some point
+       the columns are narrower than the numbers in them. So the row stops being
+       a row: each becomes a small block titled by its row key, one metric per
+       line. Each cell carries its column heading in data-label and prints it
+       here, because a stacked "0.032" with no header row above it has lost the
+       only thing that said what it was.
+
+       thead is moved out of view rather than display:none'd -- a screen reader
+       still associates the headers with the cells, and display:none would drop
+       them from the accessibility tree along with the layout. */
+    .sheet.is-wide,
+    .sheet.is-wide tbody,
+    .sheet.is-wide tr,
+    .sheet.is-wide td {
+        display: block;
+        width: 100%;
+    }
+
+    .sheet.is-wide thead {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        margin: -1px;
+        padding: 0;
+        overflow: hidden;
+        clip-path: inset(50%);
+        white-space: nowrap;
+    }
+
+    .sheet.is-wide tr {
+        margin-bottom: 10px;
+        border: 1px solid var(--line);
+        background: var(--surface);
+    }
+
+    .sheet.is-wide td {
+        border-bottom: 1px solid var(--line);
+    }
+
+    .sheet.is-wide tr td:last-child {
+        border-bottom: none;
+    }
+
+    /* The row key titles the block: same band the record cards use, so the two
+       stacked forms on the site read as one pattern. */
+    .sheet.is-wide td.rowkey {
+        padding: 8px 10px;
+        background: var(--surface-3);
+        border-bottom: 2px solid var(--accent);
+        font-size: 0.74rem;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: var(--accent-strong);
+    }
+
+    .sheet.is-wide td[data-label] {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 10px;
+        padding: 8px 10px;
+        text-align: right;
+    }
+
+    .sheet.is-wide td[data-label]::before {
+        content: attr(data-label);
+        flex: 0 1 auto;
+        text-align: left;
+        font-size: 0.72rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        color: var(--ink-3);
     }
 }
 
@@ -3162,6 +3349,79 @@ input.fig-pick-input::placeholder {
 .fig-line {
     stroke: var(--accent-strong);
     stroke-width: 2;
+}
+
+/* ---- Cumulative-share chart -------------------------------------------- */
+/* Q1 and Q3, dropped from the curve to the axis. Recessive on purpose: the
+   median is the mark you are meant to find first, and three rules of equal
+   weight would read as a picket fence. Dotted AND lighter, never colour alone. */
+.fig-ref.is-quartile {
+    stroke: var(--ink-3);
+    stroke-width: 1.5;
+    stroke-dasharray: 2 3;
+}
+
+.fig-key-mark.is-quartile {
+    height: 0;
+    border-top: 2px dotted var(--ink-3);
+}
+
+/* The crosshair follows the pointer, so it must read as furniture and not as a
+   mark: one hairline, dashed, in the same recessive ink as the grid it crosses.
+   A solid accent rule here would compete with the curve it is measuring. */
+.fig-crosshair {
+    stroke: var(--ink-3);
+    stroke-width: 1;
+    stroke-dasharray: 3 3;
+    pointer-events: none;
+}
+
+/* The reading itself: solid, filled, sitting on the curve. This is the one mark
+   on the chart that is not in the data -- it is where you are pointing -- so it
+   gets the surface-coloured ring that every hovered point on the site gets. */
+.fig-dot.is-cursor {
+    fill: var(--accent-strong);
+    fill-opacity: 1;
+    stroke: var(--surface);
+    stroke-width: 2;
+    pointer-events: none;
+}
+
+/* ---- Outlier-rule chart -------------------------------------------------- */
+.fig-dot.is-meandot {
+    fill: var(--accent-strong);
+    fill-opacity: 1;
+    stroke: var(--surface);
+    stroke-width: 1.5;
+}
+
+/* Row labels in the left gutter: the rule's name, weighted like a table's row
+   key because that is what it is. */
+.fig-axis-text.is-rowkey {
+    font-weight: 800;
+    fill: var(--ink);
+}
+
+.fig-rule .fig-hit {
+    cursor: pointer;
+}
+
+/* A pinned row. Thickening the interval and darkening its label is enough --
+   colour alone would not survive a colour-vision difference, and the pin is a
+   state the reader set, so it has to be unmistakable. */
+.fig-rule.is-active .fig-whisker,
+.fig-rule.is-active .fig-whisker-cap {
+    stroke: var(--accent-strong);
+    stroke-width: 3;
+}
+
+.fig-rule.is-active .fig-dot.is-meandot {
+    r: 8;
+}
+
+.fig-rule:hover .fig-whisker,
+.fig-rule:hover .fig-whisker-cap {
+    stroke: var(--ink-3);
 }
 
 .fig-point {
