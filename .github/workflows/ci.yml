@@ -1,0 +1,124 @@
+# Tests, lint and typecheck on every push and pull request.
+#
+# The repo had no CI before this -- only the keepalive pinger -- so a broken
+# engine or a stale cohort could reach Render and only be noticed by looking at
+# the site. Render's build runs `npm run build` (which typechecks) and then
+# installs Python, so a type error already fails a deploy; nothing checked the
+# Python side at all.
+#
+# WHAT THE DATA JOB IS FOR
+#   Data/nhanes_adolescent.csv is a build artifact that happens to be committed.
+#   Backend/cohort.py is the code that produces it. Those can drift: a change to
+#   the derivation ships while the CSV keeps the old numbers, and every result on
+#   the site quietly describes a cohort the code no longer builds. `cohort.py
+#   --check` rebuilds in memory and diffs, which is the only thing that catches
+#   it. It needs the 17 MB raw merge from Git LFS, so it is a separate job --
+#   the fast tests should not wait on an LFS fetch, and an LFS outage should not
+#   fail the whole run.
+
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  python:
+    name: Python -- tests and lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      # No LFS here: the tests read the committed cohort CSV, which is an
+      # ordinary Git object. This is the same state a Render deploy is in, so
+      # if the app needs an LFS file to boot, this job is where that shows up.
+      - uses: actions/checkout@v5
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Lint
+        run: uv run ruff check Backend/ tests/
+
+      - name: Check formatting
+        run: uv run ruff format --check Backend/ tests/
+
+      - name: Tests
+        run: uv run pytest -q
+
+      # Boot the real server the way Render does and hit every route group.
+      #
+      # This is the job's most valuable step, because it is the only one that
+      # exercises the import graph the deploy actually uses. Two real bugs live
+      # in that gap and neither shows up in pytest, which puts Backend/ on the
+      # path and so resolves every module by its bare name:
+      #   * a module reading the 17 MB raw merge at import time -- fine locally,
+      #     500 on Render, where the LFS object is a pointer stub. This job
+      #     deliberately checks out WITHOUT lfs, so that fails here.
+      #   * a router importing app.py at module scope, which closes an import
+      #     cycle that only breaks on the package path (`uvicorn main:app`).
+      - name: Smoke-test the deployed import path
+        run: uv run python scripts/smoke_test.py
+
+  frontend:
+    name: Frontend -- typecheck and build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      # `npm ci`, not `npm install`, so this resolves the exact tree in the lock
+      # file -- the same thing render.yaml does.
+      - name: Install
+        run: npm ci
+        working-directory: frontend
+
+      - name: Build (typechecks, then bundles)
+        run: npm run build
+        working-directory: frontend
+
+      # The layout rules in lib/format.ts decide whether a label-value pair fits
+      # in one grid cell. Getting them wrong renders numbers one digit per line
+      # while every request still returns 200 -- invisible to the Python tests
+      # and to the typechecker, which is how it shipped once already.
+      - name: Unit tests
+        run: npm test
+        working-directory: frontend
+
+  data:
+    name: Data -- cohort matches its derivation
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          lfs: true
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Rebuild the cohort and diff it against the committed CSV
+        run: uv run python Backend/cohort.py --check

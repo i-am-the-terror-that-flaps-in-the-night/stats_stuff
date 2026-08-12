@@ -20,7 +20,13 @@ import math
 import numpy as np
 import pandas as pd
 
-from engine import ANALYTIC_MISSING_SENTINEL, DataAnalyzer, _num, df_cleanup
+from engine import (
+    ANALYTIC_MISSING_SENTINEL,
+    DataAnalyzer,
+    _coerce_numeric,
+    _num,
+    df_cleanup,
+)
 
 
 def _grouped_frame():
@@ -354,3 +360,41 @@ def test_normality_check_does_not_claim_residuals_are_normal():
     # A shape description sits alongside the yes/no, so the test isn't a gate.
     assert diagnostics["skewness"] is not None
     assert diagnostics["kurtosis"] is not None
+
+
+def test_bool_columns_coerce_to_float_not_bool():
+    """A bool column must leave _coerce_numeric as float64.
+
+    True/False are perfectly good 1/0 for a mean, so the descriptive tiers never
+    noticed this. But a bool column in a design matrix makes numpy fall back to
+    `object`, and the failure surfaces from deep inside statsmodels as
+    "ufunc 'isfinite' not supported for the input types" -- a message that names
+    nothing you could search for. The live cohort has one (ALTElevated), which
+    took out the advanced and expert tiers for every column at once.
+    """
+    coerced = _coerce_numeric(pd.Series([True, False, True]))
+
+    assert coerced.dtype == np.float64
+    assert coerced.tolist() == [1.0, 0.0, 1.0]
+
+
+def test_nullable_extension_dtypes_coerce_to_float():
+    """pandas' nullable dtypes carry pd.NA and degrade to object in numpy too."""
+    coerced = _coerce_numeric(pd.Series([1, 2, None], dtype="Int64"))
+
+    assert coerced.dtype == np.float64
+    assert coerced.notna().sum() == 2
+
+
+def test_model_tiers_survive_a_bool_column_in_the_frame():
+    """The end-to-end version: advanced and expert must not error out because
+    some *other* column in the dataframe happens to be boolean."""
+    frame = _grouped_frame()
+    frame["flag"] = frame["age"] > frame["age"].median()  # a real bool column
+
+    advanced = DataAnalyzer(frame).advanced_analysis("outcome")
+    expert = DataAnalyzer(frame).expert_analysis("outcome")
+
+    assert "error" not in advanced.get("regression", {})
+    assert "error" not in expert.get("multicollinearity", {})
+    assert "error" not in expert.get("diagnostics", {})

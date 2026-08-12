@@ -67,12 +67,26 @@ ipython_config.py
 *.h5
 *.hdf5
 *.csv
-# ...but keep the small tracked datasets: the original practice file, and the
-# curated NHANES subset the live engine actually runs on (18 renamed, labeled
-# columns out of nhanes_analytic.csv's 412 raw-coded ones -- small enough to
-# commit; the full raw export stays gitignored, see Data/nhanes_analytic.csv).
+# ...but keep the datasets the project actually needs in the repo.
+#
+# nhanes_adolescent.csv is the one the deployed app reads: the study's analytic
+# cohort, ~700 rows and ~100 KB, derived from the raw merge by Backend/cohort.py.
+# It is committed rather than built on deploy so production never depends on the
+# 17 MB raw file being present -- see the LFS note below.
+#
+# nhanes_analytic.csv is that raw 412-column merge. It is tracked through GIT LFS
+# (see .gitattributes), not ignored: it is the provenance for everything else and
+# belongs under version control, but at 17 MB it does not belong in the ordinary
+# object history. Nothing at runtime reads it -- only `python Backend/cohort.py`
+# does, when rebuilding the cohort -- so a checkout that never ran `git lfs pull`
+# still runs the site correctly.
+#
+# nhanes.csv is the previous curated 18-column demo slice, superseded by the
+# cohort but kept for reference and for the older figures.
 !Data/data.csv
 !Data/nhanes.csv
+!Data/nhanes_adolescent.csv
+!Data/nhanes_analytic.csv
 
 # ---- Django ----
 # Local run log. The host has no persistent disk, so this is never shared state.

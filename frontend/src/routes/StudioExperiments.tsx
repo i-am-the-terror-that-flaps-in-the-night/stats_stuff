@@ -115,7 +115,7 @@ export function StudioExperiments(): JSX.Element {
         }
         byline="By Anirudh Gupta"
         spec={[
-          { k: "Dataset", v: "nhanes.csv" },
+          { k: "Dataset", v: "nhanes_adolescent.csv" },
           { k: "Experiments", v: "04" },
           { k: "Computed", v: "Server-side" },
           { k: "Bench", v: <Link to="/studio">Studio</Link> },

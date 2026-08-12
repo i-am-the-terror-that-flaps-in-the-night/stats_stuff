@@ -7,12 +7,20 @@ WHY THIS EXISTS
     is that entry point: a minimal FastAPI app that
 
       * exposes a health check (for Render's health probe),
-      * serves the built React frontend (frontend/dist), and
+      * serves the built React frontend (frontend/dist),
       * exposes a JSON API (backed by engine.py) that the frontend calls to
-        compute statistics on Data/nhanes.csv -- a curated, human-readable
-        subset (18 renamed columns) of the NHANES 2017-2018 data this project
-        analyzes, built from Data/nhanes_analytic.csv (see that file's docstring
-        note for provenance; the full 412-column raw export stays local-only).
+        compute statistics on Data/nhanes_adolescent.csv -- the study's analytic
+        cohort of U.S. adolescents aged 12-17, derived from the raw NHANES
+        2017-2018 merge by Backend/cohort.py, and
+      * serves the project's actual research at /api/study/* (Backend/study.py):
+        the pre-specified ten-step analysis of dietary sugar, metabolic markers
+        and liver stress, with its cohort, its models and its caveats.
+
+    The dataset and the study are the same body of work seen two ways. The
+    generic tiers let a reader explore the cohort column by column; the study
+    routes answer the questions the protocol committed to before the data were
+    looked at. Both run on exactly the same 699 adolescents, which is what keeps
+    a number quoted from one consistent with the other.
 
     The frontend is a Vite + React + TypeScript app under frontend/. It owns all
     presentation and its own URLs; this module is a pure JSON API plus a static
@@ -46,6 +54,11 @@ ROUTES
     GET  /api/lab/bootstrap/{col}       resampled distribution   (lab_api.py)
     GET  /api/lab/outliers/{col}        four outlier policies    (lab_api.py)
     GET  /api/lab/screen                bulk tests + corrections (lab_api.py)
+    GET  /api/study                     the whole ten-step study (study_api.py)
+    GET  /api/study/headline            the summary-card numbers (study_api.py)
+    GET  /api/study/steps               step index + grades      (study_api.py)
+    GET  /api/study/step/{name}         one step                 (study_api.py)
+    GET  /api/study/cohort              the attrition table      (study_api.py)
     GET  /api/datasets                  dataset inventory        (studio.py)
     GET  /api/runs, POST /api/runs      the saved-run log        (studio.py)
     GET  /                              the SPA shell (frontend/dist/index.html)
@@ -114,7 +127,17 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 # directory. Data/ lives at the repo root, one level up; the frontend is the
 # Vite build output under frontend/dist (see frontend/vite.config.ts).
 ROOT = Path(__file__).resolve().parent.parent
-DATA_CSV = ROOT / "Data" / "nhanes.csv"
+# The analytic cohort -- U.S. adolescents aged 12-17, derived from the raw
+# NHANES 2017-2018 merge by Backend/cohort.py, which is where every inclusion
+# rule and variable definition is written down. This is the dataset the whole
+# site runs on: the study's cohort, not a general demo slice, so the columns the
+# Studio explores are the columns the research analyzes.
+#
+# It is committed (~100 KB) while the 17 MB raw merge it comes from lives in Git
+# LFS. That split is what keeps the deploy honest AND fast: production reads a
+# small tracked file and never needs an LFS object, and a cold start loads the
+# cohort in milliseconds. Rebuild it with `python Backend/cohort.py`.
+DATA_CSV = ROOT / "Data" / "nhanes_adolescent.csv"
 DIST_DIR = ROOT / "frontend" / "dist"
 ASSETS_DIR = DIST_DIR / "assets"
 INDEX_HTML = DIST_DIR / "index.html"
@@ -169,7 +192,19 @@ def deploy_version() -> str:
     service constantly.
     """
     parts = []
-    for path in (DATA_CSV, Path(__file__), Path(__file__).with_name("engine.py")):
+    here = Path(__file__)
+    sources = (
+        DATA_CSV,
+        here,
+        here.with_name("engine.py"),
+        # The study's numbers are part of the deployed answer too: a change to
+        # the cohort derivation or to a model specification changes what /api
+        # returns just as surely as a new CSV does, and every cached copy has to
+        # be invalidated when it happens.
+        here.with_name("cohort.py"),
+        here.with_name("study.py"),
+    )
+    for path in sources:
         try:
             info = path.stat()
             parts.append(f"{path.name}:{info.st_size}:{info.st_mtime_ns}")
@@ -192,11 +227,35 @@ def _load_engine():
 
 @lru_cache(maxsize=1)
 def get_dataframe():
-    """Load and clean Data/nhanes.csv once, then reuse it across requests."""
+    """Load and clean the analytic cohort once, then reuse it across requests.
+
+    The bookkeeping columns are dropped HERE, on the way in, rather than being
+    filtered out of the column lists further down. That distinction turned out
+    to matter: hiding them from /api/columns only stops a reader ASKING for the
+    mean of a participant ID. It does nothing about the engine, which takes the
+    whole dataframe and, in the advanced and expert tiers, regresses the chosen
+    column on every other numeric column it can find. With SEQN and the survey
+    design codes still present, "expert · TrigHDLRatio" was quietly fitting a
+    model on participant ID and sampling stratum, and reporting its VIFs and
+    residual diagnostics as though they meant something.
+
+    Dropping the columns at the source is the only version of this that holds,
+    because it fixes every consumer at once -- the tiers, the figures, the lab,
+    the correlation matrix -- instead of requiring each to remember. Nothing
+    served over HTTP needs them. The study does, and it reads the CSV itself
+    through study.load_cohort(), where the survey weight and the design codes
+    are exactly the point.
+    """
     import pandas as pd
 
+    try:
+        from cohort import NON_ANALYTIC_COLUMNS
+    except ModuleNotFoundError:
+        from Backend.cohort import NON_ANALYTIC_COLUMNS
+
     _, df_cleanup = _load_engine()
-    return df_cleanup(pd.read_csv(DATA_CSV))
+    frame = df_cleanup(pd.read_csv(DATA_CSV))
+    return frame.drop(columns=[c for c in NON_ANALYTIC_COLUMNS if c in frame.columns])
 
 
 def load_data():
@@ -210,7 +269,9 @@ def load_data():
 
 @lru_cache(maxsize=1)
 def analyzable_columns() -> frozenset[str]:
-    """Columns with at least one numeric value after coercion (same rule as basic_analysis)."""
+    """Columns with at least one numeric value after coercion (same rule as
+    basic_analysis). The bookkeeping columns are already gone -- get_dataframe()
+    drops them on the way in -- so this is the plain numeric test again."""
     import pandas as pd
 
     df = load_data()
@@ -224,7 +285,8 @@ def analyzable_columns() -> frozenset[str]:
 @lru_cache(maxsize=1)
 def categorical_columns() -> frozenset[str]:
     """Label columns -- those with no numeric values at all (the complement of
-    analyzable_columns). These feed the categorical tier and the group-by picker."""
+    analyzable_columns). These feed the categorical tier and the group-by
+    picker."""
     df = load_data()
     numeric = analyzable_columns()
     return frozenset(col for col in df.columns if col not in numeric)
@@ -267,12 +329,16 @@ def dataset_overview() -> dict[str, str | int]:
         for col in numeric
         if int(pd.to_numeric(df[col], errors="coerce").notna().sum()) == total
     )
+    categorical = categorical_columns()
     return {
         "dataset": DATA_CSV.name,
         "rows": total,
+        # The columns the engine actually sees. get_dataframe() has already
+        # dropped the cohort's bookkeeping columns, so `columns` is the width of
+        # the analyzable frame and numeric + categorical partition it exactly.
         "columns": len(df.columns),
         "numeric": len(numeric),
-        "categorical": len(df.columns) - len(numeric),
+        "categorical": len(categorical),
         "complete": complete,
         "reduced": len(numeric) - complete,
     }
@@ -393,7 +459,10 @@ def _warm_caches() -> None:
     for column in columns:
         attempt(f"hist:{column}", lambda c=column: histogram(c))
     for label in labels:
-        attempt(f"box:{label}", lambda g=label: box_plot("BMI" if "BMI" in columns else columns[0], g))
+        attempt(
+            f"box:{label}",
+            lambda g=label: box_plot("BMI" if "BMI" in columns else columns[0], g),
+        )
 
     # 4. The medium tier, ungrouped. The deepest thing worth precomputing: the
     #    advanced and expert tiers pull in statsmodels and take tens of
@@ -403,6 +472,22 @@ def _warm_caches() -> None:
     for column in columns:
         attempt(f"medium:{column}", lambda c=column: compute_tier("medium", c, None))
     attempt("statsmodels", lambda: compute_tier("advanced", columns[0], None))
+
+    # 5. The study itself, last and most expensive: eleven weighted regressions
+    #    plus the statsmodels import. It goes at the end because everything above
+    #    is cheaper and more likely to be asked for first, and it is warmed at all
+    #    because the study IS the site -- the landing page opens with its headline
+    #    numbers, and computing those on the first visitor's request is the one
+    #    place a cold start would still be visible.
+    def warm_study():
+        try:
+            from study import headline, run_study
+        except ModuleNotFoundError:
+            from Backend.study import headline, run_study
+        headline()
+        run_study()
+
+    attempt("study", warm_study)
 
 
 @asynccontextmanager
@@ -455,7 +540,11 @@ async def etag_middleware(request: Request, call_next):
     response = await call_next(request)
 
     is_api = request.url.path.startswith("/api")
-    if request.method not in ("GET", "HEAD") or not is_api or response.status_code != 200:
+    if (
+        request.method not in ("GET", "HEAD")
+        or not is_api
+        or response.status_code != 200
+    ):
         return response
 
     # blake2b, not the builtin hash(): Python randomizes string hashing per
@@ -528,7 +617,12 @@ async def spa_fallback_handler(request: Request, exc: StarletteHTTPException):
     """
     is_api_path = request.url.path.startswith("/api")
     wants_html = "text/html" in request.headers.get("accept", "")
-    if exc.status_code == 404 and wants_html and not is_api_path and INDEX_HTML.is_file():
+    if (
+        exc.status_code == 404
+        and wants_html
+        and not is_api_path
+        and INDEX_HTML.is_file()
+    ):
         # 200, not 404: this is a real page being served, and the router will
         # emit its own not-found view if the path matches nothing.
         return FileResponse(INDEX_HTML, headers={"Cache-Control": INDEX_CACHE_CONTROL})
@@ -633,7 +727,9 @@ def column_stats(column: str, response: Response):
 
 
 @app.get("/api/analyze/{tier}/{column}")
-def analyze_column(tier: str, column: str, response: Response, group: str | None = None):
+def analyze_column(
+    tier: str, column: str, response: Response, group: str | None = None
+):
     """Run any analysis tier for a column.
 
     tier -> one of basic/medium/advanced/expert (numeric columns) or categorical
@@ -646,7 +742,9 @@ def analyze_column(tier: str, column: str, response: Response, group: str | None
 
     # Numeric tiers draw from the analyzable columns; the categorical tier from
     # the label columns.
-    valid_columns = analyzable_columns() if tier in NUMERIC_TIERS else categorical_columns()
+    valid_columns = (
+        analyzable_columns() if tier in NUMERIC_TIERS else categorical_columns()
+    )
     if column not in valid_columns:
         raise HTTPException(status_code=404, detail=f"Unknown column: {column!r}")
 
@@ -714,6 +812,16 @@ try:
 except ModuleNotFoundError:
     from Backend.lab_api import router as lab_router
 app.include_router(lab_router)
+
+# The pre-specified ten-step analysis (/api/study/*). This is the project's
+# actual research -- the rest of the API explores the cohort, this one answers
+# the questions the protocol committed to in advance. Included last for the same
+# lazy-import reason as the routers above.
+try:
+    from study_api import router as study_router
+except ModuleNotFoundError:
+    from Backend.study_api import router as study_router
+app.include_router(study_router)
 
 # Mount the built assets last so they can't shadow the routes above. Vite emits
 # fingerprinted files into dist/assets and references them from dist/index.html

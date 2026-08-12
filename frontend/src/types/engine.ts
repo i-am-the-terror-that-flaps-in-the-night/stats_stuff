@@ -288,3 +288,104 @@ export interface ScreenResponse {
   tests: ScreenTest[];
   not_causal: string;
 }
+
+// ---- The study ------------------------------------------------------------
+// Backend/study.py's ten-step analysis. These types cover the shapes the Study
+// page actually reads; each step also carries prose fields (interpretation,
+// caveat, note) that vary by step and are pulled through an index signature
+// rather than enumerated, so adding a caveat server-side never breaks the build.
+
+/** The three grades of claim the protocol pre-specifies. */
+export type ClaimGrade = "primary" | "supporting" | "exploratory";
+
+/** The significance block every test in the engine returns. */
+export interface Significance {
+  p_value: number | null;
+  /** "< 0.0001" where the rounded p_value would read as a misleading 0. */
+  p_value_text?: string;
+  alpha: number;
+  statistically_significant: boolean;
+  p_value_means: string;
+  caveat: string;
+}
+
+/** One fitted coefficient, with its robust interval. */
+export interface Coefficient {
+  estimate: number | null;
+  std_error: number | null;
+  t: number | null;
+  ci_low: number | null;
+  ci_high: number | null;
+  standardized_beta: number | null;
+  significance: Significance;
+}
+
+/** One weighted, cluster-robust model fit. */
+export interface StudyModel {
+  label: string;
+  outcome: string;
+  predictors: string[];
+  n: number;
+  clusters: number;
+  r_squared: number | null;
+  adjusted_r_squared: number | null;
+  coefficients: Record<string, Coefficient>;
+  estimator: string;
+  layer: string;
+  not_causal: string;
+}
+
+/** One row of the cohort attrition table. */
+export interface AttritionRow {
+  step: string;
+  rule: string;
+  n: number;
+  removed: number | null;
+  note?: string;
+}
+
+/**
+ * One step of the study. The fields every step shares are named; the rest vary
+ * by step (a model here, a quartile table there) and are read through the index
+ * signature by the renderer that knows which step it is looking at.
+ */
+export interface StudyStep {
+  step?: number;
+  title: string;
+  grade: ClaimGrade;
+  layer: string;
+  question: string;
+  n?: number;
+  interpretation?: string;
+  caveat?: string;
+  note?: string;
+  not_causal?: string;
+  [key: string]: unknown;
+}
+
+/** GET /api/study/steps — the table of contents, without the results. */
+export interface StudyIndexEntry {
+  name: string;
+  step: number | null;
+  title: string;
+  grade: ClaimGrade;
+  question: string;
+  n: number | null;
+}
+
+export interface StudyIndexResponse {
+  steps: StudyIndexEntry[];
+  hierarchy: Record<ClaimGrade, string>;
+}
+
+/** GET /api/study/headline — the summary card. */
+export interface StudyHeadline {
+  n: number;
+  primary_finding: string;
+  sugar_p: number | null;
+  trig_hdl_beta: number | null;
+  trig_hdl_p: number | null;
+  sex_difference_in_alt: { male: number; female: number; difference: number };
+  elevated_alt_percent: number | null;
+  not_causal: string;
+}

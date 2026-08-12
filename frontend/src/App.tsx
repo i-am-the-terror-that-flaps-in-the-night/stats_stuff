@@ -12,6 +12,7 @@ import { Methodology } from "./routes/Methodology";
 import { Benchmarks } from "./routes/Benchmarks";
 import { Changelog } from "./routes/Changelog";
 import { Figures } from "./routes/Figures";
+import { Study } from "./routes/Study";
 import { StudioIndex } from "./routes/StudioIndex";
 import { StudioExperiments } from "./routes/StudioExperiments";
 import { StudioAnalyze } from "./routes/StudioAnalyze";
@@ -25,6 +26,7 @@ const router = createBrowserRouter([
     element: <Shell />,
     children: [
       { index: true, element: <Overview /> },
+      { path: "study", element: <Study /> },
       { path: "figures", element: <Figures /> },
       { path: "methodology", element: <Methodology /> },
       { path: "benchmarks", element: <Benchmarks /> },

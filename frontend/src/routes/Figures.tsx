@@ -27,7 +27,7 @@ import { formatCount, formatTick, labelOf } from "../lib/scales";
 import type { CorrelationResponse, HistogramResponse } from "../types/engine";
 
 const SPEC: SpecRow[] = [
-  { k: "Source", v: "nhanes.csv" },
+  { k: "Source", v: "nhanes_adolescent.csv" },
   { k: "Rows", v: "9,254" },
   { k: "Drawn", v: "Inline SVG" },
   { k: "Library", v: "None" },

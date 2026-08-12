@@ -85,6 +85,69 @@ export function isWideValue(value: EngineValue): boolean {
 }
 
 /**
+ * The longest label that can sit beside its value in one grid cell.
+ *
+ * A label-value cell is ~184px wide and the label does not wrap (wrapping it
+ * would leave a ragged two-line key next to a single-line number, which reads
+ * worse than either fix). So a long label simply takes the whole cell, and
+ * whatever is left for the value can be a couple of characters -- at which
+ * point `overflow-wrap: anywhere` on the value does exactly what it was asked
+ * to and breaks "0.5011" into one digit per line.
+ *
+ * That was a real rendering bug: "Proportion At Or Above" and "Standardized
+ * Beta" both blew past the space and printed their numbers vertically. The fix
+ * is to decide by LABEL length as well as value type -- past this many
+ * characters the pair gets its own full-width row, label above value, the same
+ * treatment isWideValue() already gives a long string.
+ *
+ * The number is arithmetic, not taste. A cell is 208px wide with 14px padding
+ * each side and a 14px gap, leaving 166px to split. The label renders at
+ * 0.72rem (11.5px), 700 weight, uppercase, with 0.05em tracking -- about 7.7px
+ * per letter. A value renders at 1rem, 800 weight, tabular figures: roughly
+ * 9.5px per digit, so a typical "0.5011" or "16.04" needs ~50px.
+ *
+ * 166 - 50 = 116px of label, which is 15 characters. Past that the value is
+ * squeezed. "Standardized Beta" (17) is the case that proves it matters -- it
+ * sat just under an earlier, guessed limit of 18 and rendered its number
+ * vertically anyway.
+ */
+export const MAX_INLINE_LABEL = 15;
+
+/**
+ * The longest single unbreakable token that still fits the value half of a cell.
+ *
+ * The other half of the same bug. A column name like "TrigHDLRatio" is one
+ * 12-character word with no space or hyphen to break at, so it cannot be
+ * wrapped politely -- it either fits or it is chopped mid-word ("TrigHDLRati /
+ * o", which is what the page was doing). Values made of several short words are
+ * fine, because they wrap at the spaces; only the longest token matters.
+ *
+ * 11 comes from the same budget as MAX_INLINE_LABEL, run the other way: a
+ * value has ~90px once a short label has taken its share, and at ~8px per
+ * character in the value's weight that is 11 characters.
+ */
+export const MAX_INLINE_TOKEN = 11;
+
+function longestToken(text: string): number {
+  return text.split(/[\s_-]+/).reduce((max, part) => Math.max(max, part.length), 0);
+}
+
+/**
+ * True when a label-value pair needs its own full-width row rather than sharing
+ * one grid cell.
+ *
+ * Three ways to earn it: a value that is already wide by type (a list or a long
+ * string), a label too long to leave room beside it, or a value containing a
+ * token too long to wrap. Any of the three produces the same unreadable cell,
+ * so they get the same fix.
+ */
+export function isWidePair(key: string, value: EngineValue): boolean {
+  if (isWideValue(value)) return true;
+  if (prettify(key).length > MAX_INLINE_LABEL) return true;
+  return typeof value === "string" && longestToken(value) > MAX_INLINE_TOKEN;
+}
+
+/**
  * Keys worth plotting side by side -- same-scale descriptive figures that read
  * better as relative bar lengths than as a column of numbers. Anything else
  * (n, flags, lists, p-values) stays table-only.

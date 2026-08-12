@@ -141,12 +141,19 @@ export function Methodology(): JSX.Element {
           to.
         </p>
         <p className="prose">
-          The visible cost is honest: in the live NHANES dataset, every numeric column is reduced,
-          and by very different amounts — <Expr>Age</Expr> is present for 8,897 of 9,254
-          participants, while <Expr>Triglycerides</Expr> — only measured for the fasting subsample —
-          is present for just <strong>2,834</strong>. Neither gap is filled in. The{" "}
+          The visible cost is honest, and it is uneven. The live cohort is 699 adolescents, and the
+          biomarkers they were selected on — <Expr>ALT</Expr>, <Expr>BMI</Expr>,{" "}
+          <Expr>HbA1c</Expr>, <Expr>Triglycerides</Expr> — are complete for all 699. The
+          questionnaire measures are not: <Expr>ScreenTime</Expr> is present for{" "}
+          <strong>586</strong>, because 113 adolescents did not answer both screen-time questions,
+          and <Expr>IncomeRatio</Expr> for <strong>627</strong>. Neither gap is filled in. The{" "}
           <Expr>count</Expr> is reported alongside every result precisely so that reduction is never
           hidden.
+        </p>
+        <p className="prose">
+          That is also why screen time is <em>not</em> an entry criterion for the cohort. Requiring
+          it would have cost 16% of the sample to serve the two analyses that use it, so it is a
+          variable with its own smaller n instead — and the models that use it say so.
         </p>
       </Module>
 

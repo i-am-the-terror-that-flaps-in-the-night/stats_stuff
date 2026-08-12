@@ -89,7 +89,7 @@ export function Overview(): JSX.Element {
     effectiveGroup,
   );
 
-  const dataset = columns?.dataset ?? "nhanes.csv";
+  const dataset = columns?.dataset ?? "nhanes_adolescent.csv";
   const spec: SpecRow[] = [
     { k: "Engine", v: "FastAPI" },
     { k: "Frontend", v: "React · TS" },
@@ -126,9 +126,9 @@ export function Overview(): JSX.Element {
 
       <Module index="01" title="Statistical Analysis" meta="Live compute">
         <p className="text">
-          Pick an analysis tier and a column from <code>{dataset}</code> — a curated slice of the
-          NHANES 2017–2018 data behind this project — optionally grouped by a category — and the
-          engine computes the rest.
+          Pick an analysis tier and a column from <code>{dataset}</code> — the 699 U.S. adolescents
+          this project&rsquo;s research actually analyses, drawn from NHANES 2017–2018 — optionally
+          grouped by a category, and the engine computes the rest.
         </p>
 
         <div className="fields">

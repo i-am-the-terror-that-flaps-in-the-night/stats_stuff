@@ -113,7 +113,14 @@ def _summary(values) -> dict:
 
     n = int(values.size)
     if n == 0:
-        return {"n": 0, "mean": None, "median": None, "std": None, "min": None, "max": None}
+        return {
+            "n": 0,
+            "mean": None,
+            "median": None,
+            "std": None,
+            "min": None,
+            "max": None,
+        }
     return {
         "n": n,
         "mean": _num(values.mean()),
@@ -127,6 +134,7 @@ def _summary(values) -> dict:
 # ---------------------------------------------------------------------------
 # Cohort filters
 # ---------------------------------------------------------------------------
+
 
 def _parse_filter(expression: str) -> tuple[str, str, str]:
     """Split "Age>=40" into ("Age", ">=", "40").
@@ -198,7 +206,9 @@ def _apply_filters(df, filters: tuple[str, ...]):
         # a row with no value for the filtered column is not evidence that it
         # passes, so it drops out.
         df = df[mask.fillna(False)]
-        applied.append({"column": column, "op": op, "value": raw, "remaining": int(len(df))})
+        applied.append(
+            {"column": column, "op": op, "value": raw, "remaining": int(len(df))}
+        )
 
     return df, applied
 
@@ -222,8 +232,12 @@ def cohort(column: str, filters: tuple[str, ...]) -> dict:
     total_rows = int(len(df))
     subset, applied = _apply_filters(df, filters)
 
-    everything = pd.to_numeric(df[column], errors="coerce").dropna().to_numpy(dtype=float)
-    narrowed = pd.to_numeric(subset[column], errors="coerce").dropna().to_numpy(dtype=float)
+    everything = (
+        pd.to_numeric(df[column], errors="coerce").dropna().to_numpy(dtype=float)
+    )
+    narrowed = (
+        pd.to_numeric(subset[column], errors="coerce").dropna().to_numpy(dtype=float)
+    )
 
     overall = _summary(everything)
     inside = _summary(narrowed)
@@ -253,6 +267,7 @@ def cohort(column: str, filters: tuple[str, ...]) -> dict:
 # ---------------------------------------------------------------------------
 # Sample size
 # ---------------------------------------------------------------------------
+
 
 @lru_cache(maxsize=CACHE_SIZE)
 def sample_size(column: str, seed: int) -> dict:
@@ -301,7 +316,13 @@ def sample_size(column: str, seed: int) -> dict:
                 # from the truth -- the "how often would I have been wrong"
                 # number, which lands harder than an interval width.
                 "miss_rate": _num(
-                    float(np.mean(np.abs(means - population_mean) > abs(population_mean) * 0.01)), 3
+                    float(
+                        np.mean(
+                            np.abs(means - population_mean)
+                            > abs(population_mean) * 0.01
+                        )
+                    ),
+                    3,
                 ),
             }
         )
@@ -340,7 +361,8 @@ def bootstrap(column: str, statistic: str, seed: int) -> dict:
         raise HTTPException(status_code=404, detail=f"Unknown column: {column!r}")
     if statistic not in STATISTICS:
         raise HTTPException(
-            status_code=422, detail=f"Unknown statistic: {statistic!r}. Pick one of {STATISTICS}."
+            status_code=422,
+            detail=f"Unknown statistic: {statistic!r}. Pick one of {STATISTICS}.",
         )
 
     values = (
@@ -420,7 +442,9 @@ def outlier_rules(column: str) -> dict:
         .to_numpy(dtype=float)
     )
     if values.size < 4:
-        raise HTTPException(status_code=422, detail="Too few values to compare outlier rules.")
+        raise HTTPException(
+            status_code=422, detail="Too few values to compare outlier rules."
+        )
 
     q1, q3 = (float(x) for x in np.percentile(values, [25, 75]))
     iqr = q3 - q1
@@ -464,6 +488,7 @@ def outlier_rules(column: str) -> dict:
 # Multiple comparisons
 # ---------------------------------------------------------------------------
 
+
 @lru_cache(maxsize=CACHE_SIZE)
 def screen(group: str, alpha: float) -> dict:
     """Test every numeric column against one grouping, then correct for it.
@@ -479,7 +504,6 @@ def screen(group: str, alpha: float) -> dict:
     dataset they usually disagree about at least one column, and that column is
     the most interesting row in the table.
     """
-    import numpy as np
     import pandas as pd
     import scipy.stats as sp
 
@@ -527,6 +551,7 @@ def screen(group: str, alpha: float) -> dict:
         )
 
     m = len(tests)
+
     # NEVER `test["p_value"] or 1.0` here. A real p-value of 0.0 is falsy, so
     # that idiom silently rewrites the strongest results in the table as the
     # weakest -- they sort last and come out "not significant". Read the number.
@@ -585,6 +610,7 @@ def screen(group: str, alpha: float) -> dict:
 # Routes
 # ---------------------------------------------------------------------------
 
+
 def _cached(response: Response) -> None:
     response.headers["Cache-Control"] = _app().API_CACHE_CONTROL
 
@@ -593,7 +619,9 @@ def _cached(response: Response) -> None:
 def cohort_route(
     column: str,
     response: Response,
-    f: list[str] = Query(default=[], description="Filter, e.g. Age>=40 or Gender=Female"),
+    f: list[str] = Query(
+        default=[], description="Filter, e.g. Age>=40 or Gender=Female"
+    ),
 ):
     """One column summarized over a filtered cohort, beside the whole dataset."""
     _cached(response)
@@ -608,7 +636,9 @@ def sample_size_route(column: str, response: Response, seed: int = 1):
 
 
 @router.get("/bootstrap/{column}")
-def bootstrap_route(column: str, response: Response, statistic: str = "mean", seed: int = 1):
+def bootstrap_route(
+    column: str, response: Response, statistic: str = "mean", seed: int = 1
+):
     """The sampling distribution of one statistic, by resampling."""
     _cached(response)
     return bootstrap(column, statistic, seed)

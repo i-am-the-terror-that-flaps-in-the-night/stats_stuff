@@ -22,6 +22,9 @@ import {
   fetchSampleSize,
   fetchScatter,
   fetchScreen,
+  fetchStudyHeadline,
+  fetchStudyIndex,
+  fetchStudyStep,
 } from "./api";
 import type {
   BootstrapResponse,
@@ -35,6 +38,9 @@ import type {
   SampleSizeResponse,
   ScatterResponse,
   ScreenResponse,
+  StudyHeadline,
+  StudyIndexResponse,
+  StudyStep,
 } from "../types/engine";
 
 /** Turn any thrown value into a message worth showing a person. */
@@ -295,4 +301,41 @@ export function useAnalysis(
   }, [tier, column, group, nonce, cache]);
 
   return { ...state, rerun };
+}
+
+// ---- The study ------------------------------------------------------------
+
+/** The study's table of contents and its headline numbers, loaded together. */
+export function useStudyIndex() {
+  const { data, error, loading } = useAsync(
+    async () => {
+      const [index, headline] = await Promise.all([fetchStudyIndex(), fetchStudyHeadline()]);
+      return { index, headline };
+    },
+    [],
+    "Could not load the study.",
+  );
+  return {
+    index: (data?.index ?? null) as StudyIndexResponse | null,
+    headline: (data?.headline ?? null) as StudyHeadline | null,
+    error,
+    loading,
+  };
+}
+
+/**
+ * One step's full result, fetched when it is opened.
+ *
+ * `name` is null while nothing is open, which is the normal first state -- the
+ * page renders its contents list before any model has been asked for. useAsync
+ * always runs, so the null case resolves immediately to null rather than
+ * firing a request for a step called "null".
+ */
+export function useStudyStep(name: string | null) {
+  const { data, error, loading } = useAsync(
+    () => (name ? fetchStudyStep(name) : Promise.resolve(null)),
+    [name],
+    "Could not load that step.",
+  );
+  return { step: data as StudyStep | null, error, loading };
 }

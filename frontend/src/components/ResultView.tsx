@@ -15,7 +15,7 @@ import {
   isFiniteNumber,
   isPlainObject,
   isRecord,
-  isWideValue,
+  isWidePair,
   layerOf,
   partitionEntries,
   prettify,
@@ -40,10 +40,15 @@ function Value({ value }: { value: EngineValue }): JSX.Element {
   return <>{String(value)}</>;
 }
 
-/** One statistic as a compact label-value cell. */
+/** One statistic as a compact label-value cell.
+ *
+ * Wide pairs are decided from the LABEL as well as the value -- see
+ * isWidePair. A cell whose label eats the whole width leaves its number a
+ * couple of characters to render in, and the value's `overflow-wrap` then
+ * breaks it one digit per line. */
 function Stat({ statKey, value }: { statKey: string; value: EngineValue }): JSX.Element {
   return (
-    <div className={isWideValue(value) ? "stat is-wide" : "stat"}>
+    <div className={isWidePair(statKey, value) ? "stat is-wide" : "stat"}>
       <span className="stat-k">{prettify(statKey)}</span>
       <span className="stat-v">
         <Value value={value} />

@@ -28,6 +28,9 @@ import type {
   SampleSizeResponse,
   ScatterResponse,
   ScreenResponse,
+  StudyHeadline,
+  StudyIndexResponse,
+  StudyStep,
 } from "../types/engine";
 
 const API_CANDIDATES = ["", "http://127.0.0.1:8000", "http://localhost:8000"] as const;
@@ -201,6 +204,24 @@ export function fetchOutliers(column: string): Promise<OutliersResponse> {
 
 export function fetchScreen(group: string, alpha: number): Promise<ScreenResponse> {
   return getJson<ScreenResponse>(`/api/lab/screen?group=${enc(group)}&alpha=${alpha}`);
+}
+
+// ---- The study ------------------------------------------------------------
+// Backend/study.py's pre-specified ten-step analysis. The step index and the
+// headline are small and load on mount; each step's full result is fetched only
+// when the reader opens it, because a single step carries every coefficient of
+// every model in it and there is no reason to pull the other nine.
+
+export function fetchStudyIndex(): Promise<StudyIndexResponse> {
+  return getJson<StudyIndexResponse>("/api/study/steps");
+}
+
+export function fetchStudyHeadline(): Promise<StudyHeadline> {
+  return getJson<StudyHeadline>("/api/study/headline");
+}
+
+export function fetchStudyStep(name: string): Promise<StudyStep> {
+  return getJson<StudyStep>(`/api/study/step/${enc(name)}`);
 }
 
 /** One analysis, with the round-trip time the UI reports. */

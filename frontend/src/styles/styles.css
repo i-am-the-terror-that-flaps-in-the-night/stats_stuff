@@ -1173,7 +1173,13 @@ button {
    fills the available width and reflows to fewer columns on smaller screens. */
 .results .stat-list {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(184px, 1fr));
+    /* 208px, not 184px. The label does not wrap and the value must not be
+       broken mid-token, so the cell has to hold both outright; 184px was about
+       15px short for a two-word label beside a six-figure number, and the
+       shortfall came out of the value. Pairs that still cannot fit are routed
+       to a full-width row by isWidePair() in lib/format.ts -- this width is the
+       point at which that fallback stops being needed for ordinary cells. */
+    grid-template-columns: repeat(auto-fill, minmax(208px, 1fr));
     border-top: 1px solid var(--line);
     border-left: 1px solid var(--line);
 }
@@ -1209,7 +1215,13 @@ button {
     font-variant-numeric: tabular-nums;
     color: var(--ink);
     min-width: 0;
-    overflow-wrap: anywhere;
+    /* break-word, NOT anywhere. `anywhere` lets the browser break a token at
+       any character as soon as the line is tight, which is how "0.5011" ended
+       up rendered one digit per line in a squeezed cell -- technically obeying
+       the rule, uselessly. `break-word` only splits a word that could not fit
+       on a line of its own, so a cramped cell overflows visibly (a bug you can
+       see) instead of shredding the number (a bug that looks like data). */
+    overflow-wrap: break-word;
 }
 
 /* A list-valued stat (predictors, confounders, group order) takes the whole
@@ -3549,5 +3561,155 @@ input.fig-pick-input::placeholder {
     .sheet thead th {
         font-size: 0.58rem;
         letter-spacing: 0.02em;
+    }
+}
+
+/* ---- The Study page ----------------------------------------------------- *
+ * The research, rather than the tool. Same chassis as everything else -- zero
+ * radius, hard rules, hard offset shadow -- with two additions: a claim-grade
+ * badge and a disclosure list for the ten steps.
+ *
+ * The grade badge is the one place on the site where colour carries meaning
+ * rather than decoration, so it does NOT draw from the RGB tokens: those run
+ * everywhere and would make the badge read as another lit seam. It gets flat,
+ * high-contrast fills instead, and each one is legible in greyscale by weight
+ * and border as well as hue -- the grade is the reason a step sits where it
+ * does, and it has to survive a photocopied poster and a colour-blind reader.
+ */
+
+.footnote {
+    margin: 12px 0 0;
+    max-width: 78ch;
+    color: var(--ink-faint);
+    font-size: 0.82rem;
+    line-height: 1.6;
+}
+
+.footnote + .footnote {
+    margin-top: 7px;
+}
+
+.grade {
+    display: inline-block;
+    padding: 1px 7px;
+    border: 1px solid currentColor;
+    font-size: 0.62rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+
+/* Primary is the study's one real test, so it is the only filled badge. */
+.grade-primary {
+    color: #ffffff;
+    background: var(--accent-strong);
+    border-color: var(--accent-strong);
+}
+
+.grade-supporting {
+    color: var(--ink-3);
+    background: var(--surface-2);
+}
+
+/* Exploratory is deliberately the quietest: these are hypotheses, not findings,
+   and the styling should not lend them the weight of the primary result. */
+.grade-exploratory {
+    color: var(--ink-faint);
+    background: transparent;
+    border-style: dashed;
+}
+
+/* ---- The ten-step disclosure list ---- */
+.step-list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    border-top: 1px solid var(--line-strong);
+}
+
+.step {
+    border-bottom: 1px solid var(--line);
+}
+
+.step.is-open {
+    border-bottom-color: var(--line-strong);
+    background: var(--surface-2);
+}
+
+.step-head {
+    display: grid;
+    grid-template-columns: 34px 1fr auto auto;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    padding: 11px 12px;
+    background: none;
+    border: 0;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+.step-head:hover {
+    background: var(--accent-soft);
+}
+
+.step-head:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: -2px;
+}
+
+.step-index {
+    color: var(--ink-faint);
+    font-size: 0.74rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}
+
+.step-title {
+    color: var(--ink);
+    font-size: 0.95rem;
+    font-weight: 700;
+    line-height: 1.35;
+}
+
+.step-n {
+    color: var(--ink-faint);
+    font-size: 0.74rem;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+.step-panel {
+    padding: 4px 12px 20px;
+    border-top: 1px solid var(--line);
+    background: var(--surface);
+}
+
+.step-body > .text:first-child {
+    margin-top: 16px;
+    color: var(--ink-3);
+    font-size: 0.95rem;
+    font-style: italic;
+}
+
+/* Tables stack inside a panel, so they need the breathing room the module body
+   would otherwise have given them. */
+.step-body .sheet {
+    margin-bottom: 18px;
+}
+
+@media (max-width: 720px) {
+    /* The n and the grade are the first things to go: at this width the title
+       needs the full line, and both are repeated inside the open panel. */
+    .step-head {
+        grid-template-columns: 28px 1fr;
+        gap: 8px;
+    }
+
+    .step-head .grade,
+    .step-n {
+        display: none;
     }
 }

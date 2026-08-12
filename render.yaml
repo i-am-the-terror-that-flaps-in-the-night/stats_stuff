@@ -21,6 +21,15 @@ services:
     # `npm ci` (not `npm install`) so the deploy resolves the exact tree in
     # package-lock.json. The frontend build runs first: if it fails, the deploy
     # fails before touching Python, and the previous version stays live.
+    #
+    # NO GIT LFS STEP, deliberately. Data/nhanes_analytic.csv (the 17 MB raw
+    # NHANES merge) is tracked in LFS, and this build never fetches it: the app
+    # reads Data/nhanes_adolescent.csv, the ~100 KB derived cohort, which is an
+    # ordinary tracked file. So a checkout where the LFS object is still a
+    # pointer stub boots correctly, and the cold start does not spend seconds
+    # parsing 412 columns it will not use. Rebuilding the cohort from the raw
+    # merge is a local task (`python Backend/cohort.py`), and CI verifies the
+    # committed result still matches the code that derives it.
     buildCommand: >-
       cd frontend && npm ci && npm run build && cd ..
       && pip install -r requirements.txt

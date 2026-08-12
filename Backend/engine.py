@@ -283,9 +283,28 @@ def _coerce_numeric(series):
     here, so ANALYTIC_MISSING_SENTINEL can never sneak into a statistic -- the
     same reason _num() is the single exit every result leaves by. On datasets
     that don't use the sentinel the .replace() simply finds nothing.
+
+    The result is always plain float64, and that last part is load-bearing.
+    pd.to_numeric() preserves some dtypes that are arithmetically fine but are
+    not what the numeric stack expects:
+
+      * a bool column stays bool. True/False are perfectly good 1/0 for a mean,
+        so the descriptive tiers never notice -- but hand a bool column to
+        statsmodels and the design matrix it builds becomes numpy `object`,
+        where the failure surfaces as "ufunc 'isfinite' not supported" from
+        inside a VIF calculation, naming nothing that would lead you back here.
+      * pandas' nullable extension dtypes (Int64, boolean, Float64) carry
+        pd.NA rather than np.nan and also degrade to object on the way into
+        numpy.
+
+    Both break only the tiers that fit models -- advanced and expert -- and only
+    once a dataset actually contains such a column, which is exactly the kind of
+    bug that ships. Casting here fixes it once for every caller instead of at
+    each of the half-dozen places a design matrix gets built.
     """
     numbers = pd.to_numeric(series, errors="coerce")
-    return numbers.replace(ANALYTIC_MISSING_SENTINEL, np.nan)
+    numbers = numbers.replace(ANALYTIC_MISSING_SENTINEL, np.nan)
+    return numbers.astype("float64")
 
 
 def df_cleanup(df):

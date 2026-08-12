@@ -173,11 +173,16 @@ def box_plot(column: str, group: str | None) -> dict:
         pairs = [("All rows", series)]
     else:
         if group not in set(app_module.load_data().columns):
-            raise HTTPException(status_code=404, detail=f"Unknown group column: {group!r}")
+            raise HTTPException(
+                status_code=404, detail=f"Unknown group column: {group!r}"
+            )
         frame = pd.DataFrame(
             {"value": series, "group": app_module.load_data()[group]}
         ).dropna()
-        pairs = [(str(label), part["value"]) for label, part in frame.groupby("group", sort=True)]
+        pairs = [
+            (str(label), part["value"])
+            for label, part in frame.groupby("group", sort=True)
+        ]
 
     boxes = []
     dropped = 0
@@ -255,7 +260,9 @@ def scatter(x: str, y: str) -> dict:
         }
     ).dropna()
     if len(frame) < 3:
-        raise HTTPException(status_code=422, detail="Too few overlapping values to plot.")
+        raise HTTPException(
+            status_code=422, detail="Too few overlapping values to plot."
+        )
 
     xs_all = frame["x"].to_numpy(dtype=float)
     ys_all = frame["y"].to_numpy(dtype=float)
