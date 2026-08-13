@@ -34,3 +34,9 @@ dev = [
 pythonpath = ["Backend"]
 testpaths = ["tests"]
 
+[tool.pylint.main]
+# Same reason as pytest's pythonpath above: Backend/ is a plain directory, not an
+# installed package, so the editor's linter needs it on sys.path or every
+# `import engine` / `import cohort` in tests/ reads as an unresolved import.
+init-hook = 'import sys; sys.path.insert(0, "Backend")'
+

@@ -11,13 +11,14 @@ import type { JSX } from "react";
 import { NavLink, Outlet } from "react-router";
 import { useEffect, useState } from "react";
 import { knownApiBase, measureLatency } from "../lib/api";
+import { restoreMode } from "../lib/mode";
 
 /** The ascending-bars mark, shared by the bar, the loader and the transition. */
 export function BrandMark(): JSX.Element {
   return (
     <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <rect x="3.5" y="13" width="4.5" height="7.5" fill="#ff2bd6" />
-      <rect x="9.75" y="10" width="4.5" height="10.5" fill="#8b5cf6" />
+      <rect x="3.5" y="13" width="4.5" height="7.5" fill="#4338ca" />
+      <rect x="9.75" y="10" width="4.5" height="10.5" fill="#2b5cff" />
       <rect x="16" y="7" width="4.5" height="13.5" fill="#22d3ee" />
     </svg>
   );
@@ -29,6 +30,10 @@ function navClass({ isActive }: { isActive: boolean }): string {
 
 export function Shell(): JSX.Element {
   const [latency, setLatency] = useState<number | null>(null);
+
+  // Expert mode is remembered across reloads and deep links; Shell mounts once
+  // for every route, so this is the one place it needs restoring.
+  useEffect(restoreMode, []);
 
   // One real round trip, shown in the top bar. A genuine number reads as a
   // monitored engine; when no backend answers, the chip simply never appears.
@@ -96,7 +101,7 @@ export function Shell(): JSX.Element {
         </NavLink>
       </nav>
 
-      <div className="rgb-rule" aria-hidden="true" />
+      <div className="lume-rule" aria-hidden="true" />
 
       <Outlet />
 

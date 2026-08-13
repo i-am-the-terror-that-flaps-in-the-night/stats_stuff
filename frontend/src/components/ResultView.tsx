@@ -295,7 +295,14 @@ export interface ResultViewProps {
 export function ResultView({ result, tier, elapsedMs }: ResultViewProps): JSX.Element {
   const layer = layerOf(result);
   return (
-    <div className={`results${tier === "expert" ? " is-expert" : ""}`} id="results">
+    // The two deep tiers get their own readout treatment (see .results.is-expert
+    // / .is-advanced): finishing the heavy run should look like it cost
+    // something. Only those two -- the shallow tiers stay plain, which is what
+    // makes the deep ones read as a step up.
+    <div
+      className={`results${tier === "expert" ? " is-expert" : tier === "advanced" ? " is-advanced" : ""}`}
+      id="results"
+    >
       <div className="results-head">
         <span className="results-head-k">Result</span>
         <span className="results-head-tier">{tier}</span>

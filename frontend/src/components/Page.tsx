@@ -9,6 +9,7 @@
 
 import type { JSX, ReactNode } from "react";
 import { Link } from "react-router";
+import { HeroPlot } from "./HeroPlot";
 
 /** One key/value row in the masthead's right-hand nameplate. */
 export interface SpecRow {
@@ -65,6 +66,9 @@ export function Masthead({
   return (
     <header className="masthead">
       <div className="masthead-main">
+        {/* The scatter behind the headline. Purely visual, hence aria-hidden --
+            but it is a real correlated cloud with a fit line, not texture. */}
+        <HeroPlot />
         <p className="eyebrow">{eyebrow}</p>
         <h1>{title}</h1>
         {tagline && <p className="tagline">{tagline}</p>}

@@ -442,7 +442,7 @@ export function Figures(): JSX.Element {
         <p className="text">
           Fifteen numeric columns make 105 pairs, which is more than anyone will open one at a
           time. This is the map: blue where two columns rise together, red where one rises as
-          the other falls, near-white where there is nothing.{" "}
+          the other falls, and flat where there is nothing.{" "}
           <strong>Click any cell to plot that pair above.</strong>
         </p>
         <Figure

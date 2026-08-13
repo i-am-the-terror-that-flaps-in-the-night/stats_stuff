@@ -78,7 +78,7 @@ const RELEASES: Release[] = [
     items: [
       <>
         <b>Expert tier</b> — the deepest numeric tier: multicollinearity (VIF), regression
-        diagnostics, threshold counts, and trend tests, with its own full-RGB &ldquo;deep
+        diagnostics, threshold counts, and trend tests, with its own lit-edge &ldquo;deep
         analysis&rdquo; treatment.
       </>,
       <>

@@ -8,16 +8,22 @@
  * inside the console is high-contrast near-black-on-white so it stays readable
  * on cheap laptop panels.
  *
- * Neon: R-G-B light runs along most of the console's structural seams — the
- * frame, the nameplate edge, module and ribbon ticks, table heads, the
- * signature rule — at 85% strength. Those are structure, and the rule there is
- * WIDE over LOUD: colour marks where the machine's edges are, and never blooms
- * hard enough to tint the text next to it.
+ * Lume: a single cool ramp — indigo → azure → cyan, the accent stretched —
+ * runs along most of the console's structural seams: the frame, the nameplate
+ * edge, module and ribbon ticks, table heads, the signature rule. Those are
+ * structure, and the rule there is WIDE over LOUD: colour marks where the
+ * machine's edges are, and never blooms hard enough to tint the text next to
+ * it. (This replaced a full-spectrum "gamer RGB" run that cycled hue on a
+ * timer — see the --lume tokens for why.)
  *
  * Two things are exempt and run FULL BRIGHT: the brand mark and the status
  * pips. Both sit in the console bar, both are lit-hardware signals rather than
- * structure, and neither has data next to it to wash out — so they carry the
- * gamer-RGB identity at full strength while everything else stays quiet.
+ * structure, and neither has data next to it to wash out.
+ *
+ * Glass: bars and overlays that float ABOVE content — the console bar, the nav
+ * ribbon, the loader — are frosted (backdrop-filter) instead of opaque, so the
+ * instrument stays faintly visible through them. Anything with data ON it is
+ * never glass: readability outranks depth.
  *
  * There is no literal hardware. An earlier pass dropped SVG screws, bolts and
  * nail heads onto the frame corners; those are gone, and the seams they sat on
@@ -62,30 +68,46 @@
     --accent-soft: #e7edff;
     --accent-line: rgba(31, 79, 255, 0.5);
 
-    /* ---- Gamer neon: a vivid RGB spectrum that slowly cycles hue, like RGB
-       peripheral lighting. It runs across MOST of the console (frame ring,
-       nameplate edge, ribbon ticks, table heads) rather than screaming from two
-       or three spots — spread wide, so no single edge has to be loud. The
-       levels below are 85% of the original design strength: bright enough that
-       a seam reads as lit on a washed-out laptop panel, held back far enough
-       that the bloom never tints the data sitting beside it. The brand mark and
-       the status pips do NOT draw from these tokens — they run full bright, see
-       .brand-mark svg and .pips. ---- */
-    --neon-1: #ff2bd6;   /* magenta */
-    --neon-2: #8b5cf6;   /* violet  */
-    --neon-3: #22d3ee;   /* cyan    */
-    --rgb: linear-gradient(90deg, #ff2bd6 0%, #b429ff 26%, #4d6bff 54%, #22d3ee 80%, #24ffc7 100%);
-    --rgb-glow: 0 0 7px rgba(255, 43, 214, 0.68), 0 0 19px rgba(34, 211, 238, 0.55);
-    --rgb-glow-sm: 0 0 5px rgba(180, 41, 255, 0.64), 0 0 12px rgba(34, 211, 238, 0.51);
+    /* ---- Lume: the instrument's edge light. This replaces an earlier full-
+       spectrum "gamer RGB" run (magenta → violet → blue → cyan → mint) that
+       cycled hue on a timer. The rainbow read as a peripheral, not an
+       instrument, and its magenta end actively fought the blue accent the rest
+       of the palette is tuned around.
 
-    /* The quiet tier, for the surfaces that only just gained neon. Same hues,
-       held a step under the tiers above so a stat-cell edge or a table rule
-       still yields to the signature rule under the console bar. */
-    --rgb-soft: linear-gradient(90deg,
-        rgba(255, 43, 214, 0.64) 0%, rgba(180, 41, 255, 0.6) 26%,
-        rgba(77, 107, 255, 0.6) 54%, rgba(34, 211, 238, 0.6) 80%,
-        rgba(36, 255, 199, 0.64) 100%);
-    --rgb-glow-xs: 0 0 3px rgba(180, 41, 255, 0.27);
+       What lights the seams now is ONE cool ramp — deep indigo through the
+       accent's own azure into cyan. It is the accent, stretched: every lit edge
+       is recognisably the same light as the buttons and links, so the console
+       reads as a single machine rather than a case with a light kit bolted on.
+       It still runs WIDE over LOUD — frame ring, nameplate edge, module and
+       ribbon ticks, table heads — held back far enough that the bloom never
+       tints the data beside it. ---- */
+    --lume-1: #4338ca;   /* indigo — the deep end   */
+    --lume-2: #2b5cff;   /* azure  — the accent     */
+    --lume-3: #22d3ee;   /* cyan   — the bright end */
+    --lume: linear-gradient(90deg, #3b2fbf 0%, #4338ca 22%, #2b5cff 52%, #189fe0 78%, #22d3ee 100%);
+    --lume-glow: 0 0 7px rgba(43, 92, 255, 0.62), 0 0 19px rgba(34, 211, 238, 0.5);
+    --lume-glow-sm: 0 0 5px rgba(67, 56, 202, 0.58), 0 0 12px rgba(34, 211, 238, 0.46);
+
+    /* The quiet tier, for the surfaces that only just gained edge light. Same
+       ramp, held a step under the tiers above so a stat-cell edge or a table
+       rule still yields to the signature rule under the console bar. */
+    --lume-soft: linear-gradient(90deg,
+        rgba(59, 47, 191, 0.6) 0%, rgba(67, 56, 202, 0.56) 22%,
+        rgba(43, 92, 255, 0.56) 52%, rgba(24, 159, 224, 0.56) 78%,
+        rgba(34, 211, 238, 0.6) 100%);
+    --lume-glow-xs: 0 0 3px rgba(43, 92, 255, 0.26);
+
+    /* ---- Glass: the translucent tier. Bars and overlays that float over
+       content are frosted rather than opaque, so what is underneath stays
+       faintly legible and the layer reads as a pane of glass in front of the
+       instrument. backdrop-filter is progressively enhanced — every rule that
+       uses these also declares an opaque fallback background first. ---- */
+    --glass: rgba(255, 255, 255, 0.72);
+    --glass-strong: rgba(255, 255, 255, 0.86);
+    --glass-tint: rgba(244, 246, 251, 0.74);
+    --glass-blur: saturate(180%) blur(20px);
+    --glass-edge: inset 0 1px 0 0 rgba(255, 255, 255, 0.9),
+        inset 0 -1px 0 0 rgba(20, 45, 120, 0.09);
 
     --ok: #0a8f57;
     --ok-soft: #e2f5ec;
@@ -169,7 +191,7 @@ body {
 /* A thin neon ring tracing the bezel, just outside the console's own border box
    (negative inset) so it's never covered by its full-width children. The panel
    reads as lit along its seam rather than fastened down.
-   Two horizontal hairlines rather than a full ring: --rgb-soft runs left-to-
+   Two horizontal hairlines rather than a full ring: --lume-soft runs left-to-
    right, so painting it into a 1px-wide vertical strip would squeeze the whole
    spectrum into one indeterminate blended pixel. Top and bottom is where the
    gradient actually reads as a gradient. */
@@ -178,7 +200,7 @@ body {
     position: absolute;
     inset: -5px;
     pointer-events: none;
-    background-image: var(--rgb-soft), var(--rgb-soft);
+    background-image: var(--lume-soft), var(--lume-soft);
     background-repeat: no-repeat;
     background-size: 100% 1px;
     background-position: 0 0, 0 100%;
@@ -207,7 +229,7 @@ body {
 }
 
 /* Logo mark: a dark square tile with three ascending neon bars that glow and
-   slowly cycle hue — the gamer-RGB signature, doubling as a bar-chart glyph. */
+   breathe in the lume ramp — the brand signature, doubling as a bar-chart glyph. */
 .brand-mark {
     flex: none;
     display: grid;
@@ -217,9 +239,9 @@ body {
     background: var(--chrome-dark);
     border: 1px solid #000;
     /* Bezel: a bright top edge, a dark bottom edge — the tile reads as a
-       machined steel housing for the RGB bars, not a flat sticker. */
+       machined steel housing for the lit bars, not a flat sticker. */
     box-shadow: inset 0 1px 0 0 var(--chrome-edge-hi), inset 0 -1px 0 0 var(--chrome-edge-lo);
-    animation: rgb-cycle 9s linear infinite;
+    animation: lume-drift 9s ease-in-out infinite;
 }
 
 .brand-mark svg,
@@ -228,23 +250,25 @@ body {
     width: 19px;
     height: 19px;
     display: block;
-    /* Neon bloom around the bars. Deliberately the hottest light on the page,
+    /* Bloom around the bars. Deliberately the hottest light on the page,
        alongside the pips: the mark is the brand, it sits on a near-black tile
-       where nothing can be washed out by it, and it is the one place the RGB is
-       meant to shout. Three stacked shadows -- tight magenta core, cyan mid,
-       wide violet halo -- so the bars read as genuinely backlit. */
-    filter: drop-shadow(0 0 2px rgba(255, 43, 214, 1))
-            drop-shadow(0 0 6px rgba(34, 211, 238, 0.9))
-            drop-shadow(0 0 12px rgba(180, 41, 255, 0.55));
+       where nothing can be washed out by it, and it is the one place the edge
+       light is meant to shout. Three stacked shadows -- tight cyan core, azure
+       mid, wide indigo halo -- so the bars read as genuinely backlit. */
+    filter: drop-shadow(0 0 2px rgba(34, 211, 238, 1))
+            drop-shadow(0 0 6px rgba(43, 92, 255, 0.9))
+            drop-shadow(0 0 12px rgba(67, 56, 202, 0.6));
 }
 
-/* Gamer-RGB on two tempos in one 9s loop: the hue spins FAST (three full turns
-   = 360°/3s, the quick color-cycle) while the bloom BREATHES SLOW (saturation +
-   brightness swell just once over the 9s). linear keeps the hue speed steady. */
-@keyframes rgb-cycle {
-    0%   { filter: hue-rotate(0deg)    saturate(1.6) brightness(1.05); }
-    50%  { filter: hue-rotate(540deg)  saturate(2)   brightness(1.6); }
-    100% { filter: hue-rotate(1080deg) saturate(1.6) brightness(1.05); }
+/* The lume BREATHES rather than cycles. The old version spun hue three full
+   turns per loop, which is what made the light read as a gaming peripheral; the
+   ramp is now a fixed indigo→cyan and only its intensity moves. A narrow ±8°
+   drift keeps it from looking like a static gradient without ever leaving the
+   cool end of the wheel. ease-in-out, because a swell has no hard edges. */
+@keyframes lume-drift {
+    0%   { filter: hue-rotate(-8deg) saturate(1.15) brightness(1); }
+    50%  { filter: hue-rotate(8deg)  saturate(1.4)  brightness(1.35); }
+    100% { filter: hue-rotate(-8deg) saturate(1.15) brightness(1); }
 }
 
 .brand-name {
@@ -292,12 +316,12 @@ body {
     }
 }
 
-/* Neon status pips — a glowing "RGB lighting" cluster that shimmers through the
-   spectrum. */
+/* Status pips — three lit indicators stepping through the lume ramp
+   (indigo → azure → cyan), pulsing in sequence. */
 .pips {
     display: inline-flex;
     gap: 6px;
-    animation: rgb-cycle 9s linear infinite;
+    animation: lume-drift 9s ease-in-out infinite;
 }
 
 .pips i {
@@ -311,13 +335,13 @@ body {
 
 /* A thin dark ring under the glow — each LED reads as mounted in a metal
    bezel, not floating as a bare dot of color. */
-.pips i:nth-child(1) { background: var(--neon-1); box-shadow: 0 0 0 1px var(--chrome-edge-lo), 0 0 6px var(--neon-1), 0 0 13px var(--neon-1); animation-delay: 0s; }
-.pips i:nth-child(2) { background: var(--neon-2); box-shadow: 0 0 0 1px var(--chrome-edge-lo), 0 0 6px var(--neon-2), 0 0 13px var(--neon-2); animation-delay: 0.2s; }
-.pips i:nth-child(3) { background: var(--neon-3); box-shadow: 0 0 0 1px var(--chrome-edge-lo), 0 0 6px var(--neon-3), 0 0 13px var(--neon-3); animation-delay: 0.4s; }
+.pips i:nth-child(1) { background: var(--lume-1); box-shadow: 0 0 0 1px var(--chrome-edge-lo), 0 0 6px var(--lume-1), 0 0 13px var(--lume-1); animation-delay: 0s; }
+.pips i:nth-child(2) { background: var(--lume-2); box-shadow: 0 0 0 1px var(--chrome-edge-lo), 0 0 6px var(--lume-2), 0 0 13px var(--lume-2); animation-delay: 0.2s; }
+.pips i:nth-child(3) { background: var(--lume-3); box-shadow: 0 0 0 1px var(--chrome-edge-lo), 0 0 6px var(--lume-3), 0 0 13px var(--lume-3); animation-delay: 0.4s; }
 
 /* The floor is high (0.72, not 0.35): the pips are supposed to read as lit
    LEDs pulsing, and a 0.35 trough let the light body colour blend toward the
-   white bar behind them -- magenta came out pastel pink. The scan now reads
+   white bar behind them -- indigo came out a washed lilac. The scan now reads
    mostly in the scale change, with the brightness only dipping. */
 @keyframes pip-scan {
     0%, 100% { opacity: 0.72; transform: scale(0.72); }
@@ -377,11 +401,11 @@ body {
 }
 
 /* ---- Signature neon R-G-B rule ---------------------------------------- */
-.rgb-rule {
+.lume-rule {
     height: 3px;
-    background: var(--rgb);
-    box-shadow: var(--rgb-glow);
-    animation: rgb-cycle 9s linear infinite;
+    background: var(--lume);
+    box-shadow: var(--lume-glow);
+    animation: lume-drift 9s ease-in-out infinite;
 }
 
 /* ---- Masthead (hero + spec panel) ------------------------------------- */
@@ -441,8 +465,8 @@ h1 {
     content: "";
     width: 24px;
     height: 3px;
-    background: var(--rgb);
-    box-shadow: var(--rgb-glow-sm);
+    background: var(--lume);
+    box-shadow: var(--lume-glow-sm);
 }
 
 /* Spec panel: a dense key/value block that fills the hero's right side — real
@@ -458,7 +482,7 @@ h1 {
 }
 
 /* The seam itself. A vertical strip, so this uses its own 180deg gradient
-   rather than --rgb-soft (see the note on .page::before). */
+   rather than --lume-soft (see the note on .page::before). */
 .masthead-spec::before {
     content: "";
     position: absolute;
@@ -467,9 +491,9 @@ h1 {
     left: -1px;
     width: 2px;
     background: linear-gradient(180deg,
-        rgba(255, 43, 214, 0.6) 0%, rgba(180, 41, 255, 0.54) 40%,
+        rgba(59, 47, 191, 0.6) 0%, rgba(43, 92, 255, 0.54) 40%,
         rgba(34, 211, 238, 0.54) 100%);
-    box-shadow: var(--rgb-glow-xs);
+    box-shadow: var(--lume-glow-xs);
 }
 
 .spec-row {
@@ -533,8 +557,8 @@ h1 {
     flex: none;
     width: 20px;
     height: 4px;
-    background: var(--rgb);
-    box-shadow: var(--rgb-glow-sm);
+    background: var(--lume);
+    box-shadow: var(--lume-glow-sm);
 }
 
 .module-title {
@@ -691,20 +715,20 @@ button {
 
 /* ---- Expert tier: the "power" chip ------------------------------------- */
 /* The deepest numeric tier reads as premium. Where the other tiers use flat
-   accent blue, expert flies the full neon-RGB spectrum: a gradient border and a
-   diamond marker at rest, a hue-cycling RGB fill when selected. Stays square. */
+   accent blue, expert flies the full lume ramp: a gradient border and a
+   diamond marker at rest, a lit gradient fill when selected. Stays square. */
 .channel[data-tier="expert"] {
     font-weight: 700;
     border: 1px solid transparent;
-    border-image: var(--rgb) 1;
-    box-shadow: var(--rgb-glow-sm);
+    border-image: var(--lume) 1;
+    box-shadow: var(--lume-glow-sm);
 }
 
 .channel[data-tier="expert"]::after {
     content: "◆";
     margin-left: 8px;
     font-size: 0.72em;
-    background: var(--rgb);
+    background: var(--lume);
     -webkit-background-clip: text;
     background-clip: text;
     -webkit-text-fill-color: transparent;
@@ -714,16 +738,16 @@ button {
 .channel[data-tier="expert"]:hover:not(:disabled) {
     color: var(--ink);
     background: var(--surface);
-    border-image: var(--rgb) 1;
-    box-shadow: var(--rgb-glow);
+    border-image: var(--lume) 1;
+    box-shadow: var(--lume-glow);
 }
 
 .channel[data-tier="expert"].is-active {
     color: #fff;
-    background: var(--rgb);
-    border-image: var(--rgb) 1;
-    animation: rgb-cycle 9s linear infinite;
-    box-shadow: var(--rgb-glow), 4px 4px 0 -1px rgba(139, 92, 246, 0.47);
+    background: var(--lume);
+    border-image: var(--lume) 1;
+    animation: lume-drift 9s ease-in-out infinite;
+    box-shadow: var(--lume-glow), 4px 4px 0 -1px rgba(43, 92, 255, 0.42);
 }
 
 .channel[data-tier="expert"].is-active::after,
@@ -733,7 +757,7 @@ button {
 }
 
 .channel[data-tier="expert"].is-active:hover {
-    background: var(--rgb);
+    background: var(--lume);
     color: #fff;
 }
 
@@ -773,7 +797,7 @@ button {
     box-shadow: var(--shadow-soft);
 }
 
-/* Glowing RGB rule capping the computed output — marks where results begin. */
+/* Glowing lume rule capping the computed output — marks where results begin. */
 .results::before {
     content: "";
     position: absolute;
@@ -781,9 +805,9 @@ button {
     left: -1px;
     right: -1px;
     height: 3px;
-    background: var(--rgb);
-    box-shadow: var(--rgb-glow);
-    animation: rgb-cycle 9s linear infinite;
+    background: var(--lume);
+    box-shadow: var(--lume-glow);
+    animation: lume-drift 9s ease-in-out infinite;
     pointer-events: none;
     z-index: 2;
 }
@@ -852,8 +876,8 @@ button {
     position: absolute;
     inset: 0 auto 0 0;
     width: 0;
-    background: var(--rgb);
-    box-shadow: var(--rgb-glow-sm);
+    background: var(--lume);
+    box-shadow: var(--lume-glow-sm);
 }
 
 .compute-stages {
@@ -958,29 +982,29 @@ button {
 }
 
 /* ---- Expert compute: the "deep analysis" treatment --------------------- */
-/* Same pipeline chrome, dialed up: a neon-washed panel, RGB title/tier text, a
+/* Same pipeline chrome, dialed up: a lume-washed panel, gradient title/tier text, a
    hue-cycling progress bar with a heavier bloom, and brighter active glyphs — so
    the deepest tier visibly grinds harder than the rest. */
 .compute.is-expert {
     background:
-        linear-gradient(180deg, rgba(139, 92, 246, 0.06), transparent 42%),
+        linear-gradient(180deg, rgba(43, 92, 255, 0.06), transparent 42%),
         repeating-linear-gradient(90deg, transparent 0 22px,
             rgba(34, 211, 238, 0.04) 22px 23px);
 }
 
 .compute.is-expert .compute-title,
 .compute.is-expert .compute-tier {
-    background: var(--rgb);
+    background: var(--lume);
     -webkit-background-clip: text;
     background-clip: text;
     -webkit-text-fill-color: transparent;
     color: transparent;
-    animation: rgb-cycle 9s linear infinite;
+    animation: lume-drift 9s ease-in-out infinite;
 }
 
 .compute.is-expert .compute-fill {
-    animation: rgb-cycle 9s linear infinite;
-    box-shadow: var(--rgb-glow);
+    animation: lume-drift 9s ease-in-out infinite;
+    box-shadow: var(--lume-glow);
 }
 
 .compute.is-expert .compute-track {
@@ -988,12 +1012,12 @@ button {
 }
 
 .compute.is-expert .compute-stage.is-active .compute-glyph {
-    border-color: var(--neon-2);
-    box-shadow: 0 0 0 1px var(--neon-2), 0 0 10px -1px rgba(139, 92, 246, 0.85);
+    border-color: var(--lume-2);
+    box-shadow: 0 0 0 1px var(--lume-2), 0 0 10px -1px rgba(43, 92, 255, 0.8);
 }
 
 .compute.is-expert .compute-stage.is-active .compute-glyph::after {
-    background: var(--neon-2);
+    background: var(--lume-2);
 }
 
 /* ---- Result header (what ran · how long) ------------------------------- */
@@ -1088,28 +1112,28 @@ button {
     }
 }
 
-/* ---- Expert results: full-RGB "power" bookend ------------------------- */
-/* An intensified neon cap on the box, a washed header, and an RGB "EXPERT"
+/* ---- Expert results: full-lume "power" bookend ------------------------- */
+/* An intensified lume cap on the box, a washed header, and a lit "EXPERT"
    tag — so a completed deep-tier readout still signals it was the heavy one. */
 .results.is-expert::before {
     height: 4px;
-    box-shadow: var(--rgb-glow), 0 0 29px rgba(139, 92, 246, 0.42);
+    box-shadow: var(--lume-glow), 0 0 29px rgba(43, 92, 255, 0.38);
 }
 
 .results.is-expert .results-head {
     background:
-        linear-gradient(90deg, rgba(255, 43, 214, 0.07), rgba(34, 211, 238, 0.07));
-    border-bottom-color: var(--neon-2);
+        linear-gradient(90deg, rgba(43, 92, 255, 0.07), rgba(34, 211, 238, 0.07));
+    border-bottom-color: var(--lume-2);
 }
 
 .results.is-expert .results-head-tier {
-    background: var(--rgb);
+    background: var(--lume);
     -webkit-background-clip: text;
     background-clip: text;
     -webkit-text-fill-color: transparent;
     color: transparent;
     font-weight: 800;
-    animation: rgb-cycle 9s linear infinite;
+    animation: lume-drift 9s ease-in-out infinite;
 }
 
 /* ---- Fresh-result reveal: a short staggered rise, restarted each run --- */
@@ -1346,8 +1370,8 @@ button {
     flex: none;
     width: 12px;
     height: 3px;
-    background: var(--rgb);
-    box-shadow: var(--rgb-glow-sm);
+    background: var(--lume);
+    box-shadow: var(--lume-glow-sm);
 }
 
 .result-group table {
@@ -1558,7 +1582,7 @@ button {
     background: color-mix(in srgb, var(--accent) calc(var(--heat, 0) * 55%), var(--surface));
 }
 
-/* First column: the group/row identifier, accent-strong with a glowing RGB tick
+/* First column: the group/row identifier, accent-strong with a glowing lume tick
    so each row reads as its own thing. It used to be `position: sticky; left: 0`
    so it survived the sideways scroll -- with the scroll gone there is nothing to
    stay anchored against, and sticky on a non-scrolling table only costs a
@@ -1601,8 +1625,8 @@ button {
     transform: translateY(-50%);
     width: 10px;
     height: 3px;
-    background: var(--rgb);
-    box-shadow: var(--rgb-glow-sm);
+    background: var(--lume);
+    box-shadow: var(--lume-glow-sm);
 }
 
 /* ---- Telemetry: ruled stat grid --------------------------------------- */
@@ -1642,7 +1666,7 @@ button {
     right: 0;
     bottom: -1px;
     height: 2px;
-    background: var(--rgb-soft);
+    background: var(--lume-soft);
     opacity: 0;
     transition: opacity 0.14s ease;
 }
@@ -1797,7 +1821,7 @@ button {
     color: var(--ink-3);
 }
 
-/* Glowing RGB rule capping the footer — bookends the signature rule up top. */
+/* Glowing lume rule capping the footer — bookends the signature rule up top. */
 .page-footer::before {
     content: "";
     position: absolute;
@@ -1805,9 +1829,9 @@ button {
     left: 0;
     right: 0;
     height: 3px;
-    background: var(--rgb);
-    box-shadow: var(--rgb-glow);
-    animation: rgb-cycle 9s linear infinite;
+    background: var(--lume);
+    box-shadow: var(--lume-glow);
+    animation: lume-drift 9s ease-in-out infinite;
     pointer-events: none;
 }
 
@@ -1885,7 +1909,7 @@ button {
     height: 42px;
     background: var(--ink);
     border: 1px solid #000;
-    animation: rgb-cycle 9s linear infinite;
+    animation: lume-drift 9s ease-in-out infinite;
 }
 
 .loader-mark svg {
@@ -2104,8 +2128,8 @@ button {
     position: absolute;
     inset: 0;
     transform: translateX(-100%);
-    background: var(--rgb);
-    box-shadow: var(--rgb-glow);
+    background: var(--lume);
+    box-shadow: var(--lume-glow);
     animation: boot-sweep 0.9s cubic-bezier(0.4, 0, 0.2, 1) forwards;
 }
 
@@ -2163,7 +2187,7 @@ body.boot-page-enter .page {
     .live::before,
     .spec-live::before,
     .boot-transition-sweep::after,
-    .rgb-rule,
+    .lume-rule,
     .brand-mark,
     .loader-mark,
     .pips,
@@ -2320,8 +2344,8 @@ body.boot-page-enter .page {
     right: 15px;
     bottom: 0;
     height: 2px;
-    background: var(--rgb);
-    box-shadow: var(--rgb-glow-sm);
+    background: var(--lume);
+    box-shadow: var(--lume-glow-sm);
 }
 
 /* An external destination (the Studio/Docs consoles) gets a small ↗ mark. */
@@ -2357,7 +2381,7 @@ body.boot-page-enter .page {
     left: 18px;
     width: 26px;
     height: 2px;
-    background: var(--rgb-soft);
+    background: var(--lume-soft);
 }
 
 .ribbon-cell:first-child {
@@ -2454,7 +2478,7 @@ body.boot-page-enter .page {
    a background-color on `th` paints over the row underneath it. */
 .sheet thead tr {
     background-color: var(--surface-2);
-    background-image: var(--rgb-soft);
+    background-image: var(--lume-soft);
     background-repeat: no-repeat;
     background-size: 100% 2px;
     background-position: 0 100%;
@@ -2556,9 +2580,9 @@ body.boot-page-enter .page {
 }
 
 .release--now::before {
-    background: var(--rgb);
+    background: var(--lume);
     border-color: transparent;
-    box-shadow: var(--rgb-glow-sm);
+    box-shadow: var(--lume-glow-sm);
 }
 
 .release-head {
@@ -3570,7 +3594,7 @@ input.fig-pick-input::placeholder {
  * badge and a disclosure list for the ten steps.
  *
  * The grade badge is the one place on the site where colour carries meaning
- * rather than decoration, so it does NOT draw from the RGB tokens: those run
+ * rather than decoration, so it does NOT draw from the lume tokens: those run
  * everywhere and would make the badge read as another lit seam. It gets flat,
  * high-contrast fills instead, and each one is legible in greyscale by weight
  * and border as well as hue -- the grade is the reason a step sits where it
@@ -3712,4 +3736,872 @@ input.fig-pick-input::placeholder {
     .step-n {
         display: none;
     }
+}
+
+/* ---- Finishing pass ----------------------------------------------------
+   Small system-level details the console never declared, so the browser was
+   filling them in with its own defaults (a blue-grey highlight, a stock
+   checkbox tint, a screenshot of a metal chassis on paper). All three are
+   theme surfaces, so they belong here rather than to any one component. */
+
+::selection {
+    /* The stock highlight is a translucent slate that mutes the near-black ink;
+       the accent tint keeps the contrast the palette was tuned for. */
+    background: var(--accent-soft);
+    color: var(--ink);
+}
+
+/* Form controls (checkboxes, radios, range thumbs, progress) draw themselves in
+   the platform accent -- macOS blue, Windows blue -- which is close enough to
+   --accent to look like a near-miss rather than a choice. */
+:root {
+    accent-color: var(--accent);
+}
+
+@media print {
+    /* Printed for the fair board: drop the chassis, the neon and the bezels --
+       none of them survive a printer, and the metal mat alone would eat a
+       cartridge. What is left is the instrument's actual content, black on
+       white, with hairlines kept so the tables still read as tables. */
+    body {
+        padding: 0;
+        background: #fff;
+        background-image: none;
+        color: #000;
+    }
+
+    .page {
+        max-width: none;
+        border: none;
+        box-shadow: none;
+    }
+
+    .page::before {
+        display: none;
+    }
+
+    /* Navigation, status pips and the boot sequence are controls, not findings. */
+    .console-bar,
+    .status,
+    .loader-overlay {
+        display: none !important;
+    }
+
+    /* Keep a module and its table on one sheet where the page break allows. */
+    .sheet,
+    .module {
+        break-inside: avoid;
+    }
+}
+
+/* ======================================================================
+   THE HERO PANEL — the one dark object on the page.
+
+   Everything here is light-on-white by mandate (readability on cheap panels).
+   That mandate applies to DATA. The masthead has no data on it: an eyebrow, a
+   title, a tagline, a byline. So it can carry the contrast the rest of the
+   page cannot, and one inverted panel at the top does more for the page than
+   any amount of effect work spread thin across it.
+
+   This supersedes an earlier attempt that put frosted glass on the nav and a
+   drifting particle field on the page mat. Both failed for the same reason:
+   translucency over a white panel has nothing to reveal, and unbounded specks
+   on a light ground read as dirt. Contrast is the effect that survives a
+   washed-out laptop display; blur and opacity are the two that don't.
+   ====================================================================== */
+
+.masthead {
+    position: relative;
+    background: #080d1a;
+    background-image:
+        /* A wide cool wash off the top-left, so the panel is lit rather than
+           flat black -- and a fine rule grid, the same graph-paper the data
+           tables below are built from, at the threshold of visibility. */
+        radial-gradient(120% 150% at 0% 0%, rgba(43, 92, 255, 0.34), transparent 62%),
+        radial-gradient(90% 120% at 100% 100%, rgba(34, 211, 238, 0.2), transparent 60%),
+        repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.045) 0 1px, transparent 1px 34px),
+        repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.045) 0 1px, transparent 1px 34px);
+    border-bottom: none;
+}
+
+/* The lit seam where the dark panel meets the white instrument below it. This
+   is the page's strongest single edge, and it is the full lume ramp. */
+.masthead::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 3px;
+    background: var(--lume);
+    box-shadow: var(--lume-glow);
+}
+
+.masthead-main {
+    position: relative;
+    /* Roomier than the light version was: the panel is the page's one moment
+       of scale, and cramped padding is what made it read as a header strip. */
+    padding: 46px 30px 42px;
+    z-index: 1;
+}
+
+.hero-plot {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    z-index: -1;
+    pointer-events: none;
+    /* Right-weighted: the headline lives on the left, so the cloud is densest
+       where the type isn't. */
+    -webkit-mask-image: linear-gradient(90deg, transparent 8%, #000 62%);
+    mask-image: linear-gradient(90deg, transparent 8%, #000 62%);
+}
+
+/* ---- Inverted type ---------------------------------------------------- */
+.masthead .eyebrow {
+    color: #7dd3fc;
+    /* A lit dot ahead of the eyebrow -- the panel's "powered" tell. */
+    display: inline-flex;
+    align-items: center;
+    gap: 9px;
+}
+
+.masthead .eyebrow::before {
+    content: "";
+    width: 7px;
+    height: 7px;
+    background: #22d3ee;
+    box-shadow: 0 0 8px #22d3ee, 0 0 16px rgba(34, 211, 238, 0.6);
+}
+
+.masthead h1 {
+    color: #ffffff;
+    /* Bigger here than the global h1: this is the only place on the site with
+       the room for display scale. */
+    font-size: clamp(2.4rem, 1.4rem + 3.8vw, 3.9rem);
+    /* A soft cool halo, so the white type sits ON the lit panel rather than
+       being punched out of it. */
+    text-shadow: 0 0 34px rgba(43, 92, 255, 0.55);
+}
+
+.masthead .tagline {
+    color: #c3cfe6;
+    max-width: 42ch;
+}
+
+.masthead .byline {
+    color: #93a4c4;
+}
+
+/* ---- The nameplate, inverted to match --------------------------------- */
+.masthead-spec {
+    background: rgba(255, 255, 255, 0.05);
+    /* Here translucency finally has something behind it worth showing: the
+       lit panel and the plot. This is the one real glass surface on the site. */
+    -webkit-backdrop-filter: saturate(140%) blur(6px);
+    backdrop-filter: saturate(140%) blur(6px);
+    border-left: 1px solid rgba(255, 255, 255, 0.14);
+    box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.12);
+}
+
+.masthead-spec .spec-row {
+    border-bottom-color: rgba(255, 255, 255, 0.09);
+}
+
+.masthead-spec .spec-k {
+    color: #8fa3c4;
+}
+
+.masthead-spec .spec-v {
+    color: #ffffff;
+}
+
+/* On a phone the nameplate stacks under the hero; without this it keeps the
+   white-on-white rule colours and the whole block loses its edges. */
+@media (max-width: 720px) {
+    .masthead-main {
+        padding: 34px 22px 30px;
+    }
+}
+
+/* ---- Sticky nav, minus the invisible glass ---------------------------- */
+/* The ribbon stays stuck to the top -- that part was a real improvement -- but
+   the frosting is gone: it sat on a solid white panel, where a backdrop blur
+   has nothing to blur and cost a compositor layer for no visible change. */
+.mainnav {
+    position: sticky;
+    top: 0;
+    z-index: 30;
+    background: var(--surface);
+}
+
+/* A shadow that only appears once the ribbon is actually overlapping content,
+   so the nav visibly lifts off the page as you scroll. Progressive: where
+   scroll-driven animation is unsupported, the nav is simply flat as before. */
+@supports (animation-timeline: scroll()) {
+    .mainnav {
+        animation: nav-lift linear both;
+        animation-timeline: scroll();
+        animation-range: 40px 120px;
+    }
+}
+
+@keyframes nav-lift {
+    to { box-shadow: 0 8px 18px -12px rgba(11, 19, 36, 0.55); }
+}
+
+@media print {
+    .hero-plot {
+        display: none !important;
+    }
+
+    .mainnav {
+        position: static;
+    }
+
+    /* A black panel is a dead cartridge. */
+    .masthead {
+        background: #fff;
+        background-image: none;
+        border-bottom: 1px solid #000;
+    }
+
+    .masthead h1,
+    .masthead .tagline,
+    .masthead-spec .spec-v {
+        color: #000;
+        text-shadow: none;
+    }
+}
+
+/* ======================================================================
+   TIER LADDER — advanced and expert.
+
+   The tier picker is where the user chooses how much work the engine does, so
+   the two deep tiers should look like they cost more. A first pass at this
+   signalled them with a 3px edge and a small marker glyph; correct in theory,
+   invisible in practice at chip size. A tier you can only tell apart by
+   leaning in is not signalling anything.
+
+   The ladder now moves in SURFACE, which is visible across a room:
+
+     basic / standard   outlined, white
+     advanced           filled, tinted, ▲
+     expert             INVERTED -- a dark chip on a page of light ones, ◆
+
+   Inverting the top tier is the same move as the hero panel, at chip scale.
+   ====================================================================== */
+
+/* ---- Advanced: filled, not outlined ----------------------------------- */
+.channel[data-tier="advanced"] {
+    font-weight: 700;
+    color: var(--accent-strong);
+    background: linear-gradient(160deg, var(--accent-soft), #f3f6ff);
+    border-color: var(--accent-line);
+}
+
+.channel[data-tier="advanced"]::after {
+    content: "▲";
+    margin-left: 7px;
+    font-size: 0.62em;
+    /* The glyph's own metrics leave it riding high beside uppercase labels. */
+    vertical-align: 1px;
+}
+
+.channel[data-tier="advanced"]:hover:not(:disabled) {
+    background: linear-gradient(160deg, #dbe4ff, var(--accent-soft));
+    border-color: var(--accent);
+}
+
+.channel[data-tier="advanced"].is-active {
+    background: linear-gradient(120deg, var(--accent-strong), var(--lume-2) 72%);
+    border-color: var(--lume-2);
+    color: #fff;
+    box-shadow: var(--lume-glow-sm), 4px 4px 0 -1px rgba(43, 92, 255, 0.34);
+}
+
+.channel[data-tier="advanced"].is-active::after {
+    color: #fff;
+}
+
+/* ---- Expert: the dark chip -------------------------------------------- */
+/* Overrides the outlined treatment defined further up: at rest the top tier is
+   now inverted rather than merely ringed. */
+.channel[data-tier="expert"] {
+    position: relative;
+    overflow: hidden;
+    font-weight: 800;
+    color: #ffffff;
+    background: linear-gradient(150deg, #131c33, #080d1a 60%);
+    box-shadow: var(--lume-glow-sm);
+}
+
+.channel[data-tier="expert"]::after {
+    color: #22d3ee;
+    -webkit-text-fill-color: #22d3ee;
+    background: none;
+    text-shadow: 0 0 7px rgba(34, 211, 238, 0.9);
+}
+
+.channel[data-tier="expert"]:hover:not(:disabled) {
+    color: #ffffff;
+    background: linear-gradient(150deg, #1b2745, #0c1424 60%);
+    box-shadow: var(--lume-glow);
+}
+
+/* A highlight sweeping the selected top-tier chip. One travelling highlight on
+   the whole page, spent on the single control worth drawing the eye to. */
+@media (prefers-reduced-motion: no-preference) {
+    .channel[data-tier="expert"].is-active::before {
+        content: "";
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        width: 45%;
+        pointer-events: none;
+        background: linear-gradient(105deg, transparent,
+            rgba(255, 255, 255, 0.55), transparent);
+        /* Long pause between passes: a sheen every second is a loading bar. */
+        animation: chip-sheen 4.5s ease-in-out infinite;
+    }
+}
+
+@keyframes chip-sheen {
+    0%, 62% { transform: translateX(-160%); }
+    88%, 100% { transform: translateX(320%); }
+}
+
+/* ---- The readouts ----------------------------------------------------- */
+/* Finishing the heavy run should look like it cost something, and the payoff
+   has to be on the RESULT, not only on the picker you already clicked. */
+
+/* Advanced: the same bookend grammar, one notch quieter. */
+.results.is-advanced::before {
+    height: 3px;
+}
+
+.results.is-advanced .results-head {
+    background: linear-gradient(90deg, rgba(43, 92, 255, 0.06), transparent 70%);
+    border-bottom-color: var(--lume-2);
+}
+
+.results.is-advanced .results-head-tier {
+    color: var(--accent-strong);
+    font-weight: 800;
+}
+
+/* Expert: the readout header inverts to match the hero and the chip, so the
+   deep tier's numbers arrive under a dark, lit band. Only the HEADER -- the
+   data itself stays black-on-white, always. */
+.results.is-expert {
+    box-shadow: var(--shadow-card), 0 0 0 1px rgba(43, 92, 255, 0.2),
+        0 0 34px -14px rgba(43, 92, 255, 0.55);
+}
+
+.results.is-expert .results-head {
+    background: linear-gradient(150deg, #131c33, #080d1a 70%);
+    border-bottom-color: transparent;
+    color: #dbe6ff;
+}
+
+.results.is-expert .results-head-k,
+.results.is-expert .results-head-layer,
+.results.is-expert .results-head-ms {
+    color: #93a4c4;
+}
+
+.results.is-expert .results-head-tier {
+    color: #22d3ee;
+    -webkit-text-fill-color: #22d3ee;
+    background: none;
+    font-weight: 800;
+    text-shadow: 0 0 10px rgba(34, 211, 238, 0.75);
+    animation: none;
+}
+
+/* Both deep tiers announce themselves once, on arrival: the cap wipes in from
+   the left as the numbers land. Once, not looping -- it marks the moment the
+   heavy run finished; a loop would just be decoration. */
+@media (prefers-reduced-motion: no-preference) {
+    .results.is-expert::before,
+    .results.is-advanced::before {
+        animation: cap-wipe 0.7s cubic-bezier(0.22, 0.61, 0.36, 1) both;
+        transform-origin: left center;
+    }
+}
+
+@keyframes cap-wipe {
+    from { transform: scaleX(0); }
+    to   { transform: scaleX(1); }
+}
+
+@media (max-width: 720px) {
+    /* Narrow, the plot's horizontal mask stops protecting anything -- the cloud
+       lands on top of the tagline. Fade it back until it is a texture behind
+       the type rather than a competitor with it. */
+    .hero-plot {
+        opacity: 0.45;
+        -webkit-mask-image: linear-gradient(180deg, #000, transparent 88%);
+        mask-image: linear-gradient(180deg, #000, transparent 88%);
+    }
+
+    /* The ribbon wraps to three rows on a phone. Stuck, that is a third of the
+       viewport permanently spent on navigation. */
+    .mainnav {
+        position: static;
+    }
+}
+
+/* ======================================================================
+   EXPERT MODE — the whole console, re-lit.
+
+   Selecting the deepest tier doesn't just restyle a chip and a results box: it
+   changes the machine. `document.body.dataset.mode` is set from Overview, and
+   everything below hangs off it, so the chassis, the frame, the bars and the
+   ticks all shift together. The point is that the site visibly ESCALATES when
+   you ask for the heavy analysis — the demo has a top gear.
+
+   Two hard rules, both inherited from the readability mandate:
+     - the console interior stays WHITE and the data stays black-on-white. Only
+       the chassis around it and the chrome on top of it change.
+     - the mat goes DARKER, never lighter. A near-white brushed metal is what
+       the default chassis already is; expert is machined steel, held between
+       #6f7a8d and #b0b9c9 with no near-white stops at all.
+   ====================================================================== */
+
+body[data-mode="expert"] {
+    /* Mid metal grey. Deliberately a good few steps down from the default
+       #c7cedd so the switch is unmistakable from across a room. */
+    --bg: #868b95;
+    /* Near-neutral steel, not the default's blue-grey: expert mode should read
+       as bare machined metal. Every stop sits between #6a6f79 and #9ba1ac --
+       the brightest band here is still darker than the DEFAULT chassis's
+       darkest, which is what makes the switch unmistakable. */
+    --metal-texture:
+        repeating-linear-gradient(115deg,
+            rgba(255, 255, 255, 0.14) 0px, rgba(255, 255, 255, 0.14) 1px,
+            rgba(8, 13, 26, 0.18) 1px, rgba(8, 13, 26, 0.18) 3px),
+        linear-gradient(115deg,
+            #939aa5 0%, #9ba1ac 10%,
+            #7d838e 24%, #929aa4 38%,
+            #6a6f79 52%, #8f959f 66%,
+            #757b85 80%, #939aa5 100%);
+    /* The offset shadows under every panel go from a blue tint to a real
+       shadow: on a mid-grey mat, a 10%-alpha blue slab is invisible. */
+    --shadow-card: 12px 12px 0 -1px rgba(8, 13, 26, 0.3);
+    --shadow-soft: 6px 6px 0 -1px rgba(8, 13, 26, 0.26);
+    /* Slightly hotter edge light across every seam that draws from the ramp --
+       the whole instrument is running harder, not just the one chip. */
+    --lume-glow: 0 0 9px rgba(43, 92, 255, 0.75), 0 0 24px rgba(34, 211, 238, 0.62);
+    --lume-glow-sm: 0 0 7px rgba(67, 56, 202, 0.7), 0 0 16px rgba(34, 211, 238, 0.58);
+}
+
+/* The frame reads as machined into the darker chassis: a black bezel ring in
+   place of the white one, plus a lume halo bleeding onto the metal. */
+body[data-mode="expert"] .page {
+    box-shadow: 0 0 0 3px rgba(8, 13, 26, 0.55), 0 0 0 4px rgba(120, 180, 255, 0.35),
+        0 0 64px -8px rgba(43, 92, 255, 0.6), var(--shadow-card);
+}
+
+/* Full ring rather than the two hairlines: against a mid grey the vertical
+   edges finally have enough contrast to be worth lighting. */
+body[data-mode="expert"] .page::before {
+    background-image: var(--lume-soft), var(--lume-soft),
+        linear-gradient(180deg, rgba(67, 56, 202, 0.55), rgba(34, 211, 238, 0.55)),
+        linear-gradient(180deg, rgba(67, 56, 202, 0.55), rgba(34, 211, 238, 0.55));
+    background-size: 100% 1px, 100% 1px, 1px 100%, 1px 100%;
+    background-position: 0 0, 0 100%, 0 0, 100% 0;
+}
+
+/* ---- The chrome on top of the white interior -------------------------- */
+/* Status bar and nav invert to match the hero, so the console is bookended by
+   dark chrome with the data bright in between. */
+body[data-mode="expert"] .console-bar,
+body[data-mode="expert"] .mainnav {
+    background: linear-gradient(150deg, #131c33, #080d1a 70%);
+    border-bottom-color: rgba(255, 255, 255, 0.12);
+    box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.12);
+}
+
+body[data-mode="expert"] .brand-name,
+body[data-mode="expert"] .bar-meta-item b {
+    color: #ffffff;
+}
+
+body[data-mode="expert"] .brand-ver,
+body[data-mode="expert"] .bar-meta-item {
+    color: #93a4c4;
+}
+
+body[data-mode="expert"] .mainnav-link {
+    color: #a9b8d4;
+}
+
+body[data-mode="expert"] .mainnav-link:hover {
+    color: #ffffff;
+    background: rgba(255, 255, 255, 0.06);
+}
+
+body[data-mode="expert"] .mainnav-link[aria-current] {
+    color: #22d3ee;
+}
+
+/* ---- Escalation the eye actually catches ------------------------------ */
+/* Module ticks and index tags pick up the hotter light, so scrolling the page
+   in expert mode looks different all the way down, not just at the top. */
+body[data-mode="expert"] .module-head {
+    background: linear-gradient(90deg, rgba(43, 92, 255, 0.07), var(--surface-2) 60%);
+}
+
+body[data-mode="expert"] .module-index {
+    color: #ffffff;
+    background: linear-gradient(150deg, #1b2745, #0c1424);
+    border-color: transparent;
+}
+
+body[data-mode="expert"] .footer-meta,
+body[data-mode="expert"] .page-footer {
+    background: var(--surface-2);
+}
+
+/* The hero panel is already dark; in expert it gets the hotter wash so it
+   doesn't end up the calmest thing on an escalated page. */
+body[data-mode="expert"] .masthead {
+    background-image:
+        radial-gradient(120% 150% at 0% 0%, rgba(43, 92, 255, 0.5), transparent 62%),
+        radial-gradient(90% 120% at 100% 100%, rgba(34, 211, 238, 0.3), transparent 60%),
+        repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.06) 0 1px, transparent 1px 34px),
+        repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.06) 0 1px, transparent 1px 34px);
+}
+
+/* The mode change itself is worth a beat: the chassis fades between greys
+   rather than snapping, which is what makes it read as the machine spinning up
+   instead of a stylesheet swap. */
+@media (prefers-reduced-motion: no-preference) {
+    body {
+        transition: background-color 0.55s ease;
+    }
+
+    .page,
+    .console-bar,
+    .mainnav,
+    .masthead {
+        transition: box-shadow 0.55s ease, background-color 0.55s ease;
+    }
+}
+
+@media print {
+    /* Expert mode is a screen state; paper gets the plain chassis. */
+    body[data-mode="expert"] .console-bar,
+    body[data-mode="expert"] .mainnav {
+        background: none;
+    }
+}
+
+/* The selected top tier keeps its lit fill under the cursor. Without this the
+   dark hover treatment above wins on source order and the chip visibly
+   "unselects" itself whenever the pointer rests on it. */
+.channel[data-tier="expert"].is-active,
+.channel[data-tier="expert"].is-active:hover {
+    background: var(--lume);
+    color: #fff;
+    box-shadow: var(--lume-glow), 4px 4px 0 -1px rgba(43, 92, 255, 0.42);
+}
+
+.channel[data-tier="expert"].is-active::after,
+.channel[data-tier="expert"].is-active:hover::after {
+    color: #ffffff;
+    -webkit-text-fill-color: #ffffff;
+    text-shadow: none;
+}
+
+/* ---- Expert mode, INSIDE the console ----------------------------------
+   The first cut of expert mode changed the chassis and the chrome and left the
+   content untouched, so on a page like Study or Docs -- which is nearly all
+   content -- nothing appeared to happen at all.
+
+   So the interior changes too. The constraint from the readability mandate
+   still holds and is what shapes all of this: DATA stays black-on-white. What
+   changes is everything around the data — headers, rails, rules, wells and
+   grounds — which is where an instrument shows its state anyway.
+   ---------------------------------------------------------------------- */
+
+body[data-mode="expert"] {
+    /* The interior's greys pick up the ramp's blue. Same lightness ladder as
+       the default tokens, so nothing that was readable stops being readable --
+       the surfaces just stop being neutral. */
+    --surface-2: #eef2fd;
+    --surface-3: #dfe7f8;
+    --line: #c9d5ee;
+    --line-strong: #8b9dc4;
+    --accent-soft: #dfe7ff;
+}
+
+/* Module bodies get the hero's rule grid at a whisper -- the same graph-paper
+   the dark panel is built from, so the whole console shares one substrate. */
+body[data-mode="expert"] .module-body,
+body[data-mode="expert"] .results {
+    background-color: var(--surface);
+    background-image:
+        repeating-linear-gradient(0deg, rgba(43, 92, 255, 0.045) 0 1px, transparent 1px 34px),
+        repeating-linear-gradient(90deg, rgba(43, 92, 255, 0.045) 0 1px, transparent 1px 34px);
+}
+
+/* ---- Table heads invert ------------------------------------------------ */
+/* The single highest-impact change inside the console: every data table on
+   every page gets a dark, lit header band. Headers are labels, not data, so
+   this costs nothing in readability -- and it makes the ruled tables that fill
+   Study, Benchmarks and Methodology read as instrument readouts. */
+body[data-mode="expert"] .sheet thead tr,
+body[data-mode="expert"] .matrix thead th {
+    background-color: #0f1728;
+    background-image: var(--lume-soft);
+    background-repeat: no-repeat;
+    background-size: 100% 2px;
+    background-position: 0 100%;
+}
+
+body[data-mode="expert"] .sheet thead th,
+body[data-mode="expert"] .matrix thead th {
+    color: #b7c8e8;
+    border-bottom-color: transparent;
+}
+
+body[data-mode="expert"] .sheet caption {
+    color: var(--accent-strong);
+}
+
+/* Group headers inside a result -- and the section bands that carry them --
+   invert to match, so a long expert readout is visibly chaptered. */
+body[data-mode="expert"] .result-group-title {
+    background: linear-gradient(90deg, #131c33, #0f1728 70%);
+    border-bottom-color: transparent;
+    color: #7dd3fc;
+}
+
+/* The rail down the left of a nested group becomes a lit edge rather than a
+   grey hairline: it is the thing that shows how deep the analysis nested. */
+body[data-mode="expert"] .result-group {
+    border-left-color: var(--lume-2);
+}
+
+/* ---- Wells and rails --------------------------------------------------- */
+body[data-mode="expert"] .stat-cell,
+body[data-mode="expert"] .ribbon-cell {
+    background: linear-gradient(180deg, rgba(43, 92, 255, 0.05), transparent 60%);
+}
+
+body[data-mode="expert"] .status {
+    background: linear-gradient(90deg, var(--accent-soft), transparent 70%);
+    border-left-color: var(--lume-2);
+}
+
+body[data-mode="expert"] .text code,
+body[data-mode="expert"] code {
+    border-color: var(--accent-line);
+    background: var(--accent-soft);
+}
+
+/* Anything already sitting on --surface-2 (module heads, note blocks, record
+   bodies) now sits on the tinted version automatically, via the token above.
+   The inline bar charts are the one interior element that goes deeper: SVG, so
+   this is a fill, and the track behind it darkens to give the bar something to
+   read against. */
+body[data-mode="expert"] .stat-chart-bar {
+    fill: #1636d6;
+}
+
+body[data-mode="expert"] .stat-chart-track {
+    background: var(--surface-3);
+}
+
+/* ---- Pages with no analysis widget ------------------------------------ */
+/* Study, Methodology, Benchmarks, Docs and Changelog never set the mode --
+   they inherit it. Their furniture is the crumb trail, the step list and the
+   figure frames, so those need the treatment too, or navigating away from the
+   Overview in expert mode lands on a page that only half-changed. */
+body[data-mode="expert"] .crumbs {
+    border-bottom-color: var(--line-strong);
+}
+
+body[data-mode="expert"] .step-head {
+    background: linear-gradient(90deg, rgba(43, 92, 255, 0.08), var(--surface-2) 60%);
+}
+
+body[data-mode="expert"] .step-head[aria-expanded="true"] {
+    background: linear-gradient(90deg, #131c33, #0f1728 70%);
+    color: #dbe6ff;
+}
+
+body[data-mode="expert"] .step-head[aria-expanded="true"] .step-title {
+    color: #ffffff;
+}
+
+body[data-mode="expert"] .step-head[aria-expanded="true"] .step-index {
+    color: #7dd3fc;
+}
+
+/* Figures: a lit rail down the left of every chart, which is the cheapest way
+   to mark a whole page of them without touching the plots themselves (their
+   colours encode data and must not shift with a display mode). */
+body[data-mode="expert"] .fig {
+    border-left: 3px solid var(--lume-2);
+    padding-left: 14px;
+}
+
+/* ---- Expert mode: the figures become instrument displays ---------------
+   The charts are the last thing to change, and the trick is WHERE to draw the
+   line. It is `.fig-svg`, not `.fig-plot`: the plot box also contains the
+   "Show data" toggle and the data table it swaps in, and darkening those would
+   put a dense numeric table on a dark ground -- which is exactly the thing the
+   readability mandate exists to prevent.
+
+   So the SVG alone inverts: the chart becomes a lit screen inset into the
+   white plot frame, and the table behind the toggle stays black-on-white.
+
+   Nearly all of this is token re-pointing rather than per-mark rules. The
+   figure marks were already built from --surface/--ink/--line/--accent, so
+   redefining those ON the SVG re-themes every chart type at once -- histogram,
+   box plot, scatter, ECDF, heatmap, bootstrap, sample-size, outlier rules --
+   including any chart added later. Only the handful of marks that need to GLOW
+   are named explicitly below.
+   ---------------------------------------------------------------------- */
+
+body[data-mode="expert"] .fig-svg {
+    /* The screen itself: the same near-black and the same rule grid as the
+       hero panel, so the charts are visibly cut from the console's material. */
+    background-color: #080d1a;
+    background-image:
+        radial-gradient(120% 140% at 0% 0%, rgba(43, 92, 255, 0.22), transparent 65%),
+        repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.05) 0 1px, transparent 1px 30px),
+        repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.05) 0 1px, transparent 1px 30px);
+    /* overflow:visible on .fig-svg lets marks paint outside the box; the
+       padding keeps the lit ground from cutting the axis labels. */
+    padding: 6px 4px;
+
+    /* Structure, inverted. */
+    --surface: #080d1a;
+    --surface-2: #131c33;
+    --surface-3: #16203a;
+    --line: rgba(255, 255, 255, 0.13);
+    --line-strong: rgba(255, 255, 255, 0.32);
+
+    /* Ink, inverted. Axis numbers land at --fig-ink, so it gets the brightest
+       of the secondary tiers -- small type on a dark ground needs the help. */
+    --ink: #ffffff;
+    --ink-2: #dbe6ff;
+    --ink-3: #aebdd9;
+    --ink-faint: #93a4c4;
+    --fig-ink: #b7c8e8;
+
+    /* Marks. The accent brightens rather than shifts hue: on a near-black
+       ground the light-theme blue reads as almost purple-grey. */
+    --accent: #5b8cff;
+    --accent-strong: #22d3ee;
+    --accent-line: rgba(91, 140, 255, 0.6);
+
+    /* The diverging pair for the correlation matrix keeps blue-vs-red, but the
+       neutral has to invert too, or "no relationship" would glow white -- the
+       loudest thing on the chart would be the absence of a finding. */
+    --fig-neg: #ff7a7a;
+    --fig-neutral: #16203a;
+    --fig-missing: repeating-linear-gradient(45deg,
+        #131c33 0 3px, #080d1a 3px 6px);
+}
+
+/* Bars, curves and fits pick up a bloom. This is the one place on the site
+   where a glow lands on DATA rather than on structure, and it is legitimate
+   here for the same reason it works on the brand mark: a lit mark on a black
+   ground is how an instrument display actually looks. */
+body[data-mode="expert"] .fig-bar {
+    fill-opacity: 0.82;
+    filter: drop-shadow(0 0 4px rgba(91, 140, 255, 0.55));
+}
+
+body[data-mode="expert"] .fig-line,
+body[data-mode="expert"] .fig-fit,
+body[data-mode="expert"] .fig-thresh {
+    filter: drop-shadow(0 0 5px rgba(34, 211, 238, 0.6));
+}
+
+body[data-mode="expert"] .fig-dot {
+    fill-opacity: 0.6;
+}
+
+body[data-mode="expert"] .fig-dot.is-cursor,
+body[data-mode="expert"] .fig-dot.is-meandot {
+    filter: drop-shadow(0 0 6px rgba(34, 211, 238, 0.85));
+}
+
+/* The median rule is drawn in --ink, which is now white -- correct on black,
+   but it needs its own weight back: on the light theme it read as "the darkest
+   line on the chart", and the equivalent here is the brightest. */
+body[data-mode="expert"] .fig-ref.is-median,
+body[data-mode="expert"] .fig-box-median {
+    stroke: #ffffff;
+    filter: drop-shadow(0 0 4px rgba(255, 255, 255, 0.5));
+}
+
+/* The band under a curve is a fill at 16% -- invisible against black at that
+   level, so it comes up to where it reads as a shaded interval again. */
+body[data-mode="expert"] .fig-band {
+    fill-opacity: 0.26;
+}
+
+/* Heatmap cells are separated by --surface, which is now the dark ground: that
+   is exactly right, but the diagonal's hairline needs to stay visible. */
+body[data-mode="expert"] .fig-cell.is-diagonal {
+    stroke: rgba(255, 255, 255, 0.22);
+}
+
+/* The plot frame becomes the screen's bezel rather than a hairline box. */
+body[data-mode="expert"] .fig-plot {
+    border-color: rgba(255, 255, 255, 0.16);
+    background: #080d1a;
+    box-shadow: inset 0 0 0 1px rgba(43, 92, 255, 0.25), var(--lume-glow-xs);
+}
+
+/* ...which means the toggle and the placeholder now sit ON the dark bezel. */
+body[data-mode="expert"] .fig-toggle {
+    color: #b7c8e8;
+    background: rgba(255, 255, 255, 0.07);
+    border-color: rgba(255, 255, 255, 0.22);
+}
+
+body[data-mode="expert"] .fig-toggle:hover,
+body[data-mode="expert"] .fig-toggle[aria-pressed="true"] {
+    color: #ffffff;
+    background: rgba(43, 92, 255, 0.35);
+    border-color: var(--lume-2);
+}
+
+body[data-mode="expert"] .fig-placeholder {
+    color: #93a4c4;
+}
+
+/* The data table swapped in behind the toggle keeps the light treatment -- it
+   is a table of numbers, and those are never light-on-dark. It gets an inset
+   white card so it doesn't float on the bezel. */
+body[data-mode="expert"] .fig-plot .sheet {
+    background: var(--surface);
+}
+
+/* The legend sits outside the plot on white paper, so its TEXT stays dark --
+   inverting it would make it vanish. The diverging colour ramp is the one
+   exception: its middle swatch means "no relationship", and if the key shows
+   that as white while the matrix shows it as near-black, the reader is being
+   handed two different codes for the same value. The swatches follow the
+   chart; the labels stay on the paper. */
+body[data-mode="expert"] .fig-scale-ramp {
+    --fig-neutral: #16203a;
+    --fig-neg: #ff7a7a;
+    --accent: #5b8cff;
+    /* A dark hairline instead of the light one, so the pale end of the ramp
+       still has an edge against white paper. */
+    border: 1px solid rgba(11, 19, 36, 0.5);
+}
+
+body[data-mode="expert"] .fig-scale-step {
+    border: 0;
 }

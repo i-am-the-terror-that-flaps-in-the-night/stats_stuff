@@ -687,7 +687,9 @@ def cache_stats(response: Response):
     caches = {}
     hits = misses = 0
     for name, fn in memos.items():
-        info = fn.cache_info()
+        # pylint can't see through the lru_cache wrapper on these functions and
+        # reads `.cache_info()` as a call to the wrapped function itself.
+        info = fn.cache_info()  # pylint: disable=too-many-function-args
         hits += info.hits
         misses += info.misses
         caches[name] = {

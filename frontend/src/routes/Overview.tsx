@@ -9,6 +9,7 @@ import { Masthead, Module, Ribbon, StatGrid, Status } from "../components/Page";
 import type { RibbonCell, SpecRow } from "../components/Page";
 import { ResultView } from "../components/ResultView";
 import { useAnalysis, useDataset } from "../lib/hooks";
+import { setMode } from "../lib/mode";
 import type { Tier } from "../types/engine";
 import { GROUPING_TIERS, TIERS } from "../types/engine";
 
@@ -44,7 +45,7 @@ function ChipRow({
         {options.length === 0 && <li className="channel-empty">Loading…</li>}
         {options.map((option) => (
           <li key={option}>
-            {/* data-tier drives the expert tier's full-RGB treatment --
+            {/* data-tier drives the expert tier's lit-edge treatment --
                 see .channel[data-tier="expert"] in styles.css. */}
             <button
               type="button"
@@ -81,6 +82,12 @@ export function Overview(): JSX.Element {
       current && available.includes(current) ? current : (available[0] ?? null),
     );
   }, [available]);
+
+  // Expert mode is site-wide and STICKY: it deliberately survives navigating
+  // away to Study or Docs, so there is no cleanup on unmount. See lib/mode.ts.
+  useEffect(() => {
+    setMode(tier === "expert" ? "expert" : "");
+  }, [tier]);
 
   const effectiveGroup = GROUPING_TIERS.has(tier) ? group : "";
   const { result, elapsedMs, error: analysisError, loading } = useAnalysis(
