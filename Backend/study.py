@@ -24,7 +24,9 @@ THE ANALYTICAL HIERARCHY IS PRE-SPECIFIED
     The protocol distinguishes three grades of claim, and every step below is
     tagged with which one it is:
 
-        primary     the hypothesis the study was designed to test. One question.
+        primary     the hypothesis the study was designed to test. One question,
+                    asked over two steps: the association before body mass is
+                    accounted for (step 4) and after it (step 5).
         supporting  pre-registered analyses that give the primary result context.
         exploratory generated hypotheses, not tests of them. The risk score and
                     the subgroup work are here. Uncorrected, and read as

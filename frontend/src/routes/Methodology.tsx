@@ -26,6 +26,50 @@ const HEADLINE: RibbonCell[] = [
   { v: "0", k: "Values imputed" },
 ];
 
+/**
+ * The three places the cohort code knowingly departs from the written protocol.
+ *
+ * These live as prose in Backend/cohort.py's module docstring, where only
+ * someone reading the source would ever find them. They are the single best
+ * evidence that the protocol was implemented critically rather than typed in,
+ * so they belong on the site: each one is a case where the protocol names a
+ * variable that does not mean what its name suggests.
+ */
+const DEPARTURES: ReactNode[][] = [
+  [
+    "Hepatitis B",
+    <>
+      Exclude on the &ldquo;surface antigen&rdquo;, <Expr>HEPB_S_J</Expr>.
+    </>,
+    <>
+      <Expr>HEPB_S_J</Expr> is the surface <strong>antibody</strong> file — a marker of{" "}
+      <strong>vaccination</strong>, positive in 179 of these adolescents. Excluding on it would have
+      dropped the vaccinated. The infection marker is <Expr>LBDHBG</Expr>, in <Expr>HEPBD_J</Expr>.
+    </>,
+  ],
+  [
+    "Triglycerides",
+    <>
+      Use <Expr>TRIGLY_J</Expr> (<Expr>LBXTR</Expr>).
+    </>,
+    <>
+      That analyte is drawn only from the fasting subsample and exists for 341 of these adolescents,
+      so it cannot support the stated n. <Expr>LBXSTR</Expr> — the same analyte on the MEC
+      biochemistry panel — exists for 749, and correlates at <Expr>r = 0.997</Expr> among the 339
+      measured both ways.
+    </>,
+  ],
+  [
+    "Screen time",
+    "Require it of every participant.",
+    <>
+      Present as specified, but missing for 113 who otherwise qualify. Requiring it would cost 16% of
+      the sample to serve the two analyses that use it, so it is a variable with its own smaller n
+      rather than an entry criterion.
+    </>,
+  ],
+];
+
 const PIPELINE: ReactNode[][] = [
   [
     "1 · Ingest",
@@ -146,9 +190,9 @@ export function Methodology(): JSX.Element {
           <Expr>HbA1c</Expr>, <Expr>Triglycerides</Expr> — are complete for all 699. The
           questionnaire measures are not: <Expr>ScreenTime</Expr> is present for{" "}
           <strong>586</strong>, because 113 adolescents did not answer both screen-time questions,
-          and <Expr>IncomeRatio</Expr> for <strong>627</strong>. Neither gap is filled in. The{" "}
-          <Expr>count</Expr> is reported alongside every result precisely so that reduction is never
-          hidden.
+          and <Expr>IncomeRatio</Expr> for <strong>627</strong> — a column the cohort carries but no
+          model in the study uses. Neither gap is filled in. The <Expr>count</Expr> is reported
+          alongside every result precisely so that reduction is never hidden.
         </p>
         <p className="prose">
           That is also why screen time is <em>not</em> an entry criterion for the cohort. Requiring
@@ -157,7 +201,24 @@ export function Methodology(): JSX.Element {
         </p>
       </Module>
 
-      <Module index="05" title="Determinism & Caching" meta="Same in, same out">
+      <Module index="05" title="Where This Departs From The Protocol" meta="Three corrections">
+        <p className="text">
+          The study protocol was written before the data were opened. Three of the variables it names
+          do not mean what their names suggest, so the code does something different — and says so
+          rather than silently complying.
+        </p>
+        <Table corner="Variable" head={["The protocol says", "What the code does, and why"]} rows={DEPARTURES} />
+        <p className="prose">
+          The same applies to the cohort size. The protocol states <strong>n = 695</strong>; applying
+          the rules it states yields <strong>699</strong>. Every further exclusion it mentions —
+          pregnancy, an unreliable dietary recall, a non-positive survey weight, a non-positive{" "}
+          <Expr>ALT</Expr> — is already true of all 699, so none of them closes the gap. The
+          difference is reported rather than engineered away: reverse-engineering a filter to land on
+          a pre-printed number is exactly the move that makes a result impossible to trust.
+        </p>
+      </Module>
+
+      <Module index="06" title="Determinism & Caching" meta="Same in, same out">
         <p className="prose">
           The dataframe is immutable for the life of the process, and every tier is a pure function
           of <Expr>(tier, column, group)</Expr>. That means each answer is stable — so the engine

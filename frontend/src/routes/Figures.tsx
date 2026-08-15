@@ -28,7 +28,11 @@ import type { CorrelationResponse, HistogramResponse } from "../types/engine";
 
 const SPEC: SpecRow[] = [
   { k: "Source", v: "nhanes_adolescent.csv" },
-  { k: "Rows", v: "9,254" },
+  // The cohort file, not the raw all-ages merge: these figures plot the 699
+  // adolescents the study analyses. This row read 9,254 -- the row count of
+  // Data/nhanes_analytic.csv -- against the cohort filename, which is a
+  // different dataset.
+  { k: "Rows", v: "699" },
   { k: "Drawn", v: "Inline SVG" },
   { k: "Library", v: "None" },
 ];
