@@ -1,4 +1,4 @@
-// Study — the project's actual research, served from Backend/study.py.
+// Study — the project's actual research, served from Backend/engine.py (part three).
 //
 // Every other route on this site is a tool: pick a column, get statistics. This
 // one is the finding. It renders the pre-specified ten-step analysis in protocol
@@ -95,7 +95,13 @@ function modelAt(step: StudyStep, key: string): StudyModel | null {
  * therefore appears as prose instead of vanishing or breaking the build.
  */
 function StepBody({ step }: { step: StudyStep }): JSX.Element {
-  const models = ["model", "total_model", "direct_model", "lifestyle_model", "combined_model"]
+  const models = [
+    "model",
+    "total_model",
+    "direct_model",
+    "lifestyle_model",
+    "combined_model",
+  ]
     .map((key) => [key, modelAt(step, key)] as const)
     .filter((pair): pair is readonly [string, StudyModel] => pair[1] !== null);
 
@@ -143,15 +149,16 @@ function StepBody({ step }: { step: StudyStep }): JSX.Element {
       {quartiles && (
         <Table
           corner="Quartile"
-          head={["n", "Mean sugar (g)", "Mean ALT (U/L)", "% elevated"]}
+          head={["n", "Mean sugar (g)", "Mean ALT (U/L)", "SE", "% elevated"]}
           rows={quartiles.map((row: Record<string, unknown>) => [
             `Q${String(row.quartile)}`,
             String(row.n),
             String(row.weighted_mean_sugar_g),
             String(row.weighted_mean_alt),
+            `± ${String(row.standard_error_alt)}`,
             String(row.percent_elevated_alt),
           ])}
-          numeric={[1, 2, 3, 4]}
+          numeric={[1, 2, 3, 4, 5]}
           caption="Weighted means within each quartile of daily sugar"
         />
       )}
@@ -297,8 +304,8 @@ export function Study(): JSX.Element {
           Nothing here is causal. The data are cross-sectional — diet, blood and body measurements
           come from essentially one visit — so the mediation step decomposes an{" "}
           <em>association</em> into two associations, and is labelled that way. The composite risk
-          score is exploratory and relative: four of its six components are cut at this cohort&rsquo;s
-          own quartiles, so it ranks these adolescents against each other and would need validation
+          score is exploratory and relative: five of its six components are cut at this cohort&rsquo;s
+          own median, so it ranks these adolescents against each other and would need validation
           in a separate sample before it meant anything as a screening tool.
         </p>
       </Module>

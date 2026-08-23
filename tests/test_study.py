@@ -1,5 +1,5 @@
 """
-Tests for the ten-step analysis in Backend/study.py.
+Tests for the ten-step analysis in Backend/engine.py (part three).
 
 A statistics bug does not raise. It returns a number, and the number is wrong in
 a way no reader can see. So these tests do not check that the coefficients equal
@@ -23,8 +23,8 @@ import numpy as np
 import pandas as pd
 import pytest
 
-import study
-from cohort import COHORT_CSV
+import engine as study
+from engine import COHORT_CSV
 
 pytestmark = pytest.mark.skipif(not COHORT_CSV.is_file(), reason="cohort CSV not built")
 
@@ -300,3 +300,88 @@ def test_headline_matches_the_step_it_summarizes():
         headline["sugar_p"]
         == direct["direct_model"]["coefficients"]["Sugar10g"]["significance"]["p_value"]
     )
+
+
+# ----------------------------------------------------------------------
+# Fidelity to the written protocol
+#
+# The revised Methods (sections 3-6) name two model specifications and reuse
+# them across four steps. A step that quietly gained or lost a covariate would
+# still fit, still return a p-value, and still look right on the site -- these
+# tests are what makes that failure visible.
+# ----------------------------------------------------------------------
+
+
+def test_model_b_is_model_a_plus_the_two_metabolic_markers():
+    """Model B is defined as Model A plus Trig/HDL and HbA1c, and nothing else."""
+    assert study.MODEL_B[: len(study.MODEL_A)] == study.MODEL_A
+    assert set(study.MODEL_B) - set(study.MODEL_A) == {"TrigHDLRatio", "HbA1c"}
+    assert set(study.MODEL_A) == {"Sugar10g", "ScreenTime", "Age", "Male"}
+    assert set(study.MODEL_B_WITH_BMI) - set(study.MODEL_B) == {"BMI"}
+
+
+def test_the_primary_test_is_sugar_in_model_b_with_bmi():
+    """The protocol declares one primary test. It has to be that model, and the
+    step that carries it has to say so."""
+    step = study.run_step("direct-effect")
+
+    assert step["primary_test"] is True
+    assert step["grade"] == study.PRIMARY
+    assert step["specification"] == study.MODEL_B_WITH_BMI
+    assert step["direct_model"]["predictors"] == study.MODEL_B_WITH_BMI
+    # Its companion is the same specification without BMI -- one model fitted
+    # twice, not two different models.
+    assert step["total_model"]["predictors"] == study.MODEL_B
+
+
+def test_every_model_b_fit_shares_one_sample():
+    """The pooled fits, the mechanism comparison and the Model A/B delta are all
+    read against each other, so they have to describe the same adolescents."""
+    names = ("total-effect", "direct-effect", "mechanism", "incremental", "sex")
+    sizes = {study.run_step(name)["n"] for name in names}
+
+    assert len(sizes) == 1
+
+
+def test_sex_strata_use_model_b_minus_the_constant_sex_term():
+    step = study.run_step("sex")
+
+    assert step["stratified_specification"] == [
+        name for name in study.MODEL_B_WITH_BMI if name != "Male"
+    ]
+    for sex in ("Male", "Female"):
+        assert (
+            step["stratified_models"][sex]["predictors"]
+            == (step["stratified_specification"])
+        )
+
+
+def test_dose_response_carries_both_pre_specified_quartile_tests():
+    """Step 3 asks whether the four means differ; step 7 asks whether the share
+    over the clinical line does. Both are pre-specified, so both are reported."""
+    step = study.run_step("dose-response")
+
+    assert step["anova"]["f_statistic"] is not None
+    chi = step["elevated_alt_chi_square"]
+    assert chi["degrees_of_freedom"] == 3
+    assert sum(chi["counts_total"]) == step["n"]
+    # The error bars the protocol's primary figure needs.
+    assert all(row["standard_error_alt"] > 0 for row in step["quartiles"])
+
+
+def test_risk_score_reports_a_slope_in_clinical_units():
+    """'2.44 U/L per point' is the number a reader can put next to the chart; a
+    log coefficient is not."""
+    trend = study.run_step("risk-score")["trend_in_mean_alt"]
+
+    assert trend["u_per_litre_per_point"] is not None
+    assert trend["raw_scale_model"]["outcome"] == "ALT"
+    # The two scales must at least agree on direction.
+    assert np.sign(trend["u_per_litre_per_point"]) == np.sign(
+        trend["coefficient_per_point"]
+    )
+
+
+def test_every_step_declares_which_protocol_step_it_implements():
+    for step in study.run_study()["steps"]:
+        assert step.get("protocol_step") is not None, step["title"]

@@ -12,20 +12,22 @@ do. See [The study](#the-study).
 
 | Component | Entry point | What it does |
 |---|---|---|
-| **Cohort derivation** | `Backend/cohort.py` | Turns the raw 412-column NHANES merge into the 699-adolescent analytic cohort, with a logged attrition table |
-| **Stats engine** | `Backend/engine.py` | General-purpose basic/medium/advanced/expert/categorical tiers on any dataframe |
-| **The study** | `Backend/study.py` | The pre-specified ten-step analysis: weighted regressions, mediation, dose-response, risk score |
+| **Stats engine** | `Backend/engine.py` (part one) | General-purpose basic/medium/advanced/expert/categorical tiers on any dataframe |
+| **Cohort derivation** | `Backend/engine.py` (part two) | Turns the raw 412-column NHANES merge into the 699-adolescent analytic cohort, with a logged attrition table |
+| **The study** | `Backend/engine.py` (part three) | The pre-specified ten-step analysis: weighted regressions, mediation, dose-response, risk score |
 | **Web service** | `Backend/app.py` | FastAPI: `/healthz`, the JSON API, and the built frontend; deploys to Render |
 | **Study API** | `Backend/study_api.py` | `/api/study/*` — the study's results over HTTP |
 | **Studio API** | `Backend/studio.py` | `/api/datasets` and `/api/runs` — dataset inventory and the local SQLite run log |
 | **Frontend** | `frontend/` | React 19 + Vite 8 + TypeScript 7 SPA: the dashboard, the Study page, the static pages and the Studio |
 
-The engine and the study are deliberately separate. `engine.py` knows nothing about livers — hand
-it any spreadsheet and it will describe any column, which is what makes it reusable. `study.py`
+All three live in one file, in three labelled parts. The boundary between them is still real, it
+is just a section banner rather than a separate module: part one knows nothing about livers — hand
+it any spreadsheet and it will describe any column, which is what makes it reusable. Part three
 answers one fixed set of questions about one cohort with every variable's role decided in advance.
-Because those roles are pre-specified, the study may do things the engine refuses to do on an
-arbitrary column (apply a sex-specific clinical threshold, decompose an association into direct
-and mediated parts).
+Because those roles are pre-specified, the study may do things the engine's tiers refuse to do on
+an arbitrary column (apply a sex-specific clinical threshold, decompose an association into direct
+and mediated parts). `DataAnalyzer` still has exactly seven methods; the cohort builder and the
+protocol are module-level code beside it, not an eighth tier inside it.
 
 ## The study
 
@@ -72,8 +74,9 @@ Nothing here is causal. The data are cross-sectional. The mediation step decompo
 "mediated" would require sugar to precede BMI to precede ALT with no unmeasured common cause, and
 one visit's data supports none of that.
 
-The risk score is **exploratory and relative**. Four of its six components are cut at this cohort's
-own quartiles (there is no published "grams of sugar per day above which a 14-year-old is at risk",
+The risk score is **exploratory and relative**. Five of its six components are cut at this cohort's
+own median, as the revised protocol's Step 9 specifies (there is no published "grams of sugar per
+day above which a 14-year-old is at risk",
 and adolescent BMI is scored against age- and sex-specific growth-chart percentiles this project
 doesn't carry). So it ranks these adolescents against each other, its thresholds would move in
 another population, and it is evaluated on the same data that defined its cut points — which
@@ -85,12 +88,12 @@ The sex and subgroup analyses are exploratory and uncorrected for multiplicity, 
 
 Each is a case where the protocol names a variable that doesn't mean what its name suggests, or
 doesn't exist at the stated sample size. All three are documented at their definitions in
-`Backend/cohort.py`.
+`Backend/engine.py`'s cohort section.
 
 | # | Protocol says | What the data says | Resolution |
 |---|---|---|---|
 | 1 | Exclude on Hepatitis B surface antigen, `HEPB_S_J` | `HEPB_S_J` is the surface **antibody** file — a marker of *vaccination*, positive in 179 of these adolescents | Exclude on `LBDHBG` (`HEPBD_J`), the actual surface antigen. Excluding on antibody would have thrown out the vaccinated |
-| 2 | Triglycerides from `TRIGLY_J` (`LBXTR`) | Fasting-subsample only — present for 341 adolescents, which cannot support *n* = 695 | Use `LBXSTR`, the same analyte on the MEC biochemistry panel (749 present). The two correlate at *r* = 0.997 where both exist; `LBXSTR` runs ~14 mg/dL higher because it isn't fasting, so it's sound for ranking and regression and its cut point is a cohort quantile rather than an absolute clinical line |
+| 2 | Triglycerides from `TRIGLY_J` (`LBXTR`) | Fasting-subsample only — present for 341 adolescents, which cannot support *n* = 695 | Use `LBXSTR`, the same analyte on the MEC biochemistry panel (749 present). The two correlate at *r* = 0.997 where both exist; `LBXSTR` runs ~14 mg/dL higher because it isn't fasting, so it's sound for ranking and regression and its cut point is a cohort median rather than an absolute clinical line |
 | 3 | Screen time as a model variable | Missing for 113 otherwise-eligible adolescents | Kept as a variable with its own reduced *n* (586) rather than an entry criterion. Requiring it would cost 16% of the sample to serve the two analyses that use it |
 
 **On the sample size:** the protocol states *n* = 695; applying the rules it states yields **699**.
@@ -123,9 +126,10 @@ quietly replaced by whichever subgroup happened to clear *p* < 0.05.
 stats_and_more/
 ├── main.py                  # Deploy entry point: re-exports Backend/app.py (Render's `uvicorn main:app`)
 ├── Backend/
-│   ├── cohort.py            # Raw NHANES merge -> the 699-adolescent analytic cohort (+ CLI)
-│   ├── engine.py            # General stats engine: the five analysis tiers
-│   ├── study.py             # The pre-specified ten-step analysis
+│   ├── engine.py            # ONE analysis file, three parts:
+│   │                        #   1. the five generic stats tiers (DataAnalyzer)
+│   │                        #   2. the cohort derivation (+ `build-cohort` CLI)
+│   │                        #   3. the pre-specified ten-step study
 │   ├── study_api.py         # /api/study/*
 │   ├── app.py               # FastAPI service: /healthz, the JSON API, serves frontend/dist
 │   ├── figures_api.py       # /api/figures/* chart aggregates
@@ -148,7 +152,7 @@ stats_and_more/
 ├── tests/
 │   ├── test_engine.py       # The engine's arithmetic and its statistical semantics
 │   ├── test_cohort.py       # Code decoding, exclusions, no-imputation, artifact drift
-│   └── test_study.py        # Survey design, shared samples, reporting discipline
+│   └── test_study.py        # Survey design, shared samples, protocol fidelity
 ├── .gitattributes           # Git LFS: Data/nhanes_analytic.csv
 ├── render.yaml              # Render Blueprint
 ├── pyproject.toml           # Dependencies (managed with uv)
@@ -186,20 +190,20 @@ extra_data/csv_data/*.csv    16 NHANES component files, joined on SEQN
         ▼
 Data/nhanes_analytic.csv     9,254 participants × 412 raw-coded columns   [Git LFS]
         │
-        │  Backend/cohort.py  ── age 12–17, viral hepatitis excluded,
+        │  engine.py part 2   ── age 12–17, viral hepatitis excluded,
         │                        answer codes decoded, complete core variables
         ▼
 Data/nhanes_adolescent.csv   699 adolescents × 21 named columns           [tracked, ~100 KB]
         │
-        ├──►  Backend/engine.py   the five generic tiers
-        └──►  Backend/study.py    the ten-step study
+        ├──►  engine.py part 1    the five generic tiers
+        └──►  engine.py part 3    the ten-step study
 ```
 
 Rebuild the cohort (needs the LFS file):
 
 ```bash
-python Backend/cohort.py            # rebuild, print the attrition table
-python Backend/cohort.py --check    # verify the committed CSV still matches the code
+python Backend/engine.py build-cohort          # rebuild, print the attrition table
+python Backend/engine.py build-cohort --check  # verify the CSV still matches the code
 ```
 
 `--check` is the drift guard, and CI runs it. The committed CSV is a build artifact; without this
@@ -255,7 +259,7 @@ out of the column list the website offers while leaving them in the dataframe th
 **Elevated ALT uses sex-specific pediatric thresholds** — 26 U/L for boys, 22 for girls (Schwimmer
 et al. 2010, adopted by NASPGHAN 2017). These sit far below the ~40 U/L adult reference ceiling a
 hospital lab prints, which is the point: an adult ceiling misses most pediatric liver disease.
-They live in `cohort.py` rather than `engine.py`'s `CLINICAL_THRESHOLDS` because that table
+They live in the cohort section rather than in `CLINICAL_THRESHOLDS` because that table
 deliberately refuses sex-specific cutoffs — it applies to a bare column with no guarantee sex is
 even present, whereas here it is required for every participant.
 
@@ -359,12 +363,12 @@ on. An empty log is the normal online state.
 ## Development
 
 ```bash
-uv run pytest                        # 66 Python tests
+uv run pytest                        # 73 Python tests
 npm --prefix frontend test           # 12 frontend unit tests (vitest)
 uv run python scripts/smoke_test.py  # 291 live HTTP checks
 uv run ruff check Backend/ tests/ scripts/
 uv run ruff format Backend/ tests/ scripts/
-python Backend/cohort.py --check     # data/code drift guard
+python Backend/engine.py build-cohort --check   # data/code drift guard
 ```
 
 The test suites are aimed at the failures that don't announce themselves. A statistics bug doesn't
@@ -415,7 +419,7 @@ and finally the study itself — so the first visitor usually finds the answers 
 ## Data sources
 
 - [NHANES 2017–2018](https://wwwn.cdc.gov/nchs/nhanes/continuousnhanes/) — National Health and
-  Nutrition Examination Survey (CDC/NCHS). Every coding decision in `cohort.py` is checked against
+  Nutrition Examination Survey (CDC/NCHS). Every coding decision in the cohort section is checked against
   the codebook PDFs in `extra_data/PDF_explanations/`.
 - Schwimmer JB et al. (2010), *SAFETY study* — the sex-specific pediatric ALT thresholds; adopted
   in the NASPGHAN 2017 pediatric NAFLD screening guideline.

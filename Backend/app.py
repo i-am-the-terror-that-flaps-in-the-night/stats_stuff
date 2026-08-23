@@ -11,8 +11,8 @@ WHY THIS EXISTS
       * exposes a JSON API (backed by engine.py) that the frontend calls to
         compute statistics on Data/nhanes_adolescent.csv -- the study's analytic
         cohort of U.S. adolescents aged 12-17, derived from the raw NHANES
-        2017-2018 merge by Backend/cohort.py, and
-      * serves the project's actual research at /api/study/* (Backend/study.py):
+        2017-2018 merge by engine.py's cohort builder, and
+      * serves the project's actual research at /api/study/* (engine.py, part three):
         the pre-specified ten-step analysis of dietary sugar, metabolic markers
         and liver stress, with its cohort, its models and its caveats.
 
@@ -128,7 +128,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 # Vite build output under frontend/dist (see frontend/vite.config.ts).
 ROOT = Path(__file__).resolve().parent.parent
 # The analytic cohort -- U.S. adolescents aged 12-17, derived from the raw
-# NHANES 2017-2018 merge by Backend/cohort.py, which is where every inclusion
+# NHANES 2017-2018 merge by engine.py's build_cohort(), which is where every inclusion
 # rule and variable definition is written down. This is the dataset the whole
 # site runs on: the study's cohort, not a general demo slice, so the columns the
 # Studio explores are the columns the research analyzes.
@@ -136,7 +136,7 @@ ROOT = Path(__file__).resolve().parent.parent
 # It is committed (~100 KB) while the 17 MB raw merge it comes from lives in Git
 # LFS. That split is what keeps the deploy honest AND fast: production reads a
 # small tracked file and never needs an LFS object, and a cold start loads the
-# cohort in milliseconds. Rebuild it with `python Backend/cohort.py`.
+# cohort in milliseconds. Rebuild it with `python Backend/engine.py build-cohort`.
 DATA_CSV = ROOT / "Data" / "nhanes_adolescent.csv"
 DIST_DIR = ROOT / "frontend" / "dist"
 ASSETS_DIR = DIST_DIR / "assets"
@@ -196,13 +196,11 @@ def deploy_version() -> str:
     sources = (
         DATA_CSV,
         here,
+        # engine.py carries the tiers, the cohort derivation and the study
+        # protocol, so its mtime covers all three. A change to a model
+        # specification changes what /api returns just as surely as a new CSV
+        # does, and every cached copy has to be invalidated when it happens.
         here.with_name("engine.py"),
-        # The study's numbers are part of the deployed answer too: a change to
-        # the cohort derivation or to a model specification changes what /api
-        # returns just as surely as a new CSV does, and every cached copy has to
-        # be invalidated when it happens.
-        here.with_name("cohort.py"),
-        here.with_name("study.py"),
     )
     for path in sources:
         try:
@@ -249,9 +247,9 @@ def get_dataframe():
     import pandas as pd
 
     try:
-        from cohort import NON_ANALYTIC_COLUMNS
+        from engine import NON_ANALYTIC_COLUMNS
     except ModuleNotFoundError:
-        from Backend.cohort import NON_ANALYTIC_COLUMNS
+        from Backend.engine import NON_ANALYTIC_COLUMNS
 
     _, df_cleanup = _load_engine()
     frame = df_cleanup(pd.read_csv(DATA_CSV))
@@ -481,9 +479,9 @@ def _warm_caches() -> None:
     #    place a cold start would still be visible.
     def warm_study():
         try:
-            from study import headline, run_study
+            from engine import headline, run_study
         except ModuleNotFoundError:
-            from Backend.study import headline, run_study
+            from Backend.engine import headline, run_study
         headline()
         run_study()
 

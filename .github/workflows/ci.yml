@@ -8,13 +8,13 @@
 #
 # WHAT THE DATA JOB IS FOR
 #   Data/nhanes_adolescent.csv is a build artifact that happens to be committed.
-#   Backend/cohort.py is the code that produces it. Those can drift: a change to
-#   the derivation ships while the CSV keeps the old numbers, and every result on
-#   the site quietly describes a cohort the code no longer builds. `cohort.py
-#   --check` rebuilds in memory and diffs, which is the only thing that catches
-#   it. It needs the 17 MB raw merge from Git LFS, so it is a separate job --
-#   the fast tests should not wait on an LFS fetch, and an LFS outage should not
-#   fail the whole run.
+#   Backend/engine.py's build_cohort() is the code that produces it. Those can
+#   drift: a change to the derivation ships while the CSV keeps the old numbers,
+#   and every result on the site quietly describes a cohort the code no longer
+#   builds. `engine.py build-cohort --check` rebuilds in memory and diffs, which
+#   is the only thing that catches it. It needs the 17 MB raw merge from Git
+#   LFS, so it is a separate job -- the fast tests should not wait on an LFS
+#   fetch, and an LFS outage should not fail the whole run.
 
 name: ci
 
@@ -121,4 +121,4 @@ jobs:
         run: uv sync
 
       - name: Rebuild the cohort and diff it against the committed CSV
-        run: uv run python Backend/cohort.py --check
+        run: uv run python Backend/engine.py build-cohort --check

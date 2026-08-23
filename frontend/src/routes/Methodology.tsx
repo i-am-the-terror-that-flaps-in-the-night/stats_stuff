@@ -29,7 +29,7 @@ const HEADLINE: RibbonCell[] = [
 /**
  * The three places the cohort code knowingly departs from the written protocol.
  *
- * These live as prose in Backend/cohort.py's module docstring, where only
+ * These live as prose in Backend/engine.py's cohort section, where only
  * someone reading the source would ever find them. They are the single best
  * evidence that the protocol was implemented critically rather than typed in,
  * so they belong on the site: each one is a case where the protocol names a

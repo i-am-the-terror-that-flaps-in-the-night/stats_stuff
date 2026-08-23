@@ -290,7 +290,7 @@ export interface ScreenResponse {
 }
 
 // ---- The study ------------------------------------------------------------
-// Backend/study.py's ten-step analysis. These types cover the shapes the Study
+// Backend/engine.py's ten-step analysis (part three). These types cover the shapes the Study
 // page actually reads; each step also carries prose fields (interpretation,
 // caveat, note) that vary by step and are pulled through an index signature
 // rather than enumerated, so adding a caveat server-side never breaks the build.

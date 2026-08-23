@@ -34,6 +34,9 @@
     color-scheme: light;
     font-size: 16px;
 
+    /* Heatmap intensity (0..1); overridden inline per cell. */
+    --heat: 0;
+
     /* ---- Paper & structure ---- */
     --bg: #c7cedd;             /* page mat, behind the console -- brushed steel */
     /* The mat itself: a fine diagonal brush (a repeating hairline stripe) under
@@ -3452,7 +3455,7 @@ input.fig-pick-input::placeholder {
 }
 
 .fig-rule.is-active .fig-dot.is-meandot {
-    r: 8;
+    r: 8px;
 }
 
 .fig-rule:hover .fig-whisker,

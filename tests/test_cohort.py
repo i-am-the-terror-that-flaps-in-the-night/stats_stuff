@@ -1,5 +1,5 @@
 """
-Tests for the cohort derivation in Backend/cohort.py.
+Tests for the cohort derivation in Backend/engine.py (part two).
 
 These lock in the decisions that are invisible once the CSV is written. A
 derivation bug does not crash -- it produces a slightly different cohort, and
@@ -25,7 +25,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from cohort import (
+from engine import (
     ALT_ELEVATED,
     ANALYTIC_MISSING_SENTINEL,
     COHORT_CSV,
@@ -142,7 +142,7 @@ def test_hepatitis_positive_participants_are_excluded():
 
 def test_hepatitis_b_vaccination_does_not_exclude_anyone():
     """The protocol names the surface ANTIBODY file; excluding on it would drop
-    the vaccinated, who are most of this age group. cohort.py excludes on the
+    the vaccinated, who are most of this age group. build_cohort() excludes on the
     surface ANTIGEN (LBDHBG) instead, and LBXHBS is not consulted at all."""
     vaccinated = raw_frame(n=3)
     vaccinated["LBXHBS"] = [1, 1, 1]  # anti-HBs positive: vaccinated
@@ -256,8 +256,10 @@ def test_risk_score_spans_zero_to_six_and_needs_every_component():
         "TrigHDLRatio",
         "HbA1c",
     }
-    # The quartile-based cut points are the cohort's own 75th percentiles.
-    assert scored["cutpoints"]["BMI"] == pytest.approx(frame["BMI"].quantile(0.75))
+    # Every continuous component is split at the cohort's own median, which is
+    # what the revised protocol's Step 9 specifies.
+    for column, cut in scored["cutpoints"].items():
+        assert cut == pytest.approx(frame[column].median())
 
 
 # ----------------------------------------------------------------------
@@ -294,7 +296,7 @@ def test_bookkeeping_columns_are_present_but_marked_non_analytic():
     reason="raw merge not fetched (git lfs pull) or cohort not built",
 )
 def test_committed_cohort_matches_what_the_code_produces():
-    """The committed CSV and cohort.py must not drift apart.
+    """The committed CSV and the code that derives it must not drift apart.
 
     This is the test that makes the data reviewable: the CSV is a build artifact,
     and without this check a change to the derivation could ship while the file

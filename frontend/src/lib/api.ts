@@ -207,7 +207,7 @@ export function fetchScreen(group: string, alpha: number): Promise<ScreenRespons
 }
 
 // ---- The study ------------------------------------------------------------
-// Backend/study.py's pre-specified ten-step analysis. The step index and the
+// Backend/engine.py's pre-specified ten-step analysis (part three). The step index and the
 // headline are small and load on mount; each step's full result is fetched only
 // when the reader opens it, because a single step carries every coefficient of
 // every model in it and there is no reason to pull the other nine.
