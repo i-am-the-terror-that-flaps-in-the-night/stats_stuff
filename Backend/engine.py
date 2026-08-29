@@ -2654,7 +2654,7 @@ def _format_attrition(log: list[dict]) -> str:
 
 
 def build_cohort_cli(argv=None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__.split("\n")[1])
+    parser = argparse.ArgumentParser(description=(__doc__ or "").split("\n")[1])
     parser.add_argument(
         "--check",
         action="store_true",
@@ -3047,8 +3047,17 @@ def fit_model(
     """
     import statsmodels.api as sm
 
-    design = sm.add_constant(frame[predictors].astype(float), has_constant="add")
-    model = sm.WLS(frame[outcome].astype(float), design, weights=frame["DietWeight"])
+    design = cast(
+        pd.DataFrame,
+        sm.add_constant(frame[predictors].astype(float), has_constant="add"),
+    )
+    model = sm.WLS(
+        frame[outcome].astype(float),
+        design,
+        # The stub types `weights` as a scalar float; WLS in fact takes one
+        # weight per observation, which is the whole point of using it here.
+        weights=frame["DietWeight"].to_numpy(dtype=float),  # pyright: ignore[reportArgumentType]
+    )
     result = model.fit(
         cov_type="cluster", cov_kwds={"groups": _clusters(frame)}, use_t=True
     )
@@ -4147,8 +4156,8 @@ def model_diagnostics(name: str) -> dict:
     # with THIS sample's centre and spread, which is the comparison a reader
     # wants. An identity line would also flag a simple scale difference as
     # non-normality.
-    q_theory = sp.norm.ppf([0.25, 0.75])
-    q_observed = np.percentile(observed, [25, 75])
+    q_theory = np.asarray(sp.norm.ppf([0.25, 0.75]), dtype=float)
+    q_observed = np.asarray(np.percentile(observed, [25, 75]), dtype=float)
     slope = (q_observed[1] - q_observed[0]) / (q_theory[1] - q_theory[0])
     intercept = q_observed[0] - slope * q_theory[0]
 
