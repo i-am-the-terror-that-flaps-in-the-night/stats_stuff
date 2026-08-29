@@ -19,6 +19,8 @@ import type {
   ColumnsResponse,
   CorrelationResponse,
   DatasetInfo,
+  DensityResponse,
+  DiagnosticsResponse,
   EngineObject,
   HistogramResponse,
   OutliersResponse,
@@ -171,6 +173,24 @@ export function fetchScatter(x: string, y: string): Promise<ScatterResponse> {
 
 export function fetchCorrelation(): Promise<CorrelationResponse> {
   return getJson<CorrelationResponse>("/api/figures/correlation");
+}
+
+export function fetchDensity(column: string, group: string | null): Promise<DensityResponse> {
+  const query = group ? `?group=${enc(group)}` : "";
+  return getJson<DensityResponse>(`/api/figures/density/${enc(column)}${query}`);
+}
+
+/**
+ * Residual geometry for one of the study's three specifications.
+ *
+ * The only figure route that fits a model, which is why it is the only one that
+ * can be slow on a cold process: it is the first thing on the page to touch
+ * statsmodels, and that import is around 700 ms on Render's free tier. Left
+ * un-prefetched for exactly that reason — a reader who never scrolls to the
+ * diagnostics never pays it.
+ */
+export function fetchDiagnostics(model: string): Promise<DiagnosticsResponse> {
+  return getJson<DiagnosticsResponse>(`/api/figures/diagnostics/${enc(model)}`);
 }
 
 // ---- The lab --------------------------------------------------------------

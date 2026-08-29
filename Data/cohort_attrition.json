@@ -1,0 +1,32 @@
+[
+  {
+    "step": "NHANES 2017-2018 merge",
+    "rule": "all participants",
+    "n": 9254,
+    "removed": 0
+  },
+  {
+    "step": "Adolescents",
+    "rule": "RIDAGEYR between 12 and 17",
+    "n": 907,
+    "removed": 8347
+  },
+  {
+    "step": "No viral hepatitis",
+    "rule": "HBsAg-, HCV antibody- and HCV RNA-negative (LBDHBG/LBDHCI/LBXHCR)",
+    "n": 907,
+    "removed": 0
+  },
+  {
+    "step": "Complete core variables",
+    "rule": "ALT, sugar, weight, BMI, HbA1c, triglycerides, HDL, age, sex all present",
+    "n": 699,
+    "removed": 208
+  },
+  {
+    "step": "Positive dietary weight",
+    "rule": "WTDRD1 > 0",
+    "n": 699,
+    "removed": 0
+  }
+]

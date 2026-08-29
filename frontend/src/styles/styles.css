@@ -2178,6 +2178,230 @@ body.boot-page-enter .page {
 }
 
 /* ---- Motion & responsive ---------------------------------------------- */
+/* ---- Downloading a figure -------------------------------------------------
+   Three formats, laid out as a unit in the figure head. Small and quiet: this
+   is a tool, not a call to action, and it sits next to the metadata rather than
+   competing with the title. The work behind it is lib/svgExport.ts. */
+
+.fig-head-end {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 6px 10px;
+    margin-left: auto;
+}
+
+.fig-save {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.fig-save-label {
+    font-size: 0.62rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    margin-right: 2px;
+}
+
+.fig-save-btn {
+    font: inherit;
+    font-size: 0.64rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    padding: 2px 7px;
+    color: var(--ink-3);
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 0;
+    cursor: pointer;
+}
+
+.fig-save-btn:hover:not(:disabled) {
+    color: var(--accent-strong);
+    border-color: var(--accent);
+    background: var(--accent-soft);
+}
+
+.fig-save-btn:disabled {
+    color: var(--ink-faint);
+    cursor: progress;
+}
+
+.fig-save-error {
+    font-size: 0.66rem;
+    color: var(--fig-neg);
+}
+
+/* ---- Density -------------------------------------------------------------
+   Curves overlap by design, so the fills are faint and the outlines carry the
+   shape. A heavier fill would turn two groups into one muddy region, which is
+   the exact comparison the figure exists to make. */
+
+.fig-density-area {
+    fill-opacity: 0.14;
+    stroke: none;
+}
+
+.fig-density-line {
+    stroke-width: 2;
+    fill: none;
+}
+
+.fig-density-mean {
+    stroke-width: 2;
+}
+
+.fig-density-area.is-s0 { fill: var(--fig-s0); }
+.fig-density-area.is-s1 { fill: var(--fig-s1); }
+.fig-density-area.is-s2 { fill: var(--fig-s2); }
+.fig-density-area.is-s3 { fill: var(--fig-s3); }
+
+.fig-density-line.is-s0,
+.fig-density-mean.is-s0 { stroke: var(--fig-s0); }
+.fig-density-line.is-s1,
+.fig-density-mean.is-s1 { stroke: var(--fig-s1); }
+.fig-density-line.is-s2,
+.fig-density-mean.is-s2 { stroke: var(--fig-s2); }
+.fig-density-line.is-s3,
+.fig-density-mean.is-s3 { stroke: var(--fig-s3); }
+
+/* ---- Diagnostics: Q-Q and residuals -------------------------------------- */
+
+.fig-qq-line {
+    stroke: var(--fig-neg);
+    stroke-width: 1.5;
+    stroke-dasharray: 5 3;
+}
+
+/* Zero, on the residual and forest plots. Heavier than a grid line because
+   crossing it is the finding, not a reference. */
+.fig-zero {
+    stroke: var(--ink-3);
+    stroke-width: 1.5;
+}
+
+.fig-trend {
+    stroke: var(--fig-neg);
+    stroke-width: 2;
+}
+
+.fig-trend-dot {
+    fill: var(--fig-neg);
+}
+
+/* ---- Forest --------------------------------------------------------------
+   An interval that clears zero is drawn solid; one that includes zero is drawn
+   hollow with a lighter rule. The encoding is redundant with position -- you can
+   already SEE whether the bar crosses the line -- and that redundancy is the
+   point: it survives a greyscale print and a small screen. */
+
+.fig-forest-ci {
+    stroke-width: 2;
+}
+
+.fig-forest-cap {
+    stroke-width: 2;
+}
+
+.fig-forest.is-s0 .fig-forest-ci,
+.fig-forest.is-s0 .fig-forest-cap { stroke: var(--fig-s0); }
+.fig-forest.is-s0 .fig-forest-dot { fill: var(--fig-s0); }
+
+.fig-forest.is-s1 .fig-forest-ci,
+.fig-forest.is-s1 .fig-forest-cap { stroke: var(--fig-s1); }
+.fig-forest.is-s1 .fig-forest-dot { fill: var(--fig-s1); }
+
+.fig-forest.is-null .fig-forest-ci,
+.fig-forest.is-null .fig-forest-cap {
+    stroke-opacity: 0.5;
+}
+
+.fig-forest.is-null .fig-forest-dot {
+    fill: var(--surface);
+    stroke: currentColor;
+    stroke-width: 2;
+}
+
+.fig-forest.is-null.is-s0 .fig-forest-dot { stroke: var(--fig-s0); }
+.fig-forest.is-null.is-s1 .fig-forest-dot { stroke: var(--fig-s1); }
+
+/* ---- Dose-response ------------------------------------------------------- */
+
+.fig-dose-bar,
+.fig-dose-cap {
+    stroke: var(--accent);
+    stroke-width: 2;
+}
+
+.fig-dose-dot {
+    fill: var(--accent);
+}
+
+.fig-dose-link {
+    stroke: var(--accent);
+    stroke-width: 1.5;
+    stroke-dasharray: 4 3;
+    stroke-opacity: 0.6;
+}
+
+.fig-elevated {
+    stroke: var(--fig-neg);
+    stroke-width: 1.5;
+    stroke-opacity: 0.75;
+}
+
+.fig-elevated-dot {
+    fill: var(--fig-neg);
+    fill-opacity: 0.75;
+}
+
+/* ---- Legend swatches for everything above ------------------------------- */
+
+.fig-key-mark.is-series {
+    height: 3px;
+    width: 16px;
+    border: 0;
+}
+
+.fig-key-mark.is-series.is-s0 { background: var(--fig-s0); }
+.fig-key-mark.is-series.is-s1 { background: var(--fig-s1); }
+.fig-key-mark.is-series.is-s2 { background: var(--fig-s2); }
+.fig-key-mark.is-series.is-s3 { background: var(--fig-s3); }
+
+.fig-key-mark.is-qq {
+    height: 0;
+    width: 16px;
+    border: 0;
+    border-top: 2px dashed var(--fig-neg);
+}
+
+.fig-key-mark.is-zero {
+    height: 0;
+    width: 16px;
+    border: 0;
+    border-top: 2px solid var(--ink-3);
+}
+
+.fig-key-mark.is-trend,
+.fig-key-mark.is-elevated {
+    height: 3px;
+    width: 16px;
+    border: 0;
+    background: var(--fig-neg);
+}
+
+.fig-key-mark.is-dosedot {
+    height: 9px;
+    width: 9px;
+    border: 0;
+    border-radius: 50%;
+    background: var(--accent);
+}
+
 @media (prefers-reduced-motion: reduce) {
     .loader-overlay,
     .boot-channel-fill,
@@ -2840,6 +3064,19 @@ body.boot-page-enter .page {
     --fig-missing: repeating-linear-gradient(45deg,
         #e9edf6 0 3px, #ffffff 3px 6px);
     --fig-ink: var(--ink-faint);
+
+    /* Categorical series, for the figures that draw more than one thing at
+       once: density curves per group, and the two model specifications in the
+       forest plot. Four is the cap on purpose -- past four a legend stops being
+       readable, and the server has already dropped the groups too small to
+       draw. Ordered so the first two are the pair that appears most often (two
+       sexes, two models) and are the furthest apart in both hue AND lightness,
+       which is what keeps them distinguishable in greyscale and to a reader
+       with a colour-vision difference. */
+    --fig-s0: #1f4fff;
+    --fig-s1: #d97706;
+    --fig-s2: #0f766e;
+    --fig-s3: #9333ea;
 }
 
 .fig {
@@ -4509,6 +4746,13 @@ body[data-mode="expert"] .fig-svg {
        loudest thing on the chart would be the absence of a finding. */
     --fig-neg: #ff7a7a;
     --fig-neutral: #16203a;
+    /* Lifted for a dark surface: the light-theme series colours are chosen for
+       contrast against white and go muddy against #0e1626. Same hue order, so a
+       reader switching themes sees the same series in the same place. */
+    --fig-s0: #6f9bff;
+    --fig-s1: #f0a24b;
+    --fig-s2: #3fbfae;
+    --fig-s3: #c084fc;
     --fig-missing: repeating-linear-gradient(45deg,
         #131c33 0 3px, #080d1a 3px 6px);
 }

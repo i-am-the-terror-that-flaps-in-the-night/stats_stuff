@@ -166,6 +166,63 @@ export interface ScatterResponse {
   y_max: number;
 }
 
+/** One kernel density curve, evaluated on the response's shared grid. */
+export interface DensityCurve {
+  label: string;
+  n: number;
+  mean: number;
+  median: number;
+  /** The smoothing width, in the column's own units. A curve is a choice as
+   *  much as a measurement, and this is the choice. */
+  bandwidth: number;
+  /** Heights at each x in `grid` — same length, same order. */
+  density: number[];
+}
+
+/** GET /api/figures/density/{column} */
+export interface DensityResponse {
+  column: string;
+  group: string | null;
+  /** The x values every curve is evaluated at, shared so areas are comparable. */
+  grid: number[];
+  curves: DensityCurve[];
+  /** The tallest point across all curves — the y-domain, already computed. */
+  peak: number;
+  dropped_groups: number;
+  min_group_n: number;
+  method: string;
+}
+
+/** GET /api/figures/diagnostics/{model} — residual geometry for one study model. */
+export interface DiagnosticsResponse {
+  model: string;
+  label: string;
+  outcome: string;
+  predictors: string[];
+  n: number;
+  r_squared: number | null;
+  residual_sd: number | null;
+  residual_skewness: number | null;
+  residual_kurtosis: number | null;
+  /** Parallel arrays: fitted[i] pairs with residuals[i]. */
+  fitted: number[];
+  residuals: number[];
+  fitted_min: number;
+  fitted_max: number;
+  residual_min: number;
+  residual_max: number;
+  /** Sorted, so qq_theoretical[i] pairs with qq_observed[i]. */
+  qq_theoretical: number[];
+  qq_observed: number[];
+  /** The line through the first and third quartiles, not the identity. */
+  qq_line: { slope: number; intercept: number };
+  note: string;
+}
+
+/** The three model specifications a diagnostic plot can be drawn for. */
+export const DIAGNOSTIC_MODELS = ["lifestyle", "total-effect", "direct-effect"] as const;
+export type DiagnosticModel = (typeof DIAGNOSTIC_MODELS)[number];
+
 /** GET /api/figures/correlation. `matrix[i][j]` is r for columns[i] vs columns[j]. */
 export interface CorrelationResponse {
   columns: string[];
@@ -361,6 +418,49 @@ export interface StudyStep {
   note?: string;
   not_causal?: string;
   [key: string]: unknown;
+}
+
+
+/**
+ * One sugar quartile, as step 6 reports it.
+ *
+ * Typed here rather than read through StudyStep's index signature because the
+ * dose-response figure draws an error bar from `standard_error_alt` and a
+ * position from `weighted_mean_alt`, and a chart that silently plots `undefined`
+ * is worse than one that fails to compile.
+ */
+export interface SugarQuartile {
+  quartile: number;
+  n: number;
+  sugar_range_g: [number, number];
+  weighted_mean_sugar_g: number | null;
+  weighted_mean_alt: number | null;
+  standard_error_alt: number | null;
+  weighted_median_alt: number | null;
+  percent_elevated_alt: number | null;
+}
+
+/** The shape of the dose-response step the figure needs. */
+export interface DoseResponseStep extends StudyStep {
+  quartiles: SugarQuartile[];
+  quartile_edges_g: number[];
+  trend_test: {
+    coefficient_per_quartile: number | null;
+    percent_change_in_alt_per_quartile: number | null;
+    significance: Significance;
+  };
+  elevated_alt_chi_square: {
+    chi_square: number | null;
+    counts_elevated: number[];
+    counts_total: number[];
+    significance: Significance;
+  };
+}
+
+/** The shape of the primary-test step the forest plot needs. */
+export interface DirectEffectStep extends StudyStep {
+  total_model: StudyModel;
+  direct_model: StudyModel;
 }
 
 /** GET /api/study/steps — the table of contents, without the results. */

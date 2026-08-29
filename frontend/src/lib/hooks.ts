@@ -15,6 +15,8 @@ import {
   fetchColumns,
   fetchCorrelation,
   fetchDatasets,
+  fetchDensity,
+  fetchDiagnostics,
   fetchHistogram,
   fetchOutliers,
   fetchOverview,
@@ -32,6 +34,8 @@ import type {
   CohortResponse,
   CorrelationResponse,
   DatasetInfo,
+  DensityResponse,
+  DiagnosticsResponse,
   EngineObject,
   HistogramResponse,
   OutliersResponse,
@@ -187,6 +191,22 @@ export function useCorrelation() {
     () => fetchCorrelation(),
     [],
     "Could not load the correlation matrix.",
+  );
+}
+
+export function useDensity(column: string | null, group: string) {
+  return useAsync<DensityResponse | null>(
+    () => (column ? fetchDensity(column, group || null) : Promise.resolve(null)),
+    [column, group],
+    "Could not estimate the density.",
+  );
+}
+
+export function useDiagnostics(model: string) {
+  return useAsync<DiagnosticsResponse | null>(
+    () => fetchDiagnostics(model),
+    [model],
+    "Could not fit that model.",
   );
 }
 

@@ -65,19 +65,43 @@ ROUTES
     /assets/*                           the fingerprinted Vite bundle
     anything else that accepts HTML     the SPA shell, for client-side routes
 
-SPEED ON RENDER
-    Render's free plan spins the service down when idle and cold-starts it on the
-    next request, so boot time is paid over and over. Two things keep that fast:
+SPEED AND MEMORY ON RENDER
+    The free plan gives this service 0.1 vCPU and 512 MB, and spins it down when
+    idle so boot is paid over and over. Both limits are real constraints on the
+    design, and the budget is worth writing down because almost none of it is
+    this application's own code. Measured on a development machine, in the shape
+    the deploy actually runs in (multiply the times by roughly ten for a tenth of
+    a CPU; the megabytes carry over as they are):
 
-      * pandas/engine.py are imported *lazily* (inside the functions that use
-        them), not at module load. Importing pandas+numpy is by far the biggest
-        chunk of boot time -- on a shared free-tier CPU it's seconds. Keeping it
-        off the import path means uvicorn binds the port, the health probe
-        answers, and the SPA shell + its assets serve immediately; only the
-        first /api call pays the import (and it's cached after that).
-      * a background warm-up on startup (see `lifespan`) pre-imports pandas and
-        pre-loads/cleans the CSV off the request path, so even the first /api
-        call usually finds the caches already warm -- without delaying readiness.
+        interpreter                                    15 MB
+        + fastapi / starlette / pydantic / uvicorn      34 MB    135 ms
+        + numpy                                        12 MB     47 ms
+        + pandas                                       45 MB    211 ms
+        + scipy.stats                                  56 MB    460 ms
+        + statsmodels.api                              29 MB    254 ms
+        + the cohort, every cache and every warm answer  3 MB
+        --------------------------------------------------------------
+        resident, fully warmed                        184 MB
+
+    So the cohort is a rounding error and the libraries are the whole bill. What
+    follows from that:
+
+      * pandas, scipy and engine.py are imported *lazily* -- inside the functions
+        that use them, never at module load. uvicorn binds the port and /healthz
+        answers in 135 ms against a 49 MB process, and the SPA shell and its
+        assets serve from there while the rest loads behind them.
+      * a background warm-up on startup (see `lifespan`) does that loading, and
+        the precomputing, off the request path -- so the first /api call finds
+        the caches warm without readiness having waited for any of it.
+      * when the warm-up finishes it hands everything it built to the garbage
+        collector permanently (gc.freeze), because otherwise every full
+        collection for the rest of the process's life re-walks 167,000 objects
+        that will never be collected.
+
+    The one thing that ever threatened the 512 MB was reading the 17 MB raw
+    NHANES merge at request time to rebuild the attrition table: 109 MB of peak
+    RSS, more than pandas and scipy together, to recompute five fixed rows. That
+    is now a committed artifact -- see cohort_attrition() in engine.py.
 
 CACHING, IN FOUR LAYERS
     Nothing in this app can change while it runs -- the CSV is read once and is
@@ -491,11 +515,39 @@ def _warm_caches() -> None:
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     import asyncio
+    import gc
+
+    def warm_then_freeze() -> None:
+        """The warm-up, then hand everything it built to the GC permanently.
+
+        A full (generation-2) collection walks every object the collector
+        tracks, and once the warm-up has finished that is around 167,000 of
+        them: module constants, pandas internals, the cohort frame and the
+        cached answers above. Essentially all of it lives until the process
+        exits, so every one of those walks is work with a foregone conclusion --
+        30 ms here, and on Render's free tier, where the service gets a tenth of
+        a vCPU, closer to 300 ms, repeated whenever the threshold trips for the
+        rest of the process's life.
+
+        gc.freeze() moves those objects into a permanent generation the
+        collector never visits again. Measured on this app, it takes a full
+        gc.collect(2) from 30 ms to 0.
+
+        The collect() before it is what makes it safe rather than a leak: it
+        clears out anything that is already garbage, so only objects that
+        genuinely survive the warm-up get frozen. Nothing frozen here is ever
+        evicted -- the caches above are all maxsize=None or maxsize=1.
+        """
+        try:
+            _warm_caches()
+        finally:
+            gc.collect()
+            gc.freeze()
 
     # Fire-and-forget in a worker thread: we don't await it, so the port binds
     # and the health probe answers immediately while pandas loads in the
     # background.
-    asyncio.get_running_loop().run_in_executor(None, _warm_caches)
+    asyncio.get_running_loop().run_in_executor(None, warm_then_freeze)
     yield
 
 
