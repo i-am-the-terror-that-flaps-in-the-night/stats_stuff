@@ -25,17 +25,30 @@ import numpy as np
 import pandas as pd
 import pytest
 
+import engine
 from engine import (
     ALT_ELEVATED,
     ANALYTIC_MISSING_SENTINEL,
+    ATTRITION_JSON,
     COHORT_CSV,
     NON_ANALYTIC_COLUMNS,
-    RAW_CSV,
     build_cohort,
+    cohort_attrition,
     decode_screen_hours,
     elevated_alt,
     io_roundtrip,
+    load_cohort,
+    raw_merge_available,
     risk_score,
+)
+
+# What Git LFS leaves at Data/nhanes_analytic.csv on a checkout that never
+# fetched the object -- which is every Render deploy and every CI job here
+# except the one that asks for lfs: true.
+LFS_POINTER = (
+    "version https://git-lfs.github.com/spec/v1\n"
+    "oid sha256:2cac4b0ea969bef928cf3583e0f1b078556a18968e541d3d65b92033fe09161a\n"
+    "size 17990985\n"
 )
 
 # Raw NHANES columns build_cohort() reads. Anything not set per-test gets a
@@ -292,7 +305,7 @@ def test_bookkeeping_columns_are_present_but_marked_non_analytic():
 
 
 @pytest.mark.skipif(
-    not RAW_CSV.is_file() or not COHORT_CSV.is_file(),
+    not raw_merge_available() or not COHORT_CSV.is_file(),
     reason="raw merge not fetched (git lfs pull) or cohort not built",
 )
 def test_committed_cohort_matches_what_the_code_produces():
@@ -315,3 +328,122 @@ def test_committed_cohort_matches_what_the_code_produces():
     assert len(rebuilt) == len(committed)
     assert list(rebuilt.columns) == list(committed.columns)
     pd.testing.assert_frame_equal(rebuilt, committed, rtol=1e-9)
+
+
+# ----------------------------------------------------------------------
+# The deploy shape: no Git LFS object
+#
+# Render checks this repo out and never fetches the 17 MB raw merge, so what
+# sits at RAW_CSV there is a 133-byte pointer file. Everything below is about
+# code that has to keep working in that state, and it is tested here because
+# the state is invisible on a development machine, where the real file exists
+# and every one of these paths takes the other branch.
+# ----------------------------------------------------------------------
+
+
+def test_a_git_lfs_pointer_does_not_count_as_the_raw_merge(tmp_path):
+    """The distinction the old guard could not make.
+
+    `is_file()` is true of a pointer stub -- it is a real file of real bytes --
+    so a guard written that way reports the 17 MB merge as present on a deploy
+    that has never seen it, and hands 133 bytes of pointer metadata to read_csv.
+    """
+    stub = tmp_path / "nhanes_analytic.csv"
+    stub.write_text(LFS_POINTER)
+
+    assert stub.is_file()  # what the guard used to ask
+    assert not raw_merge_available(stub)  # what it has to ask
+
+
+def test_a_real_csv_counts_as_the_raw_merge(tmp_path):
+    """...and the predicate must not reject the actual file, which would send
+    every developer with the merge fetched down the fallback path silently."""
+    real = tmp_path / "nhanes_analytic.csv"
+    raw_frame(n=3).to_csv(real, index=False)
+
+    assert raw_merge_available(real)
+
+
+def test_a_missing_file_counts_as_absent(tmp_path):
+    assert not raw_merge_available(tmp_path / "nothing.csv")
+
+
+def test_attrition_answers_on_a_deploy_with_no_lfs_object(tmp_path, monkeypatch):
+    """/api/study/cohort must return the attrition table on Render.
+
+    It is served from the committed artifact, so the pointer stub is never
+    opened. Before that artifact existed this raised KeyError: 'RIDAGEYR' --
+    a 500 on every study endpoint, on a code path no test could reach from a
+    machine that had the real file.
+    """
+    stub = tmp_path / "nhanes_analytic.csv"
+    stub.write_text(LFS_POINTER)
+    monkeypatch.setattr(engine, "RAW_CSV", stub)
+    cohort_attrition.cache_clear()
+
+    try:
+        log = cohort_attrition()
+    finally:
+        cohort_attrition.cache_clear()
+
+    assert len(log) > 1, "the committed attrition log should have every rule"
+    assert log[-1]["n"] == len(load_cohort())
+    assert all({"step", "rule", "n", "removed"} <= set(row) for row in log)
+
+
+def test_attrition_degrades_honestly_when_the_artifact_is_gone(tmp_path, monkeypatch):
+    """No artifact and no raw merge: report the final n, claim nothing else.
+
+    The fallback exists so a missing build artifact is a thinner answer rather
+    than a broken endpoint. What it must never do is invent the intermediate
+    counts, which would look exactly like the real thing.
+    """
+    stub = tmp_path / "nhanes_analytic.csv"
+    stub.write_text(LFS_POINTER)
+    monkeypatch.setattr(engine, "RAW_CSV", stub)
+    monkeypatch.setattr(engine, "ATTRITION_JSON", tmp_path / "absent.json")
+    cohort_attrition.cache_clear()
+
+    try:
+        log = cohort_attrition()
+    finally:
+        cohort_attrition.cache_clear()
+
+    assert len(log) == 1
+    assert log[0]["n"] == len(load_cohort())
+    assert log[0]["removed"] is None  # not a count it cannot know
+
+
+def test_build_cohort_resolves_raw_csv_when_it_runs(tmp_path, monkeypatch):
+    """RAW_CSV is read at call time, not frozen into a default argument.
+
+    As a default it was bound once at import, so repointing engine.RAW_CSV --
+    which every other function in the module honours -- left build_cohort()
+    still reading the real 17 MB file, and made any test of the deploy shape
+    quietly measure the development shape instead.
+    """
+    raw = tmp_path / "raw.csv"
+    raw_frame(n=4).to_csv(raw, index=False)
+    monkeypatch.setattr(engine, "RAW_CSV", raw)
+
+    _, log = build_cohort()
+
+    assert log[0]["n"] == 4
+
+
+@pytest.mark.skipif(
+    not raw_merge_available() or not ATTRITION_JSON.is_file(),
+    reason="raw merge not fetched (git lfs pull)",
+)
+def test_committed_attrition_matches_what_the_code_produces():
+    """The artifact and its derivation must not drift apart.
+
+    Sharper than the same check on the cohort CSV: production serves this file
+    and never recomputes it, so a stale copy is a wrong number on the website
+    with nothing left in the running system to disagree with it.
+    """
+    import json
+
+    _, rebuilt = build_cohort()
+
+    assert json.loads(ATTRITION_JSON.read_text()) == rebuilt

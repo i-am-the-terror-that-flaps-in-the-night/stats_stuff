@@ -9,8 +9,10 @@
 // phone. So the tooltip is an absolutely-positioned <div> over the SVG, placed
 // from the pointer's position in the container's own coordinates.
 
-import { useCallback, useEffect, useId, useState } from "react";
-import type { JSX, ReactNode } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
+import type { JSX, ReactNode, RefObject } from "react";
+import { downloadFigure } from "../../lib/svgExport";
+import type { ExportFormat } from "../../lib/svgExport";
 
 /**
  * True on a phone-width viewport.
@@ -137,7 +139,82 @@ export interface FigureProps {
   legend?: ReactNode;
   /** Rendered under the plot: caveats, what was excluded, the data source. */
   footnote?: ReactNode;
+  /**
+   * Turns off the PDF/PNG/SVG control. Only for a "figure" that is really a
+   * table — there is nothing to export and the buttons would be a dead end.
+   */
+  noDownload?: boolean;
   children: ReactNode;
+}
+
+
+/**
+ * The download control every figure carries.
+ *
+ * It exports the <svg> that is on screen right now rather than re-drawing the
+ * figure from its data, which is what makes the file match what the reader is
+ * looking at — the same group selected, the same column, the same marks. The
+ * work is in lib/svgExport.ts; this is the button.
+ *
+ * PDF is listed first because it is the one to take to a printer: it comes out
+ * as real vector paths and real text, so it stays sharp at poster size. PNG is
+ * for pasting into a slide or a document. SVG is for anyone who wants to open
+ * the figure in a drawing program and change it.
+ */
+function DownloadBar({
+  plotRef,
+  title,
+}: {
+  plotRef: RefObject<HTMLDivElement | null>;
+  title: string;
+}): JSX.Element {
+  const [busy, setBusy] = useState<ExportFormat | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const run = useCallback(
+    async (format: ExportFormat): Promise<void> => {
+      // Null when the figure is showing its data table instead of its chart,
+      // which is a normal state rather than a fault — say so and do nothing.
+      const svg = plotRef.current?.querySelector("svg");
+      if (!svg) {
+        setError("Show the chart to download it.");
+        return;
+      }
+      setBusy(format);
+      setError(null);
+      try {
+        await downloadFigure(svg as SVGSVGElement, title, format);
+      } catch (err: unknown) {
+        setError(err instanceof Error ? err.message : "Could not export the figure.");
+      } finally {
+        setBusy(null);
+      }
+    },
+    [plotRef, title],
+  );
+
+  return (
+    <span className="fig-save">
+      <span className="fig-save-label">Save</span>
+      {(["pdf", "png", "svg"] as const).map((format) => (
+        <button
+          key={format}
+          type="button"
+          className="fig-save-btn"
+          disabled={busy !== null}
+          onClick={() => void run(format)}
+          title={`Download this figure as ${format.toUpperCase()}`}
+        >
+          {busy === format ? "…" : format.toUpperCase()}
+        </button>
+      ))}
+      {error && (
+        <span className="fig-save-error" role="status">
+          {error}
+        </span>
+      )}
+    </span>
+  );
 }
 
 export function Figure({
@@ -147,18 +224,28 @@ export function Figure({
   controls,
   legend,
   footnote,
+  noDownload,
   children,
 }: FigureProps): JSX.Element {
+  // The download path reads the live <svg> out of the plot, so the frame keeps
+  // a handle on it. A ref rather than a query by class: two figures on a page
+  // would both match the selector, and the wrong one exports silently.
+  const plotRef = useRef<HTMLDivElement | null>(null);
   return (
     <figure className="fig">
       <div className="fig-head">
         <h3 className="fig-title">{title}</h3>
-        {meta && <span className="fig-meta">{meta}</span>}
+        <span className="fig-head-end">
+          {meta && <span className="fig-meta">{meta}</span>}
+          {!noDownload && <DownloadBar plotRef={plotRef} title={title} />}
+        </span>
       </div>
       {caption && <figcaption className="fig-caption">{caption}</figcaption>}
       {controls && <div className="fig-controls">{controls}</div>}
       {legend && <div className="fig-legend">{legend}</div>}
-      <div className="fig-plot">{children}</div>
+      <div className="fig-plot" ref={plotRef}>
+        {children}
+      </div>
       {footnote && <p className="fig-footnote">{footnote}</p>}
     </figure>
   );

@@ -96,7 +96,19 @@ from typing import Any, cast
 
 import numpy as np
 import pandas as pd
-import scipy.stats as sp
+
+# scipy.stats is NOT imported here. It is the most expensive import in the
+# application -- 460 ms and 56 MB, more than pandas -- and every one of its
+# twenty uses is inside a function body, so importing it at module scope charged
+# the full cost to `import engine` whether or not the request needed a
+# statistical test. On a Render free instance (0.1 vCPU, 512 MB) that is roughly
+# five seconds of the cold start spent on a module the landing page, the column
+# list, the basic tier and every figure endpoint never touch.
+#
+# So each function that needs it imports it, which is already the idiom
+# everywhere else in this project (see figures_api.py and lab_api.py). Python
+# caches modules, so the import is paid once and every later one is a dict
+# lookup -- the cost moves off the boot path, it does not repeat.
 
 # Minimum share of parseable values required to treat a column as numeric.
 NUMERIC_THRESHOLD = 0.8
@@ -557,6 +569,8 @@ class DataAnalyzer:
               median_split_chi_square  the deliberately cruder companion
                 describe_test_statistic
         """
+        import scipy.stats as sp
+
         series = _numbers(self.df, column)
         if series.empty:
             return {"error": "No numeric values in that column."}
@@ -898,6 +912,8 @@ class DataAnalyzer:
               covariate_adjustment crude vs. adjusted, plus mediation
             linear_trend           does the value climb steadily across groups?
         """
+        import scipy.stats as sp
+
         series = _numbers(self.df, column)
         if series.empty:
             return {"error": "No numeric values in that column."}
@@ -1336,6 +1352,8 @@ class DataAnalyzer:
             trend_in_proportions        does the share of "high" values climb?
               cochran_armitage
         """
+        import scipy.stats as sp
+
         series = _numbers(self.df, column)
         if series.empty:
             return {"error": "No numeric values in that column."}
@@ -1908,6 +1926,8 @@ class DataAnalyzer:
             contingency_table  cross-tabulate two labels and test them
         """
 
+        import scipy.stats as sp
+
         def category_counts(column):
             """How many rows in each category, and what share of the total."""
             values = self.df[column].dropna().astype(str)
@@ -2150,6 +2170,13 @@ class DataAnalyzer:
 #     what this code produces, so the data and the code that derives it cannot
 #     drift apart silently.
 #
+#     TWO artifacts come out of that command, not one: the cohort CSV and
+#     Data/cohort_attrition.json. The log is committed for exactly the same
+#     reason the cohort is -- producing it is the only thing in the study that
+#     needs the raw merge, and doing it at request time cost 109 MB of peak RSS
+#     on a 512 MB instance to recompute five rows that had not changed since the
+#     last deploy. See cohort_attrition() and raw_merge_available().
+#
 # EVERY DECISION THAT SHRINKS THE SAMPLE IS RECORDED
 #     build_cohort() returns the cohort *and* an attrition log -- one row per
 #     filter, naming the rule and how many participants it removed. Nothing here
@@ -2192,6 +2219,40 @@ class DataAnalyzer:
 ROOT = Path(__file__).resolve().parent.parent
 RAW_CSV = ROOT / "Data" / "nhanes_analytic.csv"
 COHORT_CSV = ROOT / "Data" / "nhanes_adolescent.csv"
+# The attrition log, derived beside the cohort and committed with it, for the
+# same reason the cohort itself is: producing it is the only thing in the study
+# that needs the 17 MB raw merge, and production must never read that. See
+# cohort_attrition().
+ATTRITION_JSON = ROOT / "Data" / "cohort_attrition.json"
+
+# The first line of a Git LFS pointer file -- what a checkout that never fetched
+# the object leaves behind at RAW_CSV's path. See raw_merge_available().
+LFS_POINTER_HEAD = b"version https://git-lfs.github.com/spec/v1"
+
+
+def raw_merge_available(path: Path | None = None) -> bool:
+    """True when the raw NHANES merge is really there -- not a Git LFS stub.
+
+    `path.is_file()` is NOT this question, and mistaking one for the other is a
+    production outage rather than a nicety. Data/nhanes_analytic.csv is tracked
+    in Git LFS and render.yaml deliberately never fetches it, so what sits at
+    that path on the deploy is a 133-BYTE POINTER FILE: a real file, with a real
+    size, that is_file() reports as present. Hand it to read_csv and the pointer
+    metadata is parsed as a header, after which the first NHANES column looked
+    up raises KeyError -- 500s on /api/study, from a guard that thought it was
+    checking for the file's absence.
+
+    Reads the first 41 bytes. A pointer is ~133 bytes and the real merge is
+    17 MB, so this never touches more than one disk block either way.
+    """
+    path = RAW_CSV if path is None else path
+    try:
+        with path.open("rb") as handle:
+            head = handle.read(len(LFS_POINTER_HEAD))
+    except OSError:  # missing, a directory, unreadable
+        return False
+    return head != LFS_POINTER_HEAD
+
 
 # Age band. The protocol's target population, and the age range PAQY_J (the
 # youth activity questionnaire that carries screen time) is administered over.
@@ -2362,7 +2423,7 @@ def decode_screen_hours(series: pd.Series) -> pd.Series:
     return hours.replace({REFUSED: np.nan, DONT_KNOW: np.nan, 8: 0.0, 0: 0.5})
 
 
-def build_cohort(raw: pd.DataFrame | None = None, raw_path: Path = RAW_CSV):
+def build_cohort(raw: pd.DataFrame | None = None, raw_path: Path | None = None):
     """Derive the analytic cohort. Returns (cohort_df, attrition_log).
 
     attrition_log is a list of {"step", "rule", "n", "removed"} dicts -- one per
@@ -2370,7 +2431,12 @@ def build_cohort(raw: pd.DataFrame | None = None, raw_path: Path = RAW_CSV):
     every decision that produced it.
     """
     if raw is None:
-        raw = pd.read_csv(raw_path, low_memory=False)
+        # RAW_CSV is read HERE and not taken as a default argument. A default is
+        # evaluated once, at import, so `raw_path=RAW_CSV` froze the path a test
+        # or a profiler had repointed -- it would set engine.RAW_CSV, see the
+        # module honour it in every other function, and still read the real
+        # 17 MB file here.
+        raw = pd.read_csv(RAW_CSV if raw_path is None else raw_path, low_memory=False)
 
     # The sentinel first, before any comparison or count: left in place it would
     # read as a real (if absurdly small) measurement everywhere below.
@@ -2588,7 +2654,7 @@ def _format_attrition(log: list[dict]) -> str:
 
 
 def build_cohort_cli(argv=None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__.split("\n")[1])
+    parser = argparse.ArgumentParser(description=(__doc__ or "").split("\n")[1])
     parser.add_argument(
         "--check",
         action="store_true",
@@ -2598,12 +2664,14 @@ def build_cohort_cli(argv=None) -> int:
     parser.add_argument("--out", type=Path, default=COHORT_CSV)
     args = parser.parse_args(argv)
 
-    if not args.raw.is_file():
-        print(f"Raw merge not found: {args.raw}", file=sys.stderr)
+    if not raw_merge_available(args.raw):
+        print(f"Raw merge not usable: {args.raw}", file=sys.stderr)
         print(
-            "It is stored in Git LFS -- run `git lfs pull` to fetch it. The "
-            "committed cohort CSV is what production reads, so this is only "
-            "needed to REBUILD the cohort.",
+            "It is stored in Git LFS -- run `git lfs pull` to fetch it. A "
+            "checkout that has not fetched it leaves a 133-byte pointer file "
+            "at that path, which looks present to is_file() but is not the "
+            "data. The committed cohort CSV and attrition log are what "
+            "production reads, so this is only needed to REBUILD them.",
             file=sys.stderr,
         )
         return 2
@@ -2621,20 +2689,44 @@ def build_cohort_cli(argv=None) -> int:
             return 1
         committed = pd.read_csv(args.out)
         rebuilt = pd.read_csv(io_roundtrip(cohort))
-        if committed.equals(rebuilt):
-            print(f"\nOK -- {args.out.name} matches what this code produces.")
+        stale = [args.out.name] if not committed.equals(rebuilt) else []
+
+        # The attrition log is checked too, and for a sharper reason than the
+        # cohort: production SERVES it from that file and never recomputes it,
+        # so a stale one is a wrong number on the website with nothing left in
+        # the running system to contradict it.
+        if not ATTRITION_JSON.is_file():
+            stale.append(f"{ATTRITION_JSON.name} (missing)")
+        elif _read_attrition() != log:
+            stale.append(ATTRITION_JSON.name)
+
+        if not stale:
+            print(
+                f"\nOK -- {args.out.name} and {ATTRITION_JSON.name} match "
+                "what this code produces."
+            )
             return 0
         print(
-            f"\nDRIFT -- {args.out.name} does NOT match what this code produces. "
-            "Re-run without --check to regenerate it.",
+            f"\nDRIFT -- {', '.join(stale)} does NOT match what this code "
+            "produces. Re-run without --check to regenerate.",
             file=sys.stderr,
         )
         return 1
 
     args.out.parent.mkdir(parents=True, exist_ok=True)
     cohort.to_csv(args.out, index=False)
+    ATTRITION_JSON.write_text(json.dumps(log, indent=2) + "\n")
     print(f"wrote {args.out}")
+    print(f"wrote {ATTRITION_JSON}")
     return 0
+
+
+def _read_attrition():
+    """The committed attrition log, or None if it cannot be read as one."""
+    try:
+        return json.loads(ATTRITION_JSON.read_text())
+    except OSError, ValueError:
+        return None
 
 
 def io_roundtrip(df: pd.DataFrame):
@@ -2816,14 +2908,29 @@ def load_cohort() -> pd.DataFrame:
 
 @lru_cache(maxsize=1)
 def cohort_attrition() -> list[dict]:
-    """The attrition log. Rebuilt from the raw merge when it is available;
-    otherwise reconstructed from what the committed cohort can attest to.
+    """The attrition log -- every rule that decided who is in the study.
 
-    The reconstruction is honest about being one: it reports the final n and
-    says the intermediate counts need the raw file, rather than hard-coding
-    numbers that would silently go stale the moment the derivation changed.
+    Read from Data/cohort_attrition.json, the artifact `build-cohort` writes
+    beside the cohort CSV. Same bargain as the cohort itself: deriving it needs
+    the 17 MB raw merge, so it is derived once on a machine that has the merge
+    and committed as a small file that production can just read.
+
+    That is not a micro-optimization. Recomputing it live parsed 17 MB and 412
+    columns to arrive at a fixed list of five rows, and cost 109 MB of peak RSS
+    and 137 ms -- on a Render free instance with 512 MB and a tenth of a vCPU,
+    the largest single memory event in the whole application, larger than pandas
+    and scipy put together.
+
+    Two fallbacks, in order. Rebuild from the raw merge if it is genuinely
+    present, which is the developer who has just changed the derivation and not
+    yet regenerated the artifact. Otherwise report what the committed cohort can
+    attest to on its own -- honest about being a reconstruction rather than
+    hard-coding counts that would go stale the moment a rule changed.
     """
-    if RAW_CSV.is_file():
+    committed = _read_attrition()
+    if committed is not None:
+        return committed
+    if raw_merge_available():
         _, log = build_cohort()
         return log
     return [
@@ -2940,8 +3047,17 @@ def fit_model(
     """
     import statsmodels.api as sm
 
-    design = sm.add_constant(frame[predictors].astype(float), has_constant="add")
-    model = sm.WLS(frame[outcome].astype(float), design, weights=frame["DietWeight"])
+    design = cast(
+        pd.DataFrame,
+        sm.add_constant(frame[predictors].astype(float), has_constant="add"),
+    )
+    model = sm.WLS(
+        frame[outcome].astype(float),
+        design,
+        # The stub types `weights` as a scalar float; WLS in fact takes one
+        # weight per observation, which is the whole point of using it here.
+        weights=frame["DietWeight"].to_numpy(dtype=float),  # pyright: ignore[reportArgumentType]
+    )
     result = model.fit(
         cov_type="cluster", cov_kwds={"groups": _clusters(frame)}, use_t=True
     )
@@ -3974,6 +4090,105 @@ def sensitivity_checks() -> dict:
             "result that depends on the measurement choice needs that choice "
             "justified before it is reported as a finding."
         ),
+    }
+
+
+# ======================================================================
+# MODEL DIAGNOSTICS -- the pictures behind the regression's assumptions
+# ======================================================================
+
+# Every coefficient the study reports rests on two assumptions that no
+# coefficient can show you: that the residuals are roughly normal, and that
+# their spread does not grow with the fitted value. expert_analysis()'s
+# residual_checks already TESTS both and returns numbers. What it cannot do is
+# show the reader the shape -- a Q-Q plot that bends only in the last two points
+# and one that bows through its whole range give similar test statistics and
+# mean completely different things. So this returns the geometry, and the
+# Figures page draws it.
+#
+# The three specifications a reader can ask about are the three the protocol
+# actually fits. They are looked up here rather than passed in as a formula:
+# a diagnostic plot of a model the study never ran would be a picture of
+# nothing, and letting the URL name arbitrary predictors would make this an
+# open-ended regression service rather than a view onto the protocol.
+DIAGNOSTIC_MODELS = {
+    "lifestyle": (MODEL_A, MODEL_LABELS["A"]),
+    "total-effect": (MODEL_B, MODEL_LABELS["B"]),
+    "direct-effect": (MODEL_B_WITH_BMI, MODEL_LABELS["B_BMI"]),
+}
+
+
+def model_diagnostics(name: str) -> dict:
+    """Fitted values, residuals and normal-quantile pairs for one study model.
+
+    Returns parallel arrays rather than rows, matching the convention the
+    figures API already uses for the scatter: the same numbers with half the
+    JSON punctuation. Nothing here is sampled -- the analytic samples are 586
+    and 699 rows, which is a payload of a few tens of kilobytes and the whole
+    point of a diagnostic plot is that no observation was hidden from you.
+    """
+    import scipy.stats as sp
+
+    if name not in DIAGNOSTIC_MODELS:
+        return {"error": f"Unknown model: {name!r}"}
+
+    predictors, label = DIAGNOSTIC_MODELS[name]
+    frame = analysis_frame(MODEL_B_COLUMNS)
+    fit = fit_model(frame, "LogALT", predictors, label=label)
+    result = fit["_model"]
+
+    fitted = np.asarray(result.fittedvalues, dtype=float)
+    residuals = np.asarray(result.resid, dtype=float)
+    spread = float(residuals.std(ddof=1))
+    standardized = residuals / spread if spread > 0 else residuals
+
+    # Blom's plotting positions, (i - 3/8) / (n + 1/4). The choice matters only
+    # in the tails, which is exactly where a Q-Q plot is read, and Blom is the
+    # convention statsmodels and R both default to for a normal probability plot.
+    count = standardized.size
+    order = np.argsort(standardized)
+    ranks = np.arange(1, count + 1)
+    theoretical = sp.norm.ppf((ranks - 0.375) / (count + 0.25))
+    observed = standardized[order]
+
+    # The reference line is drawn through the first and third quartiles, not as
+    # the identity: it is the line the points would follow if they were normal
+    # with THIS sample's centre and spread, which is the comparison a reader
+    # wants. An identity line would also flag a simple scale difference as
+    # non-normality.
+    q_theory = np.asarray(sp.norm.ppf([0.25, 0.75]), dtype=float)
+    q_observed = np.asarray(np.percentile(observed, [25, 75]), dtype=float)
+    slope = (q_observed[1] - q_observed[0]) / (q_theory[1] - q_theory[0])
+    intercept = q_observed[0] - slope * q_theory[0]
+
+    return {
+        "model": name,
+        "label": label,
+        "outcome": "LogALT",
+        "predictors": predictors,
+        "n": int(count),
+        "r_squared": fit["r_squared"],
+        "residual_sd": _num(spread, 5),
+        "residual_skewness": _num(float(sp.skew(residuals)), 3),
+        "residual_kurtosis": _num(float(sp.kurtosis(residuals)), 3),
+        "fitted": [_num(v, 4) for v in fitted],
+        "residuals": [_num(v, 4) for v in residuals],
+        "fitted_min": _num(float(fitted.min()), 4),
+        "fitted_max": _num(float(fitted.max()), 4),
+        "residual_min": _num(float(residuals.min()), 4),
+        "residual_max": _num(float(residuals.max()), 4),
+        "qq_theoretical": [_num(v, 4) for v in theoretical],
+        "qq_observed": [_num(v, 4) for v in observed],
+        "qq_line": {
+            "slope": _num(float(slope), 5),
+            "intercept": _num(float(intercept), 5),
+        },
+        "note": (
+            "Residuals from the weighted fit. The formal tests of the same two "
+            "assumptions -- normality and constant variance -- are in the expert "
+            "tier's residual_checks; these are the shapes behind them."
+        ),
+        "not_causal": NOT_CAUSAL,
     }
 
 

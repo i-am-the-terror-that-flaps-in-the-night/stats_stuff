@@ -22,9 +22,34 @@ import {
   CorrelationHeatmap,
   CorrelationLegend,
 } from "../components/figures/CorrelationHeatmap";
-import { useBox, useCorrelation, useFigureColumns, useHistogram, useScatter } from "../lib/hooks";
+import { DensityLegend, DensityPlot } from "../components/figures/DensityPlot";
+import { QQLegend, QQPlot } from "../components/figures/QQPlot";
+import { ResidualLegend, ResidualPlot } from "../components/figures/ResidualPlot";
+import { ForestLegend, ForestPlot } from "../components/figures/ForestPlot";
+import {
+  DoseResponseChart,
+  DoseResponseLegend,
+} from "../components/figures/DoseResponseChart";
+import {
+  useBox,
+  useCorrelation,
+  useDensity,
+  useDiagnostics,
+  useFigureColumns,
+  useHistogram,
+  useScatter,
+  useStudyStep,
+} from "../lib/hooks";
 import { formatCount, formatTick, labelOf } from "../lib/scales";
-import type { CorrelationResponse, HistogramResponse } from "../types/engine";
+import { DIAGNOSTIC_MODELS } from "../types/engine";
+import type {
+  CorrelationResponse,
+  DensityResponse,
+  DiagnosticsResponse,
+  DirectEffectStep,
+  DoseResponseStep,
+  HistogramResponse,
+} from "../types/engine";
 
 const SPEC: SpecRow[] = [
   { k: "Source", v: "nhanes_adolescent.csv" },
@@ -35,6 +60,10 @@ const SPEC: SpecRow[] = [
   { k: "Rows", v: "699" },
   { k: "Drawn", v: "Inline SVG" },
   { k: "Library", v: "None" },
+  // Every figure exports the SVG that is on screen. PDF comes out as real
+  // vector paths and real text, which is what makes it safe to enlarge to
+  // poster size — see lib/svgExport.ts.
+  { k: "Export", v: "PDF · PNG · SVG" },
 ];
 
 /** The pair the scatter opens on: strong, real, and not a tautology. */
@@ -146,6 +175,103 @@ function CorrelationTable({ data }: { data: CorrelationResponse }): JSX.Element 
   );
 }
 
+
+/**
+ * The new figures' table readings.
+ *
+ * Same rule as the four above: the table is the accessible reading of the
+ * figure, not a fallback. Where a chart draws hundreds of marks — every
+ * residual, every Q-Q point — the table gives the summary a reader could
+ * actually use rather than 586 rows nobody will scroll, and says so.
+ */
+function DensityTable({ data }: { data: DensityResponse }): JSX.Element {
+  return (
+    <Table
+      corner="Group"
+      head={["n", "Mean", "Median", "Bandwidth"]}
+      numeric={[1, 2, 3, 4]}
+      caption={`${labelOf(data.column)} — ${data.method}`}
+      rows={data.curves.map((curve) => [
+        curve.label,
+        formatCount(curve.n),
+        formatTick(curve.mean),
+        formatTick(curve.median),
+        formatTick(curve.bandwidth),
+      ])}
+    />
+  );
+}
+
+function DoseResponseTable({ data }: { data: DoseResponseStep }): JSX.Element {
+  return (
+    <Table
+      corner="Quartile"
+      head={["Sugar (g/day)", "n", "Mean ALT", "± SE", "Above threshold"]}
+      numeric={[1, 2, 3, 4, 5]}
+      caption="Weighted to U.S. adolescents; the standard error uses the row count."
+      rows={data.quartiles.map((q) => [
+        `Q${q.quartile}`,
+        `${formatTick(q.sugar_range_g[0])} – ${formatTick(q.sugar_range_g[1])}`,
+        formatCount(q.n),
+        formatTick(q.weighted_mean_alt ?? 0),
+        formatTick(q.standard_error_alt ?? 0),
+        `${formatTick(q.percent_elevated_alt ?? 0)}%`,
+      ])}
+    />
+  );
+}
+
+function ForestTable({ data }: { data: DirectEffectStep }): JSX.Element {
+  const rows: string[][] = [];
+  for (const [label, model] of [
+    ["Without BMI", data.total_model],
+    ["With BMI", data.direct_model],
+  ] as const) {
+    for (const [name, c] of Object.entries(model.coefficients)) {
+      if (name === "const") continue;
+      rows.push([
+        `${labelOf(name)} — ${label}`,
+        formatTick(c.estimate ?? 0),
+        c.ci_low === null || c.ci_high === null
+          ? "—"
+          : `${formatTick(c.ci_low)} to ${formatTick(c.ci_high)}`,
+        formatTick(c.standardized_beta ?? 0),
+        c.significance.p_value_text ?? String(c.significance.p_value ?? "—"),
+      ]);
+    }
+  }
+  return (
+    <Table
+      corner="Predictor"
+      head={["Estimate", "95% CI", "Standardized β", "p"]}
+      numeric={[1, 2, 3, 4]}
+      caption="Weighted least squares with cluster-robust standard errors."
+      rows={rows}
+    />
+  );
+}
+
+function DiagnosticsTable({ data }: { data: DiagnosticsResponse }): JSX.Element {
+  return (
+    <Table
+      corner="Measure"
+      head={["Value"]}
+      numeric={[1]}
+      caption={`${data.label} — ${formatCount(data.n)} residuals`}
+      rows={[
+        ["Predictors", data.predictors.map(labelOf).join(", ")],
+        ["R²", formatTick(data.r_squared ?? 0)],
+        ["Residual SD", formatTick(data.residual_sd ?? 0)],
+        ["Skewness (0 if normal)", formatTick(data.residual_skewness ?? 0)],
+        ["Excess kurtosis (0 if normal)", formatTick(data.residual_kurtosis ?? 0)],
+        ["Q-Q line slope", formatTick(data.qq_line.slope ?? 0)],
+        ["Fitted range", `${formatTick(data.fitted_min)} to ${formatTick(data.fitted_max)}`],
+        ["Residual range", `${formatTick(data.residual_min)} to ${formatTick(data.residual_max)}`],
+      ]}
+    />
+  );
+}
+
 export function Figures(): JSX.Element {
   const { columns, categorical, error: columnsError } = useFigureColumns();
 
@@ -181,10 +307,25 @@ export function Figures(): JSX.Element {
     if (!group && categorical.includes("Education")) setGroup("Education");
   }, [categorical, group]);
 
+  // The diagnostics figures share one fit — a Q-Q plot and a residual plot of
+  // DIFFERENT models would be two answers to one question — so the picker is
+  // page state and both figures read the same response.
+  const [diagnosticModel, setDiagnosticModel] = useState<string>("direct-effect");
+
   const histogram = useHistogram(column);
   const box = useBox(column, group);
   const scatter = useScatter(x, y);
   const correlation = useCorrelation();
+  const densityCurves = useDensity(column, group);
+  const diagnostics = useDiagnostics(diagnosticModel);
+  // The two study figures are drawn from the protocol's own results rather than
+  // from a second aggregate: the coefficients and the quartile means are
+  // already published at /api/study, and computing them twice is how a figure
+  // and the text beside it end up disagreeing.
+  const doseStep = useStudyStep("dose-response");
+  const primaryStep = useStudyStep("direct-effect");
+  const dose = doseStep.step as DoseResponseStep | null;
+  const primary = primaryStep.step as DirectEffectStep | null;
 
   const toggle = (key: string) => () =>
     setTables((current) => ({ ...current, [key]: !current[key] }));
@@ -198,9 +339,10 @@ export function Figures(): JSX.Element {
         title="Figures"
         tagline={
           <>
-            Five views of the same NHANES slice the engine reports on. A statistic is a
+            Ten views of the same NHANES slice the engine reports on. A statistic is a
             summary — these show what it is a summary <em>of</em>, which is where a long
-            tail or a fat cloud stops being invisible.
+            tail or a fat cloud stops being invisible. Every figure downloads as a
+            vector PDF, a PNG or its own SVG.
           </>
         }
         byline="By Anirudh Gupta"
@@ -481,6 +623,261 @@ export function Figures(): JSX.Element {
                   setY(pickedY);
                 }}
               />
+            </Switchable>
+          )}
+        </Figure>
+      </Module>
+
+      <Module index="06" title="Distribution Shape" meta="Smoothed, by group">
+        <p className="text">
+          The box plot above reduces each group to five numbers. This draws the shape those
+          five numbers summarize — and the thing they cannot show, which is a second hump.
+          Two groups with identical quartiles, one unimodal and one splitting into a low and a
+          high cluster, draw the same box.
+        </p>
+        <Figure
+          title={
+            column
+              ? `${labelOf(column)} — density${group ? ` by ${labelOf(group)}` : ""}`
+              : "Distribution shape"
+          }
+          caption="Area under each curve is 1, so groups are comparable regardless of size."
+          meta={densityCurves.data ? `${densityCurves.data.curves.length} curves` : undefined}
+          controls={
+            <>
+              <Picker
+                label="Column"
+                value={column ?? ""}
+                options={columns}
+                onChange={(next) => setColumn(next)}
+              />
+              <Picker
+                label="Group by"
+                value={group}
+                options={categorical}
+                onChange={setGroup}
+                allowNone
+                noneLabel="No split"
+              />
+            </>
+          }
+          legend={densityCurves.data ? <DensityLegend data={densityCurves.data} /> : undefined}
+          footnote={
+            densityCurves.data ? (
+              <>
+                A kernel density estimate is a smoothing choice as much as a measurement, which
+                is why the bandwidth is in the key: a bump narrower than the bandwidth is the
+                smoother talking, not the data. The curve is not extended below zero for a
+                quantity that cannot be negative.
+                {densityCurves.data.dropped_groups > 0 && (
+                  <>
+                    {" "}
+                    {densityCurves.data.dropped_groups} group
+                    {densityCurves.data.dropped_groups === 1 ? " was" : "s were"} omitted for
+                    having fewer than {densityCurves.data.min_group_n} values.
+                  </>
+                )}
+              </>
+            ) : undefined
+          }
+        >
+          {densityCurves.error && <Status message={densityCurves.error} isError />}
+          {!densityCurves.error && !densityCurves.data && <Loading what="the density" />}
+          {densityCurves.data && (
+            <Switchable
+              showTable={tables.density ?? false}
+              onToggle={toggle("density")}
+              table={<DensityTable data={densityCurves.data} />}
+            >
+              <DensityPlot data={densityCurves.data} />
+            </Switchable>
+          )}
+        </Figure>
+      </Module>
+
+      <Module index="07" title="Dose-Response" meta="Protocol steps 3 and 7">
+        <p className="text">
+          Does ALT climb as sugar intake climbs? A dose-response gradient is one of the
+          stronger observational arguments that an association is real — noise has no reason
+          to arrange itself in order. That cuts both ways, which is why this figure matters to
+          a null result as much as it would to a positive one.
+        </p>
+        <Figure
+          title="Mean ALT across sugar quartiles"
+          caption="Points are weighted means; bars are ± one standard error. Red is the share above the clinical threshold."
+          meta={dose ? `n = ${formatCount(dose.n ?? 0)}` : undefined}
+          legend={dose ? <DoseResponseLegend quartiles={dose.quartiles} /> : undefined}
+          footnote={
+            dose ? (
+              <>
+                The trend test enters quartile rank as one ordered predictor, so a single
+                coefficient answers &ldquo;does ALT move monotonically?&rdquo; rather than three
+                pairwise comparisons answering nothing in particular. It reports{" "}
+                {formatTick(dose.trend_test.percent_change_in_alt_per_quartile ?? 0)}% per
+                quartile,{" "}
+                {dose.trend_test.significance.statistically_significant
+                  ? "which clears"
+                  : "which does not clear"}{" "}
+                the 0.05 threshold. The error bars use the row count, not the summed survey
+                weight — dividing by millions of represented adolescents would draw an error
+                bar of essentially zero around an estimate from a few hundred people.
+              </>
+            ) : undefined
+          }
+        >
+          {primaryStep.error && <Status message={primaryStep.error} isError />}
+          {doseStep.error && <Status message={doseStep.error} isError />}
+          {!doseStep.error && !dose && <Loading what="the quartile means" />}
+          {dose && (
+            <Switchable
+              showTable={tables.dose ?? false}
+              onToggle={toggle("dose")}
+              table={<DoseResponseTable data={dose} />}
+            >
+              <DoseResponseChart quartiles={dose.quartiles} />
+            </Switchable>
+          )}
+        </Figure>
+      </Module>
+
+      <Module index="08" title="Model Coefficients" meta="The primary test, drawn">
+        <p className="text">
+          Every predictor in the study&rsquo;s full model, with its 95% interval, fitted twice:
+          once without BMI and once with. The protocol pre-specified that pair before the data
+          were seen, and pre-specified the sugar coefficient in the <em>with-BMI</em> model as
+          the single test the hypothesis rises or falls on.{" "}
+          <strong>An interval that crosses zero is a predictor the model cannot tell apart
+          from nothing.</strong>
+        </p>
+        <Figure
+          title="Standardized coefficients, Model B with and without BMI"
+          caption="Dot is the estimate; the bar is its 95% confidence interval. Hollow dots include zero."
+          meta={primary ? `n = ${formatCount(primary.n ?? 0)}` : undefined}
+          legend={
+            primary ? (
+              <ForestLegend
+                models={[
+                  { label: "Without BMI", model: primary.total_model },
+                  { label: "With BMI", model: primary.direct_model },
+                ]}
+              />
+            ) : undefined
+          }
+          footnote={
+            primary ? (
+              <>
+                The axis is the standardized β — how many standard deviations of log ALT move
+                per standard deviation of the predictor. Sugar is in 10 g/day, BMI in kg/m² and
+                HbA1c in percent, so a raw axis would make them incomparable, and comparing
+                sugar against the Trig/HDL ratio is exactly the protocol&rsquo;s secondary
+                question. Weighted least squares with cluster-robust standard errors; an
+                association in observational data, not an effect of an intervention.
+              </>
+            ) : undefined
+          }
+        >
+          {primaryStep.error && <Status message={primaryStep.error} isError />}
+          {!primaryStep.error && !primary && <Loading what="the fitted models" />}
+          {primary && (
+            <Switchable
+              showTable={tables.forest ?? false}
+              onToggle={toggle("forest")}
+              table={<ForestTable data={primary} />}
+            >
+              <ForestPlot
+                models={[
+                  { label: "Without BMI", model: primary.total_model },
+                  { label: "With BMI", model: primary.direct_model },
+                ]}
+              />
+            </Switchable>
+          )}
+        </Figure>
+      </Module>
+
+      <Module index="09" title="Normal Q-Q" meta="Regression assumption 1">
+        <p className="text">
+          Every interval on the figure above assumes the model&rsquo;s residuals are roughly
+          normal. The expert tier tests that and returns a number; this shows the{" "}
+          <em>shape</em> of the departure, which is what decides whether it matters. A plot
+          that tracks the line and lifts off only at the ends is a couple of unusual
+          adolescents. One that bows through the middle is a model mis-specified for everyone.
+        </p>
+        <Figure
+          title={diagnostics.data ? `Q-Q — ${diagnostics.data.label}` : "Normal Q-Q"}
+          caption="Points on the line are what normal residuals look like."
+          meta={diagnostics.data ? `n = ${formatCount(diagnostics.data.n)}` : undefined}
+          controls={
+            <Picker
+              label="Model"
+              value={diagnosticModel}
+              options={[...DIAGNOSTIC_MODELS]}
+              onChange={setDiagnosticModel}
+            />
+          }
+          legend={diagnostics.data ? <QQLegend data={diagnostics.data} /> : undefined}
+          footnote={
+            <>
+              The reference line runs through the first and third quartiles, not the 45°
+              identity — an identity line would flag a pure difference in spread as
+              non-normality, which is not the question being asked.
+            </>
+          }
+        >
+          {diagnostics.error && <Status message={diagnostics.error} isError />}
+          {!diagnostics.error && !diagnostics.data && <Loading what="the residuals" />}
+          {diagnostics.data && (
+            <Switchable
+              showTable={tables.qq ?? false}
+              onToggle={toggle("qq")}
+              table={<DiagnosticsTable data={diagnostics.data} />}
+            >
+              <QQPlot data={diagnostics.data} />
+            </Switchable>
+          )}
+        </Figure>
+      </Module>
+
+      <Module index="10" title="Residuals Against Fitted" meta="Regression assumption 2">
+        <p className="text">
+          The second assumption: that the model is equally wrong across its whole range. If the
+          cloud fans out to the right, the model is more uncertain about high-ALT adolescents
+          than about low ones, and a single standard error averaging the two describes neither.
+          A flat line at zero is what a well-specified model looks like.
+        </p>
+        <Figure
+          title={
+            diagnostics.data ? `Residuals — ${diagnostics.data.label}` : "Residuals against fitted"
+          }
+          caption="Each dot is one adolescent: what the model predicted, and how far off it was."
+          meta={diagnostics.data ? `R² = ${formatTick(diagnostics.data.r_squared ?? 0)}` : undefined}
+          controls={
+            <Picker
+              label="Model"
+              value={diagnosticModel}
+              options={[...DIAGNOSTIC_MODELS]}
+              onChange={setDiagnosticModel}
+            />
+          }
+          legend={diagnostics.data ? <ResidualLegend data={diagnostics.data} /> : undefined}
+          footnote={
+            <>
+              The binned line is a reading aid, not a fit: eyes are bad at judging the centre of
+              a cloud and good at following a line, so the residuals are averaged in vertical
+              slices. Curvature there means the model is missing something systematic, rather
+              than merely being noisy.
+            </>
+          }
+        >
+          {diagnostics.error && <Status message={diagnostics.error} isError />}
+          {!diagnostics.error && !diagnostics.data && <Loading what="the residuals" />}
+          {diagnostics.data && (
+            <Switchable
+              showTable={tables.resid ?? false}
+              onToggle={toggle("resid")}
+              table={<DiagnosticsTable data={diagnostics.data} />}
+            >
+              <ResidualPlot data={diagnostics.data} />
             </Switchable>
           )}
         </Figure>

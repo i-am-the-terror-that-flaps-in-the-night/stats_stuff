@@ -137,6 +137,7 @@ stats_and_more/
 │   └── studio.py            # /api/datasets and /api/runs
 ├── Data/
 │   ├── nhanes_adolescent.csv  # THE LIVE DATASET: the analytic cohort (~100 KB, tracked)
+│   ├── cohort_attrition.json  # The attrition log, derived beside it (655 B, tracked)
 │   ├── nhanes_analytic.csv    # Full raw NHANES merge, 412 columns, 17 MB (Git LFS)
 │   ├── nhanes.csv             # Earlier curated 18-column slice, superseded (tracked)
 │   └── data.csv               # Small synthetic practice dataset (tracked)
@@ -203,11 +204,12 @@ Rebuild the cohort (needs the LFS file):
 
 ```bash
 python Backend/engine.py build-cohort          # rebuild, print the attrition table
-python Backend/engine.py build-cohort --check  # verify the CSV still matches the code
+python Backend/engine.py build-cohort --check  # verify the artifacts still match the code
 ```
 
-`--check` is the drift guard, and CI runs it. The committed CSV is a build artifact; without this
-check a change to the derivation could ship while the file kept the old numbers.
+It writes two files: `Data/nhanes_adolescent.csv` (the cohort) and `Data/cohort_attrition.json`
+(the log below). `--check` is the drift guard for both, and CI runs it. They are build artifacts;
+without this check a change to the derivation could ship while the files kept the old numbers.
 
 The attrition table it prints is the real one:
 
@@ -225,10 +227,19 @@ was zero"* and *"we never checked"* are different claims and only one of them is
 
 ### Why the cohort is committed and the raw merge is in LFS
 
-The deployed app reads a 100 KB tracked file. It never needs an LFS object, so a Render dyno that
-never ran `git lfs pull` boots correctly, and the cold start pays milliseconds instead of parsing
-17 MB of mostly-irrelevant columns. The raw merge is still under version control — it is the
-provenance for everything else — just not in the ordinary object history.
+The deployed app reads a 100 KB tracked file and a 655-byte JSON log. It never needs an LFS object,
+so a Render dyno that never ran `git lfs pull` boots correctly, and the cold start pays milliseconds
+instead of parsing 17 MB of mostly-irrelevant columns. The raw merge is still under version
+control — it is the provenance for everything else — just not in the ordinary object history.
+
+The attrition log is committed for the same reason, and it is worth being precise about why, because
+the code originally rebuilt it live and guarded that with `RAW_CSV.is_file()`. A checkout that never
+fetched the LFS object does not leave *nothing* at that path — it leaves a 133-byte pointer file,
+which `is_file()` reports as present. So on Render the guard passed, `read_csv` parsed the pointer
+metadata as a header, and every study endpoint answered `500`. `raw_merge_available()` asks the
+question the guard meant to ask, and the committed log means production has no reason to ask it at
+all: rebuilding it cost 109 MB of peak RSS — more than pandas and scipy together, on a 512 MB
+instance — to recompute five rows that had not changed since the last deploy.
 
 ### Variables
 

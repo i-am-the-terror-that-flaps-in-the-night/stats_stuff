@@ -71,6 +71,13 @@ MIN_BINS, MAX_BINS = 8, 40
 # boxes).
 WHISKER_IQR = 1.5
 
+# How many points to evaluate a density curve at. A kernel density estimate is
+# smooth by construction, so the only thing resolution buys past this is file
+# size: at 96 points a curve is one SVG path of about 1 KB and there is no
+# visible faceting even on a wide screen.
+DENSITY_POINTS = 96
+
+
 # Below this a "group" is noise -- a handful of rows whose quartiles are not
 # meaningful and whose box would still take a full slot on the axis. NHANES's
 # Education column carries "Don't know" and "Refused" categories that land here.
@@ -91,6 +98,21 @@ def _app():
     except ModuleNotFoundError:
         from Backend import app as app_module
     return app_module
+
+
+def _engine():
+    """Import the stats engine lazily, by whichever name resolves.
+
+    Same two-path dance as _app() above and study_api's _study(). Deferred to
+    call time for the usual reason: the engine's diagnostics pull in
+    statsmodels, and a visitor who never opens a diagnostic plot should not pay
+    that import on the cold start.
+    """
+    try:
+        import engine
+    except ModuleNotFoundError:
+        from Backend import engine
+    return engine
 
 
 def _numeric_series(column: str):
@@ -226,6 +248,97 @@ def box_plot(column: str, group: str | None) -> dict:
     }
 
 
+@lru_cache(maxsize=None)
+def density(column: str, group: str | None) -> dict:
+    """Kernel density curves for one column, overall or one per group.
+
+    WHY THIS AND NOT JUST THE BOX PLOT
+        A five-number summary cannot show a second hump. Two groups with the
+        same quartiles -- one unimodal, one splitting into a low and a high
+        cluster -- draw identical boxes, and the difference between them is
+        usually the interesting thing. The density curve is the shape the box
+        summarizes, so the two are meant to be read together.
+
+    The estimate is a Gaussian KDE at Scott's bandwidth, which is scipy's
+    default and is reported in the response: a density curve is a smoothing
+    choice as much as a measurement, and a reader who cannot see the bandwidth
+    cannot tell a real bump from the smoother's.
+    """
+    import numpy as np
+    import pandas as pd
+    import scipy.stats as sp
+
+    app_module = _app()
+    series = _numeric_series(column)
+
+    if group is None:
+        pairs = [("All rows", series)]
+    else:
+        if group not in set(app_module.load_data().columns):
+            raise HTTPException(
+                status_code=404, detail=f"Unknown group column: {group!r}"
+            )
+        frame = pd.DataFrame(
+            {"value": series, "group": app_module.load_data()[group]}
+        ).dropna()
+        pairs = [
+            (str(label), part["value"])
+            for label, part in frame.groupby("group", sort=True)
+        ]
+
+    # One grid shared by every curve, so the areas are directly comparable --
+    # per-group grids would silently rescale each curve to its own x-range and
+    # make a narrow group look as wide as a broad one.
+    everything = series.to_numpy(dtype=float)
+    lo, hi = float(everything.min()), float(everything.max())
+    pad = (hi - lo) * 0.04
+    # Real quantities do not go negative. Padding a column whose minimum is at
+    # or above zero downward would draw density at impossible values, which is
+    # the KDE's one reliably misleading habit.
+    start = lo - pad if lo < 0 else max(0.0, lo - pad)
+    grid = np.linspace(start, hi + pad, DENSITY_POINTS)
+
+    curves = []
+    dropped = 0
+    peak = 0.0
+    for label, part in pairs:
+        values = part.to_numpy(dtype=float)
+        # A KDE needs spread as well as rows: a group where every value is
+        # identical has a singular covariance and gaussian_kde raises on it.
+        if values.size < MIN_GROUP_N or float(values.std(ddof=1)) <= 0:
+            dropped += 1
+            continue
+        kernel = sp.gaussian_kde(values)
+        heights = kernel(grid)
+        peak = max(peak, float(heights.max()))
+        curves.append(
+            {
+                "label": label,
+                "n": int(values.size),
+                "mean": _num(float(values.mean())),
+                "median": _num(float(np.median(values))),
+                "bandwidth": _num(float(kernel.factor * values.std(ddof=1))),
+                "density": [_num(v, 6) for v in heights],
+            }
+        )
+
+    if not curves:
+        raise HTTPException(
+            status_code=422,
+            detail=f"No group of {column!r} has {MIN_GROUP_N}+ values with any spread.",
+        )
+    return {
+        "column": column,
+        "group": group,
+        "grid": [_num(v) for v in grid],
+        "curves": curves,
+        "peak": _num(peak, 6),
+        "dropped_groups": dropped,
+        "min_group_n": MIN_GROUP_N,
+        "method": "Gaussian KDE, Scott's rule",
+    }
+
+
 def _sample_points(frame, limit: int):
     """Take at most `limit` rows, deterministically. Returns (frame, sampled?)."""
     if len(frame) <= limit:
@@ -346,6 +459,35 @@ def scatter_route(x: str, y: str, response: Response):
     """A sampled x/y cloud with its fitted line."""
     _cached(response)
     return scatter(x, y)
+
+
+@router.get("/density/{column}")
+def density_route(column: str, response: Response, group: str | None = None):
+    """Smoothed distribution shape, optionally one curve per group."""
+    _cached(response)
+    return density(column, group)
+
+
+@router.get("/diagnostics/{model}")
+def diagnostics_route(model: str, response: Response):
+    """Residual geometry for one of the study's three model specifications.
+
+    The computation is engine.py's, not this module's, and deliberately so: it
+    fits a regression, and this file's rule is that anything which fits a model
+    or carries an inferential claim lives in the engine. What is added here is
+    only the URL and the cache header.
+    """
+    engine = _engine()
+    result = engine.model_diagnostics(model)
+    if "error" in result:
+        raise HTTPException(
+            status_code=404,
+            detail=(
+                f"{result['error']} Valid models: {', '.join(engine.DIAGNOSTIC_MODELS)}"
+            ),
+        )
+    _cached(response)
+    return result
 
 
 @router.get("/correlation")

@@ -46,3 +46,14 @@ services:
         value: "24"
       - key: PYTHONUNBUFFERED
         value: "1"
+      # glibc gives each thread that allocates its own malloc arena, up to
+      # 8 x the core count, and never returns a retired arena to the OS. uvicorn
+      # runs the cache warm-up and every sync route in a threadpool, so this
+      # process touches enough threads to open several -- each one a separate
+      # pool of freed-but-still-resident pages, counted against the 512 MB the
+      # free tier allows. Capping arenas trades a little allocator contention
+      # (irrelevant at 0.1 vCPU, where nothing runs in parallel anyway) for tens
+      # of megabytes of headroom. Linux only; macOS ignores it, so local numbers
+      # will not show the difference.
+      - key: MALLOC_ARENA_MAX
+        value: "2"
