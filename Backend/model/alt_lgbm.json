@@ -109,10 +109,10 @@
       "unit": "10 g/day",
       "about": "Total sugars from the day-1 24-hour dietary recall. The model works in tens of grams, because that is the contrast the study reports; the control shows plain grams.",
       "min": 1.0,
-      "max": 36.5,
+      "max": 36.0,
       "step": 0.5,
       "default": 10.0,
-      "cohort_median": 9.963,
+      "cohort_median": 9.967,
       "display_factor": 10,
       "display_unit": "g/day"
     },
@@ -165,7 +165,7 @@
       "unit": "ratio",
       "about": "Triglycerides divided by HDL cholesterol, both in mg/dL -- a standard marker of insulin resistance.",
       "min": 0.4,
-      "max": 8.8,
+      "max": 8.7,
       "step": 0.1,
       "default": 1.7,
       "cohort_median": 1.685
@@ -187,10 +187,10 @@
       "unit": "kg/m\u00b2",
       "about": "Body mass index. Not age- and sex-standardized here, because the protocol's models use raw BMI and this model must match them.",
       "min": 16.0,
-      "max": 44.5,
+      "max": 46.0,
       "step": 0.5,
       "default": 22.5,
-      "cohort_median": 22.341
+      "cohort_median": 22.3
     }
   },
   "trained_on": "NHANES 2017-2018, adolescents aged 12-17",
