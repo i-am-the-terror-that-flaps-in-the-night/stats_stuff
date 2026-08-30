@@ -489,3 +489,157 @@ export interface StudyHeadline {
   elevated_alt_percent: number | null;
   not_causal: string;
 }
+
+// ---------------------------------------------------------------------------
+// The prediction demo — Backend/engine.py part four, served by predict_api.py.
+//
+// Two responses with one shape between them: /api/predict/model describes the
+// form, /api/predict answers it. The card is what makes the page data-driven —
+// the seven sliders, their ranges and their copy all come from the server, so a
+// retrain that moves a range moves the control rather than leaving the UI
+// offering values the model was never fitted on.
+// ---------------------------------------------------------------------------
+
+/** One input on the form, as the model card describes it. */
+export interface PredictorInput {
+  name: string;
+  label: string;
+  unit: string;
+  about: string;
+  min: number;
+  max: number;
+  step: number;
+  default: number;
+  cohort_median: number;
+  /** Present only for inputs that are a choice rather than a range (sex). */
+  choices?: { value: number; label: string }[];
+  /**
+   * Present only where the model's scale is not the reader's. Dietary sugar is
+   * modelled per 10 g because that is the contrast the study reports, so the
+   * value on the wire is 10 where the reader should see "100 g/day". Multiply
+   * for DISPLAY only — the number posted back stays in the model's units.
+   */
+  display_factor?: number;
+  display_unit?: string;
+}
+
+/** One row of the model's feature ranking. */
+export interface PredictorImportance {
+  feature: string;
+  label: string;
+  gain_percent: number | null;
+  mean_abs_shap: number | null;
+}
+
+export interface PredictorScores {
+  r_squared_log_alt: number | null;
+  mean_absolute_error_u_per_l: number | null;
+}
+
+/** GET /api/predict/model — everything the page needs before a first answer. */
+export interface PredictorCard {
+  model: string;
+  outcome: string;
+  outcome_label: string;
+  features: string[];
+  specification: string;
+  n: number;
+  clusters: number;
+  weighted: string;
+  rounds: number;
+  base_value: number | null;
+  elevated_alt_thresholds: Record<string, number>;
+  elevated_alt_source: string;
+  validation: {
+    scheme: string;
+    folds: number;
+    clusters: number;
+    rounds_per_fold: number[];
+    gradient_boosting: PredictorScores;
+    linear_model_b_with_bmi: PredictorScores;
+    note: string;
+  };
+  importance: PredictorImportance[];
+  inputs: Record<string, PredictorInput>;
+  trained_on: string;
+  caveat: string;
+  not_causal: string;
+}
+
+/** What the reader typed. Every field optional — a blank one takes the median. */
+export type PredictBody = Partial<Record<string, number>>;
+
+/**
+ * One feature's exact SHAP contribution.
+ *
+ * `contribution_log` is the additive one (it is what sums to the prediction);
+ * `percent_of_alt` is the same quantity as a multiplier on ALT, which is the
+ * scale a reader thinks in. Both are sent because showing only the second
+ * invites someone to add up percentages that do not add up.
+ */
+export interface PredictionDriver {
+  feature: string;
+  label: string;
+  value: number;
+  unit: string;
+  /** The value as a person would say it: "Male", "100 g/day", "22.5 kg/m²". */
+  display: string;
+  cohort_median: number;
+  /** The median in the same units as `display`; null for a choice input. */
+  cohort_median_display: string | null;
+  contribution_log: number;
+  percent_of_alt: number | null;
+  direction: "raises" | "lowers" | "neutral";
+}
+
+/** POST /api/predict — the prediction and its decomposition. */
+export interface PredictionResponse {
+  predicted_alt: number;
+  predicted_log_alt: number;
+  base_value_log: number;
+  baseline_alt: number;
+  units: string;
+  inputs: Record<string, number>;
+  drivers: PredictionDriver[];
+  reference: {
+    elevated_threshold: number;
+    sex: "male" | "female";
+    above_threshold: boolean;
+    means: string;
+  };
+  /** Inputs that were filled in or clamped, in words. Empty when nothing was. */
+  adjustments: string[];
+  layer: string;
+  caveat: string;
+  not_causal: string;
+}
+
+/** One step of the failover chain, as it reports itself. */
+export interface ExplainAttempt {
+  model: string;
+  ok: boolean;
+  ms: number;
+  /** Named "failure", not "error" — see predict_api.explain_prediction. */
+  failure?: string;
+}
+
+/** POST /api/predict/explain — the prediction, narrated. */
+export interface ExplainResponse {
+  prediction: PredictionResponse;
+  explanation: string;
+  /** "llm" when a model answered; "fallback" when the canned text did. */
+  source: "llm" | "fallback";
+  model: string | null;
+  attempts: ExplainAttempt[];
+  disclaimer: string;
+}
+
+/** GET /api/predict/llm — the pre-fair setup check. */
+export interface LlmStatus {
+  configured: boolean;
+  primary_model: string;
+  fallback_model: string;
+  primary_timeout_s: number;
+  fallback_timeout_s: number;
+  note: string;
+}

@@ -59,6 +59,10 @@ ROUTES
     GET  /api/study/steps               step index + grades      (study_api.py)
     GET  /api/study/step/{name}         one step                 (study_api.py)
     GET  /api/study/cohort              the attrition table      (study_api.py)
+    GET  /api/predict/model             the ALT model card       (predict_api.py)
+    POST /api/predict                   prediction + SHAP        (predict_api.py)
+    POST /api/predict/explain           the same, narrated       (predict_api.py)
+    GET  /api/predict/llm               LLM setup diagnostic     (predict_api.py)
     GET  /api/datasets                  dataset inventory        (studio.py)
     GET  /api/runs, POST /api/runs      the saved-run log        (studio.py)
     GET  /                              the SPA shell (frontend/dist/index.html)
@@ -82,6 +86,15 @@ SPEED AND MEMORY ON RENDER
         + the cohort, every cache and every warm answer  3 MB
         --------------------------------------------------------------
         resident, fully warmed                        184 MB
+        + lightgbm, only if /api/predict is opened     10 MB     25 ms
+        + the trained booster and its card              1 MB
+
+    lightgbm is listed below the line because it is genuinely optional at run
+    time: it is imported inside engine.py's predictor functions, so a visitor
+    who never opens the Predict page never loads it. That 10 MB is also the
+    entire cost of the SHAP explanations -- the `shap` package would have added
+    scikit-learn, numba and llvmlite on top, which this budget cannot absorb.
+    See engine.py's PART FOUR.
 
     So the cohort is a rounding error and the libraries are the whole bill. What
     follows from that:
@@ -220,11 +233,17 @@ def deploy_version() -> str:
     sources = (
         DATA_CSV,
         here,
-        # engine.py carries the tiers, the cohort derivation and the study
-        # protocol, so its mtime covers all three. A change to a model
-        # specification changes what /api returns just as surely as a new CSV
-        # does, and every cached copy has to be invalidated when it happens.
+        # engine.py carries the tiers, the cohort derivation, the study
+        # protocol and the predictor, so its mtime covers all four. A change to
+        # a model specification changes what /api returns just as surely as a
+        # new CSV does, and every cached copy has to be invalidated when it
+        # happens.
         here.with_name("engine.py"),
+        # The trained booster and its card. A retrain changes /api/predict/model
+        # -- the ranges the UI's sliders offer and the scores it prints -- while
+        # leaving every source file untouched, so without this a redeploy of a
+        # new model would serve the old card out of browser caches for an hour.
+        here / "model" / "alt_lgbm.json",
     )
     for path in sources:
         try:
@@ -510,6 +529,29 @@ def _warm_caches() -> None:
         run_study()
 
     attempt("study", warm_study)
+
+    # 6. The predictor. Last, because it is the only stage that imports a
+    #    library nothing else needs (LightGBM, ~10 MB and ~25 ms) and the only
+    #    one a visitor can skip entirely by not opening the Predict page. Doing
+    #    it here means the judge who does open it finds the import already paid
+    #    and the booster already parsed, rather than waiting four seconds on a
+    #    tenth of a vCPU for a page that is supposed to feel instant.
+    #
+    #    A missing Backend/model/ artifact makes this a no-op, exactly like
+    #    every other stage: attempt() swallows it and /api/predict answers 503
+    #    with instructions instead of the process failing to boot.
+    def warm_predictor():
+        try:
+            from engine import predict_alt, predictor_card
+        except ModuleNotFoundError:
+            from Backend.engine import predict_alt, predictor_card
+        card = predictor_card()
+        # One real prediction at the cohort medians. Parses the booster, runs
+        # TreeSHAP once and builds the system prompt's inputs -- everything the
+        # first click would otherwise do.
+        predict_alt({name: spec["default"] for name, spec in card["inputs"].items()})
+
+    attempt("predictor", warm_predictor)
 
 
 @asynccontextmanager
@@ -874,6 +916,17 @@ try:
 except ModuleNotFoundError:
     from Backend.study_api import router as study_router
 app.include_router(study_router)
+
+# The interactive demo (/api/predict/*): the gradient boosting model, its SHAP
+# breakdown, and the language model that narrates one. Same lazy-import reason
+# as the routers above, plus one of its own -- this module is the only place in
+# the service that reads OPENROUTER_API_KEY, and the only one whose routes can
+# make an outbound network call.
+try:
+    from predict_api import router as predict_router
+except ModuleNotFoundError:
+    from Backend.predict_api import router as predict_router
+app.include_router(predict_router)
 
 # Mount the built assets last so they can't shadow the routes above. Vite emits
 # fingerprinted files into dist/assets and references them from dist/index.html

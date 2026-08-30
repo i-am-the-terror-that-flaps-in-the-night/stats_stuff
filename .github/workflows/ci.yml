@@ -122,3 +122,42 @@ jobs:
 
       - name: Rebuild the cohort and diff it against the committed CSV
         run: uv run python Backend/engine.py build-cohort --check
+
+  model:
+    name: Model -- predictor and offline page match their derivation
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      # No LFS. The predictor trains on the COMMITTED cohort, not the raw merge,
+      # so this job runs in the same state a Render deploy does -- and if the
+      # training path ever starts reaching for the 17 MB file, it fails here.
+      - uses: actions/checkout@v5
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+
+      - name: Install dependencies
+        run: uv sync
+
+      # Same guard as the cohort's, one layer further down. Backend/model/ is a
+      # build artifact that happens to be committed, and it can drift from the
+      # code and data that produce it in ways nothing else notices: change a
+      # feature, an inclusion rule or a hyperparameter and the site keeps
+      # serving predictions -- and SHAP explanations of them -- from a model
+      # that no longer matches what the repo says it is.
+      #
+      # This is a byte comparison, not an approximate one, which it can be
+      # because training is deterministic by construction (fixed seed,
+      # deterministic=True, single-threaded, no bagging). A difference means
+      # something really moved.
+      - name: Retrain the predictor and diff it against the committed model
+        run: uv run python Backend/engine.py train-model --check
+
+      # offline/index.html is the demo's lifeboat -- one self-contained file for
+      # a venue with no working network. Its numbers are baked in at build time,
+      # so it is exactly the artifact that can quietly describe last month's
+      # model, and it would do so most convincingly on the day it is needed.
+      - name: Rebuild the offline demo and diff it against the committed page
+        run: uv run python scripts/build_offline_demo.py --check

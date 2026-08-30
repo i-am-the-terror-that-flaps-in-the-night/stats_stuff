@@ -69,6 +69,11 @@ BASE_CHECKS = [
     ("/api/study/headline", "application/json"),
     ("/api/study/steps", "application/json"),
     ("/api/study/cohort", "application/json"),
+    # The demo. The model card is the only GET; the two POSTs are checked
+    # separately below, because they are the routes a judge actually drives and
+    # the only ones in the service that take a request body.
+    ("/api/predict/model", "application/json"),
+    ("/api/predict/llm", "application/json"),
 ]
 
 STUDY_STEPS = [
@@ -90,6 +95,7 @@ STUDY_STEPS = [
 SPA_ROUTES = [
     "/",
     "/study",
+    "/predict",
     "/figures",
     "/downloads",
     "/methodology",
@@ -112,6 +118,17 @@ def free_port() -> int:
 
 def get(url: str, accept: str, timeout: float = 60.0):
     request = urllib.request.Request(url, headers={"Accept": accept})
+    with urllib.request.urlopen(request, timeout=timeout) as response:
+        return response.status, response.read()
+
+
+def post(url: str, body: dict, timeout: float = 60.0):
+    request = urllib.request.Request(
+        url,
+        data=json.dumps(body).encode(),
+        headers={"Accept": "application/json", "Content-Type": "application/json"},
+        method="POST",
+    )
     with urllib.request.urlopen(request, timeout=timeout) as response:
         return response.status, response.read()
 
@@ -226,11 +243,69 @@ def main() -> int:
         elif not quiet:
             print(f"  ok   {path}  {status} ({len(payload)} bytes)")
 
+    def check_post(path: str, body: dict, expect: tuple[str, ...] = ()) -> None:
+        """POST one URL and require the named keys to come back non-empty.
+
+        The key list is the point. /api/predict/explain answers 200 whether the
+        language model worked or not -- that is its whole design -- so a status
+        check alone would pass on a response whose explanation was the empty
+        string. Naming the keys makes the failover's OUTPUT the thing under
+        test, not just its status line.
+        """
+        nonlocal checked
+        checked += 1
+        try:
+            status, payload = post(f"{base}{path}", body)
+        except urllib.error.HTTPError as err:
+            failures.append(f"POST {path} -> HTTP {err.code}: {err.read()[:200]!r}")
+            print(f"  FAIL POST {path}  HTTP {err.code}")
+            return
+        except Exception as err:
+            failures.append(f"POST {path} -> {err}")
+            print(f"  FAIL POST {path}  {err}")
+            return
+
+        problems = embedded_errors(payload)
+        if status != 200:
+            failures.append(f"POST {path} -> HTTP {status}")
+        for problem in problems:
+            failures.append(f"POST {path} -> {problem}")
+
+        answer = json.loads(payload)
+        for key in expect:
+            if not answer.get(key):
+                failures.append(f"POST {path} -> {key!r} was empty")
+
+        if status != 200 or problems:
+            print(f"  FAIL POST {path}  {status}")
+        else:
+            print(f"  ok   POST {path}  {status} ({len(payload)} bytes)")
+
     try:
         wait_for_health(base, server)
 
         for path, accept in BASE_CHECKS:
             check(path, accept)
+
+        # The demo's two POSTs. One filled-in reader and one empty body: the
+        # empty one exercises the "fall back to the cohort median" path, which
+        # is what an unfilled form sends and what the offline page relies on.
+        reader = {
+            "Sugar10g": 11.0,
+            "ScreenTime": 5,
+            "Age": 15,
+            "Male": 1,
+            "TrigHDLRatio": 2.1,
+            "HbA1c": 5.4,
+            "BMI": 24.0,
+        }
+        check_post("/api/predict", reader, ("predicted_alt", "drivers"))
+        check_post("/api/predict", {}, ("predicted_alt", "drivers", "adjustments"))
+        # No OPENROUTER_API_KEY in CI, so this exercises the canned third step
+        # of the failover -- which is the step that must never fail.
+        check_post(
+            "/api/predict/explain", reader, ("explanation", "source", "prediction")
+        )
 
         for name in STUDY_STEPS:
             check(f"/api/study/step/{name}")

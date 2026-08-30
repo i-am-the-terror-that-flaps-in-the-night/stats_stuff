@@ -18,8 +18,10 @@ import {
   fetchDensity,
   fetchDiagnostics,
   fetchHistogram,
+  fetchLlmStatus,
   fetchOutliers,
   fetchOverview,
+  fetchPredictorCard,
   fetchRuns,
   fetchSampleSize,
   fetchScatter,
@@ -38,7 +40,9 @@ import type {
   DiagnosticsResponse,
   EngineObject,
   HistogramResponse,
+  LlmStatus,
   OutliersResponse,
+  PredictorCard,
   SampleSizeResponse,
   ScatterResponse,
   ScreenResponse,
@@ -358,4 +362,35 @@ export function useStudyStep(name: string | null) {
     "Could not load that step.",
   );
   return { step: data as StudyStep | null, error, loading };
+}
+
+// ---- The prediction demo ---------------------------------------------------
+
+/**
+ * The model card, plus the language model's configuration.
+ *
+ * Loaded together because the page needs both before it can render honestly:
+ * the card builds the form, and the LLM status decides whether the explanation
+ * panel promises a paragraph or says up front that it will be the canned one.
+ *
+ * The status call is allowed to fail on its own. It is a diagnostic, and a
+ * missing one must not take down a page whose entire design is that the
+ * prediction does not depend on the language model.
+ */
+export function usePredictor() {
+  const { data, error, loading } = useAsync(
+    async () => {
+      const card = await fetchPredictorCard();
+      const llm = await fetchLlmStatus().catch(() => null);
+      return { card, llm };
+    },
+    [],
+    "Could not load the model. Build it with: python Backend/engine.py train-model",
+  );
+  return {
+    card: (data?.card ?? null) as PredictorCard | null,
+    llm: (data?.llm ?? null) as LlmStatus | null,
+    error,
+    loading,
+  };
 }

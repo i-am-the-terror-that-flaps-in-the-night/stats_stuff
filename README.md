@@ -126,11 +126,16 @@ quietly replaced by whichever subgroup happened to clear *p* < 0.05.
 stats_and_more/
 ├── main.py                  # Deploy entry point: re-exports Backend/app.py (Render's `uvicorn main:app`)
 ├── Backend/
-│   ├── engine.py            # ONE analysis file, three parts:
+│   ├── engine.py            # ONE analysis file, four parts:
 │   │                        #   1. the five generic stats tiers (DataAnalyzer)
 │   │                        #   2. the cohort derivation (+ `build-cohort` CLI)
 │   │                        #   3. the pre-specified ten-step study
+│   │                        #   4. the LightGBM predictor (+ `train-model` CLI)
+│   ├── model/               # The trained predictor -- a committed build artifact
+│   │   ├── alt_lgbm.txt     #   the booster, LightGBM's own text format (~44 KB)
+│   │   └── alt_lgbm.json    #   the model card: features, ranges, CV scores, caveats
 │   ├── study_api.py         # /api/study/*
+│   ├── predict_api.py       # /api/predict/* -- the demo, and the OpenRouter call
 │   ├── app.py               # FastAPI service: /healthz, the JSON API, serves frontend/dist
 │   ├── figures_api.py       # /api/figures/* chart aggregates
 │   ├── lab_api.py           # /api/lab/* Studio experiments
@@ -144,16 +149,19 @@ stats_and_more/
 ├── extra_data/
 │   ├── csv_data/            # NHANES component CSVs (gitignored)
 │   └── PDF_explanations/    # Variable codebook PDFs -- the source for every coding decision
+├── offline/
+│   └── index.html           # The no-internet demo: one self-contained file, generated
 ├── frontend/                # React + Vite + TypeScript SPA (built to frontend/dist, gitignored)
 │   └── src/
-│       ├── routes/          # Overview, Study, Figures, Methodology, Benchmarks, Changelog, Studio, Guide
+│       ├── routes/          # Overview, Study, Predict, Figures, Methodology, Benchmarks, Changelog, Studio, Guide
 │       ├── components/      # Shell, BootLoader, ResultView, Page primitives
 │       ├── lib/             # api.ts, hooks.ts, format.ts, scales.ts
 │       └── types/engine.ts  # API payload types
 ├── tests/
 │   ├── test_engine.py       # The engine's arithmetic and its statistical semantics
 │   ├── test_cohort.py       # Code decoding, exclusions, no-imputation, artifact drift
-│   └── test_study.py        # Survey design, shared samples, protocol fidelity
+│   ├── test_study.py        # Survey design, shared samples, protocol fidelity
+│   └── test_predictor.py    # SHAP additivity, the specification, the LLM failover
 ├── .gitattributes           # Git LFS: Data/nhanes_analytic.csv
 ├── render.yaml              # Render Blueprint
 ├── pyproject.toml           # Dependencies (managed with uv)
@@ -306,6 +314,10 @@ cd frontend && npm run dev         # frontend only (no API)
 | `GET /api/study/steps` | Step index: names, titles, claim grades |
 | `GET /api/study/step/{name}` | One step |
 | `GET /api/study/cohort` | The attrition table |
+| `GET /api/predict/model` | The predictor's model card: inputs, ranges, CV scores |
+| `POST /api/predict` | One prediction with its exact SHAP decomposition |
+| `POST /api/predict/explain` | The same, narrated by a language model (never fails) |
+| `GET /api/predict/llm` | Whether the language model is configured (setup check) |
 | `GET /api/figures/*` | Chart aggregates: histogram, box, scatter, correlation |
 | `GET /api/lab/*` | Studio experiments: cohort, sample-size, bootstrap, outliers, screen |
 | `GET /api/datasets`, `/api/runs` | Dataset inventory and the run log |
@@ -363,6 +375,7 @@ Two things worth knowing before changing the build:
 
 - **Overview** — the live analysis widget and dataset telemetry
 - **Study** — the ten steps, each with its claim grade; models load when a step is opened
+- **Predict** — the interactive demo: seven inputs, a predicted ALT, and an exact SHAP breakdown
 - **Figures** — histograms, box plots, scatter and the correlation matrix
 - **Methodology** — the pipeline, the tiers, the formulas and the missing-data rule
 - **Studio** (`/studio`, `/guide`) — the column and dataset browser, the experiments, the run log
@@ -371,15 +384,177 @@ The Studio's run log is a local SQLite file (`Backend/studio_runs.db`, gitignore
 tier has no persistent disk, so it is a personal lab notebook, not shared state the site depends
 on. An empty log is the normal online state.
 
+## The prediction demo
+
+The study answers a hypothesis. This answers a different question — *given these seven numbers,
+what ALT would you guess, and which of the seven moved the guess?* — and it is the part of the
+site a judge can touch.
+
+**Model.** LightGBM gradient-boosted trees on the same 586 adolescents and the *same
+specification* as the study's primary test (Model B with BMI: sugar, screen time, age, sex,
+Trig/HDL, HbA1c, BMI), predicting `ln(ALT)`, weighted by the survey weight. Nothing was added
+because it helped and nothing was dropped because it did not, so the two are two estimators of one
+pre-specified model rather than two different models.
+
+**It is also a check on the study.** Given a free hand — no linearity assumed, interactions
+allowed — the tree model leans on body mass and sex, then the metabolic markers, and puts dietary
+sugar second from last. That is the study's null result reached a second way, by a method with no
+stake in it.
+
+| Estimator | Out-of-fold R² on ln(ALT) | Mean absolute error |
+|---|---|---|
+| Gradient boosting | 0.2786 | 5.43 U/L |
+| The study's linear Model B | 0.2400 | 5.58 U/L |
+
+Both scored on identical folds, **grouped by sampling cluster** rather than by participant — two
+adolescents from the same sampled location are more alike than two strangers, and splitting them
+across the train/test line lets a model see its own answer. The number of boosting rounds is chosen
+*inside* each training fold by a second cross-validation, so the reported score pays for that
+choice instead of hiding it.
+
+### SHAP without the `shap` package
+
+Every prediction ships with exact per-feature SHAP contributions from LightGBM's own
+`pred_contrib=True`, which runs TreeSHAP inside the booster — the same numbers
+`shap.TreeExplainer` returns, because it delegates to this implementation for LightGBM models.
+
+That is a deliberate substitution. `shap` pulls in scikit-learn, numba, llvmlite, cloudpickle,
+tqdm and slicer; this service runs on 512 MB of which imported libraries are already ~184 MB, and
+numba has no wheel for the Python version this project pins. LightGBM alone is a 3.5 MB wheel and
+adds ~10 MB resident on top of the stack this service already loads. Same numbers, none of the
+weight.
+
+The contributions are additive by construction — base value + the seven contributions = the
+prediction, exactly — which is what makes the chart a decomposition rather than an attribution
+heuristic. `tests/test_predictor.py` pins that identity.
+
+### Training is offline; the model is committed
+
+```bash
+uv run python Backend/engine.py train-model          # refit, write Backend/model/
+uv run python Backend/engine.py train-model --check  # CI's drift guard
+```
+
+Same bargain as the cohort CSV: Render's filesystem is ephemeral and 0.1 vCPU is not something to
+run a fit on inside a request, so training happens locally and the booster plus its model card are
+committed. `--check` retrains in memory and compares — **structure exactly** (features, n, clusters,
+rounds, hyperparameters, input ranges, importance order) and **behaviour to 1e-6** across the whole
+cohort. It is not a byte diff on purpose: the model is trained on a Mac and verified on x86 Linux,
+and nothing in LightGBM promises bit-identical split thresholds across architectures. A guard that
+can go red when nothing is wrong is a guard nobody trusts.
+
+Rebuild `offline/index.html` after any retrain (see below). CI checks both.
+
+### The language model
+
+`POST /api/predict/explain` hands the finished prediction and its contributions to a hosted model
+as *text* and gets two to four sentences back. **The language model does not predict anything**,
+never sees the cohort, and cannot reach the booster. If it returns something wrong, every number on
+the page is still the number gradient boosting produced.
+
+That boundary is enforced by the route split, not by a promise: `/api/predict` makes no outbound
+call, the frontend renders it first, and only then asks for prose.
+
+**Failover, three steps** (`Backend/predict_api.py`):
+
+1. **Nemotron 3.5 Lightning** (`nvidia/nemotron-3.5-lightning`), 3 s timeout.
+2. On any failure — timeout, HTTP error, malformed body, a slug OpenRouter has retired —
+   **Nemotron 3 Ultra** (`nvidia/nemotron-3-ultra-550b-a55b`), 8 s.
+3. On a second failure, a **generated** explanation. Not a fixed string: it is assembled from the
+   same SHAP contributions the model would have been given, so it names *this* reader's actual top
+   drivers in their actual directions. The response says which of the three answered, and the page
+   labels a fallback as one rather than passing it off.
+
+Reasoning is switched off in the request. A reasoning model that spends twenty seconds thinking in
+front of a judge reads as a broken website, and there is nothing here to reason about.
+
+The system prompt is **built from `engine.headline()` at call time**, not written by hand, so it
+cannot come to disagree with the study it describes — the sugar null result and its *p*-value are
+read from the same function the site's own summary card uses. The rules are mostly prohibitions:
+no causal verbs, no medical advice, no facts that are not in the message.
+
+The outbound call uses `urllib` from the standard library. One POST of a small JSON body with a
+timeout is the whole requirement, and this service pays for every import on every cold start —
+the same argument behind the frontend's hand-rolled ZIP and PDF writers.
+
+### Configuring it
+
+`OPENROUTER_API_KEY` is read **server-side only**, in `Backend/predict_api.py`, and never leaves
+it. The browser calls this service; this service calls OpenRouter:
+
+```
+browser  →  Render (holds the key)  →  OpenRouter  →  Nemotron
+```
+
+Set it in the Render dashboard (`render.yaml` declares it `sync: false`, so the value is never in
+the repo). Locally, export it in your shell. Then check:
+
+```bash
+curl https://<service>.onrender.com/api/predict/llm
+```
+
+**Leaving it unset is safe.** `/api/predict` never touches it, and `/api/predict/explain` falls
+back to its generated text and says so. An unconfigured deploy is a working demo minus the
+model-written paragraph, not a broken one.
+
+Costs are negligible — ~600 tokens in and ~120 out per explanation, at $0.08/$0.20 per million for
+Lightning. **Do not run the fair on the `:free` variants**: they are rate-limited per account, and
+a night of testing followed by a queue of judges is exactly the traffic shape that trips them.
+
+### The offline demo
+
+```bash
+uv run python scripts/build_offline_demo.py          # write offline/index.html
+uv run python scripts/build_offline_demo.py --check  # CI's staleness guard
+```
+
+Hosting on Render makes a network connection a hard dependency of the *entire* demo, not just of
+the language model — a captive portal on the venue wifi takes down the whole thing.
+`offline/index.html` is one self-contained file with no server, no API, no fonts, no CDN and no
+JavaScript library. Put it on a laptop or a USB stick and open it with a double click.
+
+It cannot run the model, so six adolescents are run through the real engine at build time and their
+predictions, SHAP breakdowns and fallback explanations are baked in. The page says so, in those
+words, at the top.
+
+### What a prediction is allowed to mean
+
+Nothing here is a diagnosis and nothing here is causal. The model reports where NHANES adolescents
+with a given set of numbers tended to sit, from one survey cycle and 586 participants. Moving an
+input changes the model's guess; it does not tell you what would happen to a real person. Every
+response carries that sentence, and the language model is handed it too.
+
+Out-of-range inputs are **clamped and reported**, never silently accepted: a tree extrapolates by
+returning its edge leaf, so a BMI of 90 produces the same answer as the highest BMI in the data,
+and presenting that as a prediction about a BMI of 90 would be a lie the model cannot detect.
+
+### Explaining it to a judge
+
+> *"The prediction comes from a gradient boosting model we trained ourselves on the NHANES data —
+> the same seven variables as our main regression. The chart underneath it is a SHAP decomposition:
+> the model's starting point plus one bar per input equals the prediction exactly, so you can check
+> the addition. The paragraph is written by NVIDIA's Nemotron through an API. We didn't train it —
+> we send it our model's output and it puts it in plain English. It can't change the prediction."*
+
+- *"Why an API instead of running it yourself?"* — A 550-billion-parameter model needs datacenter
+  GPUs. Even the small one would add real complexity to a web deployment for no scientific benefit.
+- *"Could the language model change the prediction?"* — No. It receives the prediction and the SHAP
+  values as text and describes them. It has no access to the data or the model, and the page renders
+  the numbers before it is asked.
+- *"What if the AI is down?"* — The prediction and the chart don't depend on it. You'd get a
+  paragraph the server writes from the same numbers, labelled as such.
+
 ## Development
 
 ```bash
-uv run pytest                        # 73 Python tests
-npm --prefix frontend test           # 12 frontend unit tests (vitest)
-uv run python scripts/smoke_test.py  # 291 live HTTP checks
+uv run pytest                        # 106 Python tests
+npm --prefix frontend test           # 49 frontend unit tests (vitest)
+uv run python scripts/smoke_test.py  # 298 live HTTP checks
 uv run ruff check Backend/ tests/ scripts/
 uv run ruff format Backend/ tests/ scripts/
 python Backend/engine.py build-cohort --check   # data/code drift guard
+python Backend/engine.py train-model --check    # model/code drift guard
+python scripts/build_offline_demo.py --check    # offline page staleness guard
 ```
 
 The test suites are aimed at the failures that don't announce themselves. A statistics bug doesn't
@@ -418,6 +593,11 @@ Two dependency manifests exist and can drift, so it's worth knowing which does w
 
 Nothing regenerates one from the other, so bump both together.
 
+`render.yaml` also declares the demo's environment: `OPENROUTER_API_KEY` as `sync: false` (Render
+prompts for it; the value is never in the repo), plus the two model slugs and their timeouts as
+plain values so a retired model can be swapped from the dashboard without a redeploy. See
+[The language model](#the-language-model).
+
 ### Cold starts
 
 Render's free plan spins the service down when idle. Two things keep the restart fast: pandas,
@@ -425,7 +605,18 @@ statsmodels and the engine are imported *lazily* inside the functions that use t
 binds the port and `/healthz` answers before any of that loads; and a background thread warms every
 cache on startup — the dataframe, the column lists, the basic tier for each column, the figures,
 and finally the study itself — so the first visitor usually finds the answers already computed.
-`.github/workflows/keepalive.yml` pings `/healthz` on a schedule to keep the process resident.
+`.github/workflows/keepalive.yml` pings `/healthz` on a schedule to keep the process resident —
+but it needs a repo variable that is **currently unset**, so every scheduled run fails immediately:
+
+```bash
+gh variable set SERVICE_URL --body https://<service>.onrender.com
+```
+
+For a fair specifically, the pinger is second best. GitHub's cron is best-effort and routinely runs
+late, which leaves a window wide enough for Render to spin the service down between judges. The
+reliable fix is one line in `render.yaml` — `plan: starter` (~$7/month, always on) — for the month
+of the fair, cancelled afterwards. Left on `free` in the repo because switching plans is a billing
+decision, not a code one.
 
 ## Data sources
 
