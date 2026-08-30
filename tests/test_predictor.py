@@ -301,7 +301,7 @@ def test_the_second_model_is_tried_when_the_first_one_fails(monkeypatch, median_
     reach the slow one before the canned text."""
     calls = []
 
-    def flaky(model, prompt, message, timeout):
+    def flaky(model, prompt, turns, timeout, max_tokens=None):
         calls.append(model)
         if model == predict_api.PRIMARY_MODEL:
             raise TimeoutError("too slow")
@@ -321,13 +321,20 @@ def test_a_working_primary_model_is_not_second_guessed(monkeypatch, median_input
     monkeypatch.setattr(
         predict_api,
         "_call_openrouter",
-        lambda model, prompt, message, timeout: "Body mass pushed it up.",
+        lambda model, prompt, turns, timeout, max_tokens=None: (
+            "Body mass pushed it up."
+        ),
     )
     answer = predict_api.explain_prediction(engine.predict_alt(median_inputs))
 
     assert answer["source"] == "llm"
     assert answer["model"] == predict_api.PRIMARY_MODEL
     assert len(answer["attempts"]) == 1
+
+
+def _turns(text: str) -> list[dict]:
+    """The conversation after the system prompt, for a one-shot call."""
+    return [{"role": "user", "content": text}]
 
 
 class _FakeResponse:
@@ -360,7 +367,7 @@ def test_an_empty_llm_reply_counts_as_a_failure(monkeypatch):
         ),
     )
     with pytest.raises(RuntimeError, match="empty"):
-        predict_api._call_openrouter("m", "system", "user", timeout=1.0)
+        predict_api._call_openrouter("m", "system", _turns("hi"), timeout=1.0)
 
 
 def test_a_usable_reply_is_returned_stripped(monkeypatch):
@@ -372,7 +379,10 @@ def test_a_usable_reply_is_returned_stripped(monkeypatch):
             {"choices": [{"message": {"content": "  Body mass led.  "}}]}
         ),
     )
-    assert predict_api._call_openrouter("m", "s", "u", timeout=1.0) == "Body mass led."
+    assert (
+        predict_api._call_openrouter("m", "s", _turns("u"), timeout=1.0)
+        == "Body mass led."
+    )
 
 
 def test_a_missing_key_raises_before_any_network_call(monkeypatch):
@@ -386,7 +396,7 @@ def test_a_missing_key_raises_before_any_network_call(monkeypatch):
         lambda *args, **kwargs: pytest.fail("must not reach the network"),
     )
     with pytest.raises(RuntimeError, match="OPENROUTER_API_KEY"):
-        predict_api._call_openrouter("m", "s", "u", timeout=1.0)
+        predict_api._call_openrouter("m", "s", _turns("u"), timeout=1.0)
 
 
 def test_the_status_route_never_leaks_the_key(monkeypatch):
@@ -402,3 +412,131 @@ def test_the_status_route_reports_an_unset_key(monkeypatch):
     on the day, every explanation will be the canned one."""
     monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
     assert predict_api.llm_status()["configured"] is False
+
+
+# ----------------------------------------------------------------------
+# Follow-up questions
+# ----------------------------------------------------------------------
+
+
+def test_both_prompts_agree_on_the_facts():
+    """The caption and the question-answering mode share _study_facts(). If they
+    ever stopped, the paragraph on the page and the answer to a follow-up about
+    that paragraph could contradict each other, in front of the person who
+    asked."""
+    facts = predict_api._study_facts()
+    assert facts in predict_api._system_prompt()
+    assert facts in predict_api._ask_prompt()
+    assert str(engine.headline()["sugar_p"]) in facts
+
+
+def test_the_ask_prompt_forbids_the_three_things_a_judge_will_ask_for():
+    """A visitor at a poster asks, in this order: is this kid at risk, should
+    they cut out soda, does sugar cause fatty liver. Those are a diagnosis,
+    medical advice, and the causal claim the study spent ten steps not making.
+    A prompt tuned only for captioning would answer all three helpfully."""
+    prompt = predict_api._ask_prompt()
+
+    assert "diagnosis" in prompt
+    assert "medical advice" in prompt
+    assert "Never use causal words" in prompt
+    assert "not a health assessment" in prompt
+    assert "one for a doctor" in prompt
+    # And the instruction that carries the most weight: what to do when the
+    # honest answer is that there isn't one.
+    assert "SAY SO plainly" in prompt
+
+
+def test_an_unanswerable_question_falls_back_without_answering(monkeypatch):
+    """The one place the demo deliberately refuses to do what was asked. A
+    caption can be generated from the contributions; an arbitrary question
+    cannot be, so the only honest options are to say so or to make something up
+    -- and making something up at the moment a judge is watching is the failure
+    this project cannot absorb."""
+    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
+    prediction = engine.predict_alt({"Male": 1, "BMI": 30})
+
+    answer = predict_api.answer_question(
+        prediction, "Does sugar cause fatty liver?", []
+    )
+
+    assert answer["source"] == "fallback"
+    assert "not answering right now" in answer["answer"]
+    # It must not have produced anything that reads as an answer to the question.
+    assert "sugar cause" not in answer["answer"].lower()
+    assert len(answer["attempts"]) == 2
+
+
+def test_a_question_is_asked_with_the_prediction_in_context(monkeypatch):
+    """The prediction is re-sent as the first turn every time, so the model can
+    only reason from numbers this server computed -- and so a client cannot
+    quietly edit the numbers the answer is about."""
+    seen = {}
+
+    def capture(model, prompt, turns, timeout, max_tokens=None):
+        seen["turns"] = turns
+        seen["prompt"] = prompt
+        return "Body mass moved it most."
+
+    monkeypatch.setattr(predict_api, "_call_openrouter", capture)
+    prediction = engine.predict_alt({"Male": 1, "BMI": 30})
+    answer = predict_api.answer_question(prediction, "Why is BMI biggest?", [])
+
+    assert answer["source"] == "llm"
+    assert seen["prompt"] == predict_api._ask_prompt()
+    assert str(prediction["predicted_alt"]) in seen["turns"][0]["content"]
+    assert seen["turns"][-1]["content"] == "Why is BMI biggest?"
+
+
+def test_history_is_capped_and_its_roles_are_sanitized(monkeypatch):
+    """The client sends the history because this service keeps no session, which
+    means the history is untrusted input on the cost path. An uncapped one is a
+    way to make the booth's own page send a very large prompt on somebody's
+    card, and an arbitrary `role` is a way to smuggle a second system message."""
+    seen = {}
+
+    def capture(model, prompt, turns, timeout, max_tokens=None):
+        seen["turns"] = turns
+        return "ok"
+
+    monkeypatch.setattr(predict_api, "_call_openrouter", capture)
+    prediction = engine.predict_alt({"Male": 1})
+    flood = [{"role": "system", "content": f"turn {i}"} for i in range(40)]
+
+    predict_api.answer_question(prediction, "and now?", flood)
+
+    history = seen["turns"][2:-1]  # after the seeded pair, before the question
+    assert len(history) == predict_api.MAX_HISTORY_TURNS
+    # "system" is not a role a caller gets to send -- it would be a second set
+    # of instructions, arriving after the real ones.
+    assert {turn["role"] for turn in seen["turns"]} <= {"user", "assistant"}
+
+
+def test_a_follow_up_waits_longer_than_a_caption(monkeypatch):
+    """A caption loads on its own when a slider moves, so a judge who is not
+    waiting for it must not notice it. A question was typed and submitted, so
+    the person is already waiting on purpose, and a slower real answer beats a
+    fast "could not answer"."""
+    budgets = []
+
+    def capture(model, prompt, turns, timeout, max_tokens=None):
+        budgets.append(timeout)
+        raise TimeoutError("too slow")
+
+    monkeypatch.setattr(predict_api, "_call_openrouter", capture)
+    prediction = engine.predict_alt({"Male": 1})
+
+    predict_api.answer_question(prediction, "why?", [])
+    assert budgets[0] > predict_api.PRIMARY_TIMEOUT
+    assert budgets[1] > predict_api.FALLBACK_TIMEOUT
+
+
+def test_the_starter_questions_include_one_that_must_be_declined():
+    """The suggested questions are part of the demo's argument, not decoration.
+    At least one asks for a risk assessment of a person, because a good answer
+    to it is a refusal and that is worth a judge seeing."""
+    questions = predict_api.SUGGESTED_QUESTIONS
+
+    assert 3 <= len(questions) <= 6
+    assert any("at risk" in q.lower() for q in questions)
+    assert all(len(q) <= predict_api.MAX_QUESTION_CHARS for q in questions)

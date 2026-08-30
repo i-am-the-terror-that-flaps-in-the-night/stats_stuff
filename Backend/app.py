@@ -62,6 +62,8 @@ ROUTES
     GET  /api/predict/model             the ALT model card       (predict_api.py)
     POST /api/predict                   prediction + SHAP        (predict_api.py)
     POST /api/predict/explain           the same, narrated       (predict_api.py)
+    POST /api/predict/ask               a follow-up question     (predict_api.py)
+    GET  /api/predict/questions         starter questions        (predict_api.py)
     GET  /api/predict/llm               LLM setup diagnostic     (predict_api.py)
     GET  /api/datasets                  dataset inventory        (studio.py)
     GET  /api/runs, POST /api/runs      the saved-run log        (studio.py)

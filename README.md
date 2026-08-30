@@ -317,6 +317,8 @@ cd frontend && npm run dev         # frontend only (no API)
 | `GET /api/predict/model` | The predictor's model card: inputs, ranges, CV scores |
 | `POST /api/predict` | One prediction with its exact SHAP decomposition |
 | `POST /api/predict/explain` | The same, narrated by a language model (never fails) |
+| `POST /api/predict/ask` | A follow-up question about that prediction |
+| `GET /api/predict/questions` | Starter questions for the question box |
 | `GET /api/predict/llm` | Whether the language model is configured (setup check) |
 | `GET /api/figures/*` | Chart aggregates: histogram, box, scatter, correlation |
 | `GET /api/lab/*` | Studio experiments: cohort, sample-size, bootstrap, outliers, screen |
@@ -468,6 +470,43 @@ call, the frontend renders it first, and only then asks for prose.
 Reasoning is switched off in the request. A reasoning model that spends twenty seconds thinking in
 front of a judge reads as a broken website, and there is nothing here to reason about.
 
+### Follow-up questions
+
+`POST /api/predict/ask` takes a question and the exchange so far, and answers it about the
+prediction on screen. The conversation lives in the browser — this service keeps no session, so two
+people at the booth can never land in each other's thread, and a free-tier restart loses nothing.
+
+**It is a second LLM mode, not a longer caption, and the difference is the whole point.** A judge
+will ask, roughly in this order:
+
+- *"So is this kid at risk?"* — a request for a **diagnosis**
+- *"Should they cut out soda?"* — a request for **medical advice**
+- *"Does sugar cause fatty liver?"* — a request for the **causal claim the study spent ten steps not
+  making**
+
+A prompt tuned for captioning would answer all three, helpfully and wrongly. So `/ask` gets its own
+system prompt built around declining them and saying what the numbers *do* show. Both prompts share
+`_study_facts()`, so they can never disagree about what the study found — only about what they are
+allowed to do with it.
+
+**The offline fallback does not answer.** This is the one place in the demo where the fallback
+deliberately refuses to do what was asked. The caption's content is fully determined by the SHAP
+contributions, so the server can generate it. An arbitrary question is not determined by anything
+the server can compute, so the only honest options are to say the answer is unavailable or to make
+one up — and a project whose entire argument is that it is careful about what it claims does not
+get to make one up at the moment a judge is watching.
+
+The starter questions are served from `/api/predict/questions`, not hard-coded in the frontend,
+because they are part of the argument rather than decoration — one of them asks for a risk
+assessment, and a judge watching the model *decline* learns more than a fluent answer would teach
+them. Keeping them beside the prompt that has to handle them means the two get edited together.
+
+Two smaller decisions: a follow-up gets ~2.5× the caption's timeout, because a caption loads on its
+own when a slider moves and must not be noticed, while a question was typed and submitted by
+someone already waiting on purpose. And the transcript is **cleared whenever an input moves** — an
+answer about the previous adolescent sitting under a new chart is the one way this page could
+actively mislead someone, and it is the obvious way to build it if nobody thinks about it.
+
 The system prompt is **built from `engine.headline()` at call time**, not written by hand, so it
 cannot come to disagree with the study it describes — the sugar null result and its *p*-value are
 read from the same function the site's own summary card uses. The rules are mostly prohibitions:
@@ -542,14 +581,17 @@ and presenting that as a prediction about a BMI of 90 would be a lie the model c
   values as text and describes them. It has no access to the data or the model, and the page renders
   the numbers before it is asked.
 - *"What if the AI is down?"* — The prediction and the chart don't depend on it. You'd get a
-  paragraph the server writes from the same numbers, labelled as such.
+  paragraph the server writes from the same numbers, labelled as such. A follow-up question would
+  say the model is unavailable rather than guess at an answer.
+- *"Can it tell me if my kid is at risk?"* — No, and it's built to say so. Try asking it — that's
+  one of the suggested questions.
 
 ## Development
 
 ```bash
-uv run pytest                        # 106 Python tests
+uv run pytest                        # 118 Python tests
 npm --prefix frontend test           # 49 frontend unit tests (vitest)
-uv run python scripts/smoke_test.py  # 298 live HTTP checks
+uv run python scripts/smoke_test.py  # 300 live HTTP checks
 uv run ruff check Backend/ tests/ scripts/
 uv run ruff format Backend/ tests/ scripts/
 python Backend/engine.py build-cohort --check   # data/code drift guard

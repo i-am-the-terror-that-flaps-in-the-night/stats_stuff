@@ -15,10 +15,29 @@ WHAT THIS IS FOR
     model.
 
 ROUTES
-    GET  /api/predict/model     the model card -- inputs, ranges, scores, caveats
-    POST /api/predict           one prediction with its SHAP decomposition
-    POST /api/predict/explain   the same breakdown, narrated by an LLM
-    GET  /api/predict/llm       is the LLM configured? (setup diagnostic only)
+    GET  /api/predict/model      the model card -- inputs, ranges, scores, caveats
+    POST /api/predict            one prediction with its SHAP decomposition
+    POST /api/predict/explain    the same breakdown, narrated by an LLM
+    POST /api/predict/ask        a follow-up question about that prediction
+    GET  /api/predict/questions  starter questions for the question box
+    GET  /api/predict/llm        is the LLM configured? (setup diagnostic only)
+
+TWO LLM MODES, AND THE DIFFERENCE MATTERS
+    /explain captions a prediction: one job, fully determined by the SHAP
+    contributions, so when the model cannot be reached the server can generate
+    the caption itself and lose nothing but polish.
+
+    /ask answers whatever the visitor typed. Its failure mode is different in
+    kind -- a judge will ask "so is this kid at risk?", "should they cut out
+    soda?", "does sugar cause fatty liver?", which are requests for a diagnosis,
+    for medical advice, and for the causal claim the study spent ten steps not
+    making. So it gets its own system prompt built around declining those, and
+    its offline fallback DOES NOT ANSWER: it says the model is unavailable and
+    points at the chart. Inventing an answer at the moment a judge is watching
+    is the one failure this project cannot absorb.
+
+    Both prompts share _study_facts(), so they can never disagree about what the
+    study found -- only about what they are allowed to do with it.
 
 THE LINE BETWEEN THE MODEL AND THE LANGUAGE MODEL
     The language model does not predict anything, does not see the cohort, and
@@ -112,6 +131,32 @@ FALLBACK_TIMEOUT = float(os.environ.get("OPENROUTER_FALLBACK_TIMEOUT", "8.0"))
 # and a model given room to write five paragraphs will start theorizing about
 # livers.
 MAX_TOKENS = 220
+
+# A follow-up gets more room than a caption and still not much. A question
+# deserves a real answer; five paragraphs at a poster is a wall nobody reads,
+# and length is where a model drifts from the numbers into the general
+# knowledge about livers it is not supposed to be using.
+ASK_MAX_TOKENS = 420
+
+# Follow-ups get a longer budget than the caption, and the reason is about the
+# reader rather than the model. The caption loads on its own the moment a slider
+# moves, so a judge who is not waiting for it must never notice it; three
+# seconds is that budget. A question was TYPED and submitted, so the person is
+# already waiting on purpose, and at that point a slower real answer beats a
+# fast "the model could not answer". Derived from the base timeouts rather than
+# given their own environment variables -- one knob per venue, not three.
+ASK_TIMEOUT = float(os.environ.get("OPENROUTER_ASK_TIMEOUT", PRIMARY_TIMEOUT * 2.5))
+ASK_FALLBACK_TIMEOUT = float(
+    os.environ.get("OPENROUTER_ASK_FALLBACK_TIMEOUT", FALLBACK_TIMEOUT * 2)
+)
+
+# What the client may send back as conversation history. Both caps are about
+# cost and latency rather than correctness: this service holds no session, so
+# the history arrives in the request, and an uncapped one is a way to make the
+# booth's own page send a very large prompt on somebody's card. Six turns is
+# three exchanges, which is more follow-up than a judge has ever asked for.
+MAX_QUESTION_CHARS = 400
+MAX_HISTORY_TURNS = 6
 
 # Sent by OpenRouter to the model page's leaderboard. Harmless, and it makes the
 # project's own traffic identifiable in the account dashboard.
@@ -219,21 +264,20 @@ def predict(body: PredictIn):
 
 
 @lru_cache(maxsize=1)
-def _system_prompt() -> str:
-    """The system prompt, built from the study's ACTUAL results at call time.
+def _study_facts() -> str:
+    """Everything true about this project, written from engine.py at call time.
 
-    This is the fact-checking step, done by construction rather than by
-    proofreading. Every number below is read from engine.py -- the same
-    functions that produce the site's own numbers -- so the prompt cannot come
-    to disagree with the study it is describing. A hardcoded "sugar was not
-    significant (p = 0.76)" would be one refit away from being a lie told
-    confidently to a judge.
+    THIS IS THE FACT-CHECKING STEP, done by construction rather than by
+    proofreading. Every number below is read from the same functions that
+    produce the site's own numbers, so a prompt cannot come to disagree with the
+    study it describes. A hardcoded "sugar was not significant (p = 0.76)" would
+    be one refit away from being a lie told confidently to a judge.
 
-    The instructions are mostly prohibitions, and the prohibitions are the
-    point. The one genuine risk in bolting a language model onto this project
-    is that it says the thing the study spent ten steps not saying: that sugar
-    causes liver stress. So the null result is stated explicitly, causal
-    language is banned outright, and the model is told it may not add facts.
+    Shared by both prompts below. The caption and the question-answering mode
+    differ in what they are allowed to DO, never in what they are told is true
+    -- if they could drift apart on the facts, the paragraph on the page and the
+    answer to a follow-up about it could contradict each other, in front of the
+    person who asked.
     """
     engine = _engine()
     head = engine.headline()
@@ -243,10 +287,7 @@ def _system_prompt() -> str:
         f"{row['label']} ({row['mean_abs_shap']})" for row in card["importance"]
     )
 
-    return f"""You explain one prediction from a science-fair project's model. \
-You are the caption under a chart, not an analyst.
-
-THE PROJECT
+    return f"""THE PROJECT
 An 8th-grade Medicine & Health project on dietary sugar, metabolic markers and \
 early liver stress in U.S. adolescents aged 12-17, using NHANES 2017-2018 \
 (n = {head["n"]} in the primary model).
@@ -273,6 +314,27 @@ The numbers you are given are exact SHAP contributions: the base value plus \
 every contribution equals the prediction. They describe THIS MODEL'S \
 arithmetic, not a person's biology.
 
+HOW GOOD IS IT, HONESTLY
+An out-of-fold R-squared near 0.28 means the model explains under a third of
+the variation in ALT. It is better than the linear model and it is not a
+diagnostic tool. Say so if asked.
+"""
+
+
+@lru_cache(maxsize=1)
+def _system_prompt() -> str:
+    """The caption mode: describe this one prediction and stop.
+
+    The instructions are mostly prohibitions, and the prohibitions are the
+    point. The one genuine risk in bolting a language model onto this project is
+    that it says the thing the study spent ten steps not saying: that sugar
+    causes liver stress. So the null result is stated explicitly, causal
+    language is banned outright, and the model is told it may not add facts.
+    """
+    return f"""You explain one prediction from a science-fair project's model. \
+You are the caption under a chart, not an analyst.
+
+{_study_facts()}
 RULES
 1. Two to four sentences. Plain language, no jargon, no bullet points, no \
 headings, no markdown.
@@ -290,6 +352,65 @@ that the study found no independent association overall and this is one \
 prediction, not evidence against that.
 7. Write for a curious visitor at a science fair: interested, not a \
 statistician."""
+
+
+@lru_cache(maxsize=1)
+def _ask_prompt() -> str:
+    """The follow-up mode: answer the visitor's actual question.
+
+    WHY THIS IS A SEPARATE PROMPT AND NOT A LONGER CAPTION
+        The caption has one job and a fixed table to do it from, so "use only
+        the numbers in the user message" is a complete instruction. A question
+        is open-ended, and the failure modes change shape with it. A judge will
+        ask "so is this kid at risk?", "should they cut out soda?", "does sugar
+        cause fatty liver?" -- three requests for, respectively, a diagnosis,
+        medical advice, and the causal claim the study spent ten steps not
+        making. A prompt tuned for captioning would answer all three helpfully.
+
+        So this one is built around what to do when the honest answer is not
+        available: say the numbers do not support it, and say what they do
+        support. That instruction is worth more here than any amount of
+        encouragement to be informative, because the cost of a wrong answer at a
+        science fair is not a bad answer -- it is a judge told something false
+        by a project whose whole argument is that it is careful.
+
+    It shares _study_facts() with the caption, so the two cannot drift apart on
+    what is true.
+    """
+    return f"""You answer follow-up questions from a visitor at a science fair, \
+about one prediction from the project's model. You are a careful explainer of \
+somebody else's work, not an analyst and not a clinician.
+
+{_study_facts()}
+WHAT YOU CAN AND CANNOT ANSWER FROM
+You are given the prediction, its exact SHAP breakdown, and the facts above. \
+That is everything you know. You cannot run the model again, cannot see other \
+adolescents, and cannot look anything up.
+
+RULES
+1. Two to five sentences. Plain language, no markdown, no bullet points, no \
+headings.
+2. Answer from the numbers you were given and the facts above, and nothing \
+else. If a question cannot be answered from them, SAY SO plainly and say what \
+the numbers do show instead. "The model doesn't measure that" is a good answer.
+3. Never use causal words -- causes, leads to, results in, due to, because of, \
+raises your risk, protects against. Say "is associated with", "the model \
+weighted", "pushed the prediction up".
+4. Never give medical advice, a diagnosis, a risk assessment of a person, or a \
+recommendation about what anyone should eat or do. If asked, say that this is a \
+statistical model built for a science project, not a health assessment, and \
+that a question about a real person is one for a doctor.
+5. Never say or imply that dietary sugar causes liver stress. The study's \
+pre-specified test found no independent association once BMI was accounted for. \
+If the question presses on sugar, give that result plainly.
+6. Do not invent numbers, and do not re-round the ones you have. If you are \
+asked for a figure you were not given, say you do not have it.
+7. If asked what would happen when an input changes, you may describe which way \
+the model has weighted that input FOR THIS PREDICTION, and must add that \
+changing the number changes the model's guess, not anyone's liver.
+8. If the question is not about this prediction, this model or this study, say \
+that is outside what the project can speak to, in one sentence.
+9. Never claim to be a person, a doctor, or the student who built this."""
 
 
 def _user_message(prediction: dict) -> str:
@@ -396,8 +517,20 @@ def _canned_explanation(prediction: dict) -> str:
     )
 
 
-def _call_openrouter(model: str, prompt: str, message: str, timeout: float) -> str:
+def _call_openrouter(
+    model: str,
+    prompt: str,
+    turns: list[dict],
+    timeout: float,
+    max_tokens: int = MAX_TOKENS,
+) -> str:
     """One OpenRouter chat completion. Raises on anything short of usable text.
+
+    `turns` is the conversation after the system prompt -- one entry for the
+    caption, and the whole back-and-forth for a follow-up question. The service
+    keeps no session: the client sends the history it wants answered in context
+    and this rebuilds the request from scratch each time, which is why two
+    people at the booth can never land in each other's conversation.
 
     Every failure mode -- no key, socket timeout, HTTP 4xx/5xx, unparseable
     body, empty content -- comes out as an exception, because the caller's only
@@ -412,11 +545,8 @@ def _call_openrouter(model: str, prompt: str, message: str, timeout: float) -> s
     payload = json.dumps(
         {
             "model": model,
-            "messages": [
-                {"role": "system", "content": prompt},
-                {"role": "user", "content": message},
-            ],
-            "max_tokens": MAX_TOKENS,
+            "messages": [{"role": "system", "content": prompt}, *turns],
+            "max_tokens": max_tokens,
             # Low, not zero: this is a caption over a fixed table of numbers, so
             # there is nothing to be creative about, and drift is the only thing
             # variety could buy.
@@ -447,26 +577,25 @@ def _call_openrouter(model: str, prompt: str, message: str, timeout: float) -> s
     return text
 
 
-def explain_prediction(prediction: dict) -> dict:
-    """Strategy B: Lightning, then Ultra, then the canned explanation.
+def _chain(
+    prompt: str,
+    turns: list[dict],
+    timeouts: tuple[float, float],
+    max_tokens: int = MAX_TOKENS,
+) -> tuple[str | None, str | None, list[dict]]:
+    """Strategy B's first two steps: Lightning, then Ultra.
 
-    Always returns a usable dict -- there is no failure path out of this
-    function, which is the whole design. `source` says which step answered
-    ("llm" or "fallback") and `attempts` records what each one did, so the page
-    can label a fallback and a developer can see at the booth why the fast model
-    was skipped.
+    Returns (text, model, attempts) with text None when both failed -- the third
+    step differs by caller and so is theirs to supply. The caption can generate
+    a real fallback from the contributions; a follow-up question cannot, and
+    must say so instead of inventing one. Sharing the chain and not the fallback
+    is what keeps that distinction from being an accident.
     """
-    prompt = _system_prompt()
-    message = _user_message(prediction)
     attempts: list[dict] = []
-
-    for model, timeout in (
-        (PRIMARY_MODEL, PRIMARY_TIMEOUT),
-        (FALLBACK_MODEL, FALLBACK_TIMEOUT),
-    ):
+    for model, timeout in zip((PRIMARY_MODEL, FALLBACK_MODEL), timeouts):
         started = time.perf_counter()
         try:
-            text = _call_openrouter(model, prompt, message, timeout)
+            text = _call_openrouter(model, prompt, turns, timeout, max_tokens)
         except Exception as failure:
             attempts.append(
                 {
@@ -492,18 +621,29 @@ def explain_prediction(prediction: dict) -> dict:
                 "ms": round((time.perf_counter() - started) * 1000),
             }
         )
-        return {
-            "explanation": text,
-            "source": "llm",
-            "model": model,
-            "attempts": attempts,
-            "disclaimer": LLM_DISCLAIMER,
-        }
+        return text, model, attempts
 
+    return None, None, attempts
+
+
+def explain_prediction(prediction: dict) -> dict:
+    """Strategy B in full: Lightning, then Ultra, then the canned explanation.
+
+    Always returns a usable dict -- there is no failure path out of this
+    function, which is the whole design. `source` says which step answered
+    ("llm" or "fallback") and `attempts` records what each one did, so the page
+    can label a fallback and a developer can see at the booth why the fast model
+    was skipped.
+    """
+    text, model, attempts = _chain(
+        _system_prompt(),
+        [{"role": "user", "content": _user_message(prediction)}],
+        (PRIMARY_TIMEOUT, FALLBACK_TIMEOUT),
+    )
     return {
-        "explanation": _canned_explanation(prediction),
-        "source": "fallback",
-        "model": None,
+        "explanation": text if text else _canned_explanation(prediction),
+        "source": "llm" if text else "fallback",
+        "model": model,
         "attempts": attempts,
         "disclaimer": LLM_DISCLAIMER,
     }
@@ -514,6 +654,137 @@ LLM_DISCLAIMER = (
     "prediction and cannot change it -- the gradient boosting model produced "
     "every figure on this page before this sentence was requested."
 )
+
+
+SUGGESTED_QUESTIONS = [
+    # Written here, not in the frontend, because each one is chosen to exercise
+    # a guardrail as much as to be interesting -- and a visitor at a poster does
+    # not know what to ask a model. The second is the one that matters: it is a
+    # request for a risk assessment of a person, and a good answer declines it.
+    "Why does body mass matter more than sugar here?",
+    "Is this adolescent at risk?",
+    "What would change if this were a girl?",
+    "How much should I trust this prediction?",
+    "What does the model not know about?",
+]
+
+
+def _canned_answer(question: str) -> str:
+    """The third failover step for a question -- and it does NOT answer it.
+
+    This is the one place in the demo where the fallback deliberately refuses to
+    do the thing that was asked. The caption's fallback can be generated,
+    because the caption's content is fully determined by the SHAP contributions
+    and the server has those. An arbitrary question is not determined by
+    anything the server can compute, so the only honest options are to say the
+    answer is unavailable or to make one up -- and a project whose entire
+    argument is that it is careful about what it claims does not get to make one
+    up at the moment a judge is watching.
+
+    So it says what happened, and points at the two things on the page that
+    answer most questions anyway.
+    """
+    _ = question  # not answered on purpose; kept so the signature reads honestly
+    return (
+        "The language model is not answering right now, so this is the site "
+        "speaking rather than a model, and it will not guess at an answer. "
+        "Everything above is unaffected -- the prediction and the breakdown "
+        "never involved a language model. The chart shows exactly how each "
+        "input moved this prediction, and the section below it has the model's "
+        "accuracy and what it was trained on."
+    )
+
+
+def answer_question(prediction: dict, question: str, history: list[dict]) -> dict:
+    """A follow-up about this prediction, grounded in this prediction.
+
+    The prediction is re-sent as the first turn EVERY time rather than being
+    left behind in the history the client holds. It is the only thing the model
+    is allowed to reason from, so it has to be in the context of every request,
+    and rebuilding it here means a client cannot quietly edit the numbers the
+    answer is about.
+
+    Never raises for a language-model failure. The three steps are the same
+    Lightning -> Ultra -> fallback chain the caption uses; only the third
+    differs, because a question cannot be answered offline (see _canned_answer).
+    """
+    turns: list[dict] = [
+        {"role": "user", "content": _user_message(prediction)},
+        # A synthetic assistant turn carrying the caption the reader is looking
+        # at. Without it the model answers "why is BMI the biggest?" with no
+        # idea what has already been said, and repeats the paragraph above the
+        # question box back at the person who just read it.
+        {"role": "assistant", "content": _canned_explanation(prediction)},
+    ]
+    for turn in history[-MAX_HISTORY_TURNS:]:
+        role = "assistant" if turn.get("role") == "assistant" else "user"
+        turns.append({"role": role, "content": str(turn.get("content", ""))[:2000]})
+    turns.append({"role": "user", "content": question})
+
+    text, model, attempts = _chain(
+        _ask_prompt(),
+        turns,
+        (ASK_TIMEOUT, ASK_FALLBACK_TIMEOUT),
+        ASK_MAX_TOKENS,
+    )
+    return {
+        "question": question,
+        "answer": text if text else _canned_answer(question),
+        "source": "llm" if text else "fallback",
+        "model": model,
+        "attempts": attempts,
+        "disclaimer": LLM_DISCLAIMER,
+    }
+
+
+class AskIn(PredictIn):
+    """A follow-up question, with the inputs it is about.
+
+    Inherits the seven inputs rather than taking a prediction, for the same
+    reason /explain re-predicts: the server must be answering about numbers it
+    computed. Accepting a prediction over the wire would let anyone hand the
+    language model an invented table and get it discussed in the project's own
+    voice.
+    """
+
+    question: str = Field(min_length=1, max_length=MAX_QUESTION_CHARS)
+    # The exchange so far, oldest first, so "and what about the other one?"
+    # resolves. Sent by the client because this service keeps no session --
+    # Render's free tier restarts constantly and two visitors must never share
+    # a conversation. Capped in answer_question(), not here, so an over-long
+    # history is trimmed rather than 422'd at somebody mid-demo.
+    history: list[dict] = Field(default_factory=list)
+
+
+@router.post("/ask")
+def ask(body: AskIn):
+    """Answer a follow-up question about one prediction.
+
+    Predicts first, then asks -- so the answer is always about numbers this
+    server just computed, and the response carries them, which lets the page
+    show the question and the prediction it refers to as one unit.
+    """
+    prediction = _predict(body)
+    question = body.question.strip()
+    if not question:
+        raise HTTPException(status_code=422, detail="The question was empty.")
+    return {
+        "prediction": prediction,
+        **answer_question(prediction, question, body.history),
+    }
+
+
+@router.get("/questions")
+def suggested_questions(response: Response):
+    """Starter questions for the page's question box.
+
+    Served rather than hard-coded in the frontend because they are part of the
+    demo's argument, not decoration: one of them asks for a risk assessment, and
+    the right answer is a refusal. Keeping them beside the prompt that has to
+    handle them means the two get edited together.
+    """
+    response.headers["Cache-Control"] = _cache_control()
+    return {"questions": SUGGESTED_QUESTIONS, "max_chars": MAX_QUESTION_CHARS}
 
 
 @router.post("/explain")
