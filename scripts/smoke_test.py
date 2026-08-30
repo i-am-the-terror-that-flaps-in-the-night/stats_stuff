@@ -73,6 +73,7 @@ BASE_CHECKS = [
     # separately below, because they are the routes a judge actually drives and
     # the only ones in the service that take a request body.
     ("/api/predict/model", "application/json"),
+    ("/api/predict/questions", "application/json"),
     ("/api/predict/llm", "application/json"),
 ]
 
@@ -305,6 +306,14 @@ def main() -> int:
         # of the failover -- which is the step that must never fail.
         check_post(
             "/api/predict/explain", reader, ("explanation", "source", "prediction")
+        )
+        # A follow-up, with no key configured, so this drives the ask chain to
+        # its third step -- the one that must NOT answer the question. It still
+        # has to be a 200 with real text in it.
+        check_post(
+            "/api/predict/ask",
+            {**reader, "question": "Why does body mass matter more than sugar?"},
+            ("answer", "source", "prediction", "question"),
         )
 
         for name in STUDY_STEPS:

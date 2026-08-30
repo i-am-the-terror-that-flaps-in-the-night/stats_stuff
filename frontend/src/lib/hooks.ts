@@ -23,6 +23,7 @@ import {
   fetchOverview,
   fetchPredictorCard,
   fetchRuns,
+  fetchSuggestedQuestions,
   fetchSampleSize,
   fetchScatter,
   fetchScreen,
@@ -44,6 +45,7 @@ import type {
   OutliersResponse,
   PredictorCard,
   SampleSizeResponse,
+  SuggestedQuestions,
   ScatterResponse,
   ScreenResponse,
   StudyHeadline,
@@ -381,8 +383,14 @@ export function usePredictor() {
   const { data, error, loading } = useAsync(
     async () => {
       const card = await fetchPredictorCard();
-      const llm = await fetchLlmStatus().catch(() => null);
-      return { card, llm };
+      // Both of these are allowed to fail on their own. They are the page's
+      // furniture, not its content, and neither must be able to take down a
+      // page whose whole design is that the prediction stands alone.
+      const [llm, prompts] = await Promise.all([
+        fetchLlmStatus().catch(() => null),
+        fetchSuggestedQuestions().catch(() => null),
+      ]);
+      return { card, llm, prompts };
     },
     [],
     "Could not load the model. Build it with: python Backend/engine.py train-model",
@@ -390,6 +398,7 @@ export function usePredictor() {
   return {
     card: (data?.card ?? null) as PredictorCard | null,
     llm: (data?.llm ?? null) as LlmStatus | null,
+    prompts: (data?.prompts ?? null) as SuggestedQuestions | null,
     error,
     loading,
   };

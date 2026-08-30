@@ -4917,3 +4917,156 @@ body[data-mode="expert"] .fig-band {
         max-width: none;
     }
 }
+
+/* ---- Follow-up questions (the Conversation in routes/Predict.tsx) -------
+   Same panel-on-inset-grey system as the rest of the page. The one thing that
+   needed a decision is the transcript: a chat UI here would import a whole
+   visual language the site does not otherwise use (bubbles, avatars, tails),
+   so a turn is a small label and a paragraph, and the two sides are told apart
+   by a rail and by indentation rather than by shape. */
+
+.ask {
+    margin-top: 20px;
+    padding: 22px 24px;
+    border-radius: var(--radius-md);
+    background: var(--surface-2);
+}
+
+.ask-intro {
+    margin: 0 0 18px;
+    color: var(--ink-2);
+}
+
+.ask-thread {
+    list-style: none;
+    margin: 0 0 20px;
+    padding: 0;
+    display: grid;
+    gap: 18px;
+}
+
+.ask-turn {
+    padding-left: 14px;
+    border-left: 2px solid var(--line);
+}
+
+.ask-turn.is-model {
+    border-left-color: var(--accent);
+}
+
+.ask-turn.is-waiting {
+    border-left-color: var(--line);
+}
+
+.ask-who {
+    display: block;
+    margin-bottom: 4px;
+    font-size: 0.75rem;
+    color: var(--ink-faint);
+}
+
+.ask-text {
+    margin: 0;
+    font-size: 1.0625rem;
+    line-height: 1.5;
+    color: var(--ink);
+}
+
+.ask-turn.is-waiting .ask-text {
+    color: var(--ink-faint);
+}
+
+.ask-suggestions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 14px;
+}
+
+.ask-suggestion {
+    padding: 8px 16px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-pill);
+    background: var(--surface);
+    color: var(--ink-2);
+    font-family: inherit;
+    font-size: 0.875rem;
+    cursor: pointer;
+    transition: color 0.15s ease, border-color 0.15s ease;
+}
+
+.ask-suggestion:hover:not(:disabled) {
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
+.ask-suggestion:disabled {
+    opacity: 0.5;
+    cursor: default;
+}
+
+.ask-form {
+    display: flex;
+    gap: 8px;
+}
+
+.ask-input {
+    flex: 1;
+    min-width: 0;
+    padding: 12px 18px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-pill);
+    background: var(--surface);
+    color: var(--ink);
+    font-family: inherit;
+    font-size: 1rem;
+}
+
+.ask-input::placeholder {
+    color: var(--ink-faint);
+}
+
+.ask-input:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+    border-color: transparent;
+}
+
+.ask-send {
+    flex: none;
+    padding: 12px 26px;
+    border: none;
+    border-radius: var(--radius-pill);
+    background: var(--accent);
+    color: #ffffff;
+    font-family: inherit;
+    font-size: 1rem;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+}
+
+.ask-send:hover:not(:disabled) {
+    background: var(--accent-strong);
+}
+
+.ask-send:disabled {
+    opacity: 0.4;
+    cursor: default;
+}
+
+@media (max-width: 560px) {
+    .ask {
+        padding: 18px 16px;
+    }
+
+    /* The send button keeps its own row rather than squeezing the field to a
+       few characters -- this is the one input on the site people type prose
+       into. */
+    .ask-form {
+        flex-wrap: wrap;
+    }
+
+    .ask-send {
+        width: 100%;
+    }
+}

@@ -634,6 +634,35 @@ export interface ExplainResponse {
   disclaimer: string;
 }
 
+/** One turn of a follow-up conversation, as the client holds it. */
+export interface AskTurn {
+  role: "user" | "assistant";
+  content: string;
+}
+
+/** POST /api/predict/ask — a follow-up question about one prediction. */
+export interface AskResponse {
+  prediction: PredictionResponse;
+  question: string;
+  answer: string;
+  /**
+   * "llm" when a model answered. "fallback" means the model was unreachable and
+   * the server DID NOT answer the question — it says so instead. Unlike the
+   * caption's fallback, this one is not a substitute answer, and the UI must
+   * not present it as one.
+   */
+  source: "llm" | "fallback";
+  model: string | null;
+  attempts: ExplainAttempt[];
+  disclaimer: string;
+}
+
+/** GET /api/predict/questions — starter questions for the question box. */
+export interface SuggestedQuestions {
+  questions: string[];
+  max_chars: number;
+}
+
 /** GET /api/predict/llm — the pre-fair setup check. */
 export interface LlmStatus {
   configured: boolean;

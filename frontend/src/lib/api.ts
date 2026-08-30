@@ -13,6 +13,8 @@
 // used; it is kept because the Live Server preview workflow depends on it.
 
 import type {
+  AskResponse,
+  AskTurn,
   BootstrapResponse,
   BoxResponse,
   CohortResponse,
@@ -36,6 +38,7 @@ import type {
   ScatterResponse,
   ScreenResponse,
   StudyHeadline,
+  SuggestedQuestions,
   StudyIndexResponse,
   StudyStep,
 } from "../types/engine";
@@ -306,6 +309,30 @@ export function predict(body: PredictBody): Promise<PredictionResponse> {
  */
 export function explain(body: PredictBody): Promise<ExplainResponse> {
   return postJson<ExplainResponse>("/api/predict/explain", body);
+}
+
+export function fetchSuggestedQuestions(): Promise<SuggestedQuestions> {
+  return getJson<SuggestedQuestions>("/api/predict/questions");
+}
+
+/**
+ * Ask a follow-up about one prediction.
+ *
+ * The inputs go over, not the prediction: the server re-predicts so the answer
+ * is always about numbers it computed itself. `history` is the exchange so far,
+ * oldest first — this service holds no session, so the conversation lives in
+ * the browser and is sent with each turn.
+ *
+ * Like explain(), it does not reject when the language model fails; it comes
+ * back with `source: "fallback"` and an answer that says the model is
+ * unavailable rather than one that guesses.
+ */
+export function ask(
+  body: PredictBody,
+  question: string,
+  history: AskTurn[],
+): Promise<AskResponse> {
+  return postJson<AskResponse>("/api/predict/ask", { ...body, question, history });
 }
 
 /** One analysis, with the round-trip time the UI reports. */
