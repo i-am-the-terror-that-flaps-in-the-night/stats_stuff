@@ -27,15 +27,16 @@ source .venv/bin/activate
 
 UVICORN_ARGS=(
   main:app --reload
+  # Watch only the Python backend. The default is the whole repo; anything that
+  # touches the tree (Vite caches, editor files, a stray save in scripts/) can
+  # trigger a reload, and a bad reload takes the reloader down with it.
+  --reload-dir Backend
   --reload-exclude "__pycache__"
   --reload-exclude ".git"
   --reload-exclude ".pytest_cache"
   --reload-exclude ".ruff_cache"
   --reload-exclude "Data"
   --reload-exclude ".venv"
-  # Without this, every Vite rebuild rewrites frontend/dist and kicks uvicorn
-  # into a reload loop -- restarting the Python server because a JS file moved.
-  --reload-exclude "frontend"
 )
 
 if [[ "${1:-}" == "build" ]]; then
@@ -50,9 +51,9 @@ if [[ ! -d frontend/node_modules ]]; then
   (cd frontend && npm ci)
 fi
 
-# Shut both servers down together: on Ctrl-C, and if either one dies on its own.
-# A half-running stack (API up, UI down) reads as a bug in the app rather than a
-# crashed process, and costs far more time to diagnose than it saves.
+# Shut both servers down on Ctrl-C (or `kill` on this script). If one server
+# crashes on its own, restart it instead of taking the other down with it -- a
+# brief Vite hiccup during HMR should not cost a full stack restart.
 #
 # Note what is deliberately NOT here: `set -m`. Enabling job control would put
 # each server in its own process group, which sounds tidier but breaks the thing
@@ -62,11 +63,9 @@ fi
 # would leave Ctrl-C hitting only this script. (It also stops trap delivery
 # outright on the bash 3.2 that macOS still ships.)
 #
-# The trap therefore covers the cases the terminal doesn't: one server crashing,
-# and `kill` from another shell. Children are killed depth-first, because the
-# thing holding the port is usually a grandchild -- `npm run dev` execs vite, and
-# uvicorn --reload forks a worker -- so signalling only the PID we launched
-# leaves the real server orphaned on the port.
+# Children are killed depth-first, because the thing holding the port is usually
+# a grandchild -- uvicorn --reload forks a worker -- so signalling only the PID
+# we launched leaves the real server orphaned on the port.
 kill_tree() {
   local pid=$1 child
   for child in $(pgrep -P "$pid" 2>/dev/null); do
@@ -75,43 +74,57 @@ kill_tree() {
   kill -TERM "$pid" 2>/dev/null || true
 }
 
-pids=()
+api_pid=0
+app_pid=0
+shutting_down=false
+
 cleanup() {
+  shutting_down=true
   trap - EXIT INT TERM
-  for pid in "${pids[@]}"; do
-    kill_tree "$pid"
+  for pid in "$api_pid" "$app_pid"; do
+    [[ "$pid" != 0 ]] && kill_tree "$pid"
   done
   wait 2>/dev/null || true
 }
 
+start_api() {
+  uvicorn "${UVICORN_ARGS[@]}" &
+  api_pid=$!
+}
+
+start_app() {
+  # Run vite directly, not through npm -- one fewer wrapper process, no update
+  # notifier, and the PID we track is the server that actually holds :5173.
+  (cd frontend && exec ./node_modules/.bin/vite) &
+  app_pid=$!
+}
+
 # INT/TERM must exit explicitly. A bash trap handler RESUMES the interrupted code
 # when it returns, so without the exit here Ctrl-C would fall back into the watch
-# loop below -- and that loop's `kill -0` check still succeeds against the
-# just-killed children while they sit unreaped, so it would spin forever instead
-# of quitting. EXIT stays a plain cleanup (it is already on the way out).
+# loop below instead of quitting.
 trap 'cleanup; exit 130' INT TERM
 trap cleanup EXIT
 
-uvicorn "${UVICORN_ARGS[@]}" &
-pids+=($!)
-
-(cd frontend && npm run dev) &
-pids+=($!)
+start_api
+start_app
 
 echo
 echo "  API  ->  http://127.0.0.1:8000"
 echo "  App  ->  http://localhost:5173   <- open this one"
 echo
 
-# Return as soon as EITHER process exits, so a crash on one side doesn't leave
-# the other running silently. Polling rather than `wait -n` because macOS still
-# ships bash 3.2, where that option doesn't exist.
-while true; do
-  for pid in "${pids[@]}"; do
-    if ! kill -0 "$pid" 2>/dev/null; then
-      echo "A dev server exited -- shutting the other one down." >&2
-      exit 1
-    fi
-  done
+# Poll rather than `wait -n` because macOS still ships bash 3.2, where that
+# option doesn't exist. Restart whichever side died; only Ctrl-C stops both.
+while ! $shutting_down; do
+  if [[ "$api_pid" != 0 ]] && ! kill -0 "$api_pid" 2>/dev/null; then
+    wait "$api_pid" 2>/dev/null || true
+    echo "API exited -- restarting..." >&2
+    start_api
+  fi
+  if [[ "$app_pid" != 0 ]] && ! kill -0 "$app_pid" 2>/dev/null; then
+    wait "$app_pid" 2>/dev/null || true
+    echo "App exited -- restarting..." >&2
+    start_app
+  fi
   sleep 1
 done

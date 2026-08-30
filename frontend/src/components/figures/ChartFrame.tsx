@@ -149,7 +149,7 @@ export interface FigureProps {
 
 
 /**
- * The download control every figure carries.
+ * The download control every chart carries.
  *
  * It exports the <svg> that is on screen right now rather than re-drawing the
  * figure from its data, which is what makes the file match what the reader is
@@ -160,8 +160,13 @@ export interface FigureProps {
  * as real vector paths and real text, so it stays sharp at poster size. PNG is
  * for pasting into a slide or a document. SVG is for anyone who wants to open
  * the figure in a drawing program and change it.
+ *
+ * Exported, not private to Figure, because not every chart on the site wants
+ * Figure's whole head — the bar chart in the result tree is one drawing with a
+ * caption, and it should still be downloadable. Hand it a ref to the element
+ * wrapping the <svg> and the title to name the file after.
  */
-function DownloadBar({
+export function SaveControl({
   plotRef,
   title,
 }: {
@@ -237,7 +242,7 @@ export function Figure({
         <h3 className="fig-title">{title}</h3>
         <span className="fig-head-end">
           {meta && <span className="fig-meta">{meta}</span>}
-          {!noDownload && <DownloadBar plotRef={plotRef} title={title} />}
+          {!noDownload && <SaveControl plotRef={plotRef} title={title} />}
         </span>
       </div>
       {caption && <figcaption className="fig-caption">{caption}</figcaption>}

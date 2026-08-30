@@ -8,8 +8,8 @@ import { Crumbs, Masthead, Module, Table } from "../components/Page";
 import type { SpecRow } from "../components/Page";
 
 const SPEC: SpecRow[] = [
-  { k: "Current", v: "v1.2.0" },
-  { k: "Released", v: "2026·08·06" },
+  { k: "Current", v: "v1.3.1" },
+  { k: "Released", v: "2026·08·29" },
   { k: "Cadence", v: "Iterative" },
   { k: "Status", v: "Stable" },
 ];
@@ -23,9 +23,20 @@ interface Release {
 
 const RELEASES: Release[] = [
   {
+    ver: "v1.3.1",
+    date: "29 Aug 2026",
+    current: true,
+    items: [
+      <>
+        <b>Revised protocol</b> — the ten-step study analysis rewritten for clarity and merged back
+        into a single <span className="expr">engine.py</span>, with model fitting hardened for
+        proper dtypes.
+      </>,
+    ],
+  },
+  {
     ver: "v1.2.0",
     date: "06 Aug 2026",
-    current: true,
     items: [
       <>
         <b>Figures</b> — the dataset drawn, not just reported: a distribution, group box plots, a

@@ -1,33 +1,38 @@
-/* Data Analysis Engine — "Terminal Ledger" theme.
+/* Data Analysis Engine — clean, typographic, Apple-flavoured.
  *
- * A LIGHT, dense, angular data-console. No floating cards: the whole page is one
- * framed instrument, mounted in a brushed-steel chassis (the page mat) with a
- * white "screen" bezeled into it, its structure carried by hairline rules
- * rather than elevation. Everything is square (zero radius), the type is all
- * sans (no monospace — data columns align via tabular-nums), and the palette
- * inside the console is high-contrast near-black-on-white so it stays readable
- * on cheap laptop panels.
+ * The reference is apple.com. What that actually means, as rules:
+ *   * Structure comes from SPACE and from type scale, not from borders, frames
+ *     or elevation. Sections are separated by air; a hairline appears only when
+ *     two things genuinely need dividing.
+ *   * One blue for everything interactive. No second accent, no gradients on
+ *     controls, no glow.
+ *   * Generous corner radii, and pill-shaped buttons.
+ *   * Big, tight headlines at 600 weight with negative tracking; body copy at
+ *     17px with a comfortable measure; small grey labels that are NOT shouted
+ *     in wide-tracked capitals.
+ *   * Panels are white or a soft neutral grey, and they never carry a border —
+ *     the contrast between the two IS the edge.
  *
- * Lume: a single cool ramp — indigo → azure → cyan, the accent stretched —
- * runs along most of the console's structural seams: the frame, the nameplate
- * edge, module and ribbon ticks, table heads, the signature rule. Those are
- * structure, and the rule there is WIDE over LOUD: colour marks where the
- * machine's edges are, and never blooms hard enough to tint the text next to
- * it. (This replaced a full-spectrum "gamer RGB" run that cycled hue on a
- * timer — see the --lume tokens for why.)
+ * WHAT THIS REPLACED, AND WHY THE OLD RULES STILL WORK
+ *   This was a brushed-metal "terminal ledger": a framed console, hairline
+ *   rules everywhere, zero radius, hard offset shadows and a cool "lume" ramp
+ *   lighting its seams. Rather than delete the several hundred rules that refer
+ *   to all of that, the tokens below KEEP THEIR NAMES and were retargeted:
+ *   --lume is a flat accent, --lume-glow is `none`, --metal-texture is `none`,
+ *   --radius is a real radius, --shadow-card is soft. A rule that used to paint
+ *   a glowing seam now paints a quiet blue line, and the pieces worth rewriting
+ *   by hand — nav, masthead, modules, tables, buttons, tiles — were rewritten.
  *
- * Two things are exempt and run FULL BRIGHT: the brand mark and the status
- * pips. Both sit in the console bar, both are lit-hardware signals rather than
- * structure, and neither has data next to it to wash out.
+ * THE RULE THAT SURVIVED THE REDESIGN UNCHANGED
+ *   Readability on a cheap laptop panel outranks everything; it is why this
+ *   site is light at all. The reference's own secondary grey is #6e6e73, which
+ *   is 4.6:1 on white — legal, and thin on a bad screen. Every grey here is a
+ *   step darker than the reference for that reason, and no text anywhere sits
+ *   on a translucent or textured ground.
  *
- * Glass: bars and overlays that float ABOVE content — the console bar, the nav
- * ribbon, the loader — are frosted (backdrop-filter) instead of opaque, so the
- * instrument stays faintly visible through them. Anything with data ON it is
- * never glass: readability outranks depth.
- *
- * There is no literal hardware. An earlier pass dropped SVG screws, bolts and
- * nail heads onto the frame corners; those are gone, and the seams they sat on
- * are lit instead.
+ * NO EXTERNAL FONTS. -apple-system first gets real SF on Apple hardware and a
+ * good native sans everywhere else. A webfont would cost a round trip on a
+ * Render cold start, which is the one thing this deploy cannot spend.
  */
 
 :root {
@@ -37,120 +42,100 @@
     /* Heatmap intensity (0..1); overridden inline per cell. */
     --heat: 0;
 
-    /* ---- Paper & structure ---- */
-    --bg: #c7cedd;             /* page mat, behind the console -- brushed steel */
-    /* The mat itself: a fine diagonal brush (a repeating hairline stripe) under
-       a broader, uneven sweep -- a real sheet of metal never catches light
-       evenly. Hard-edged bands throughout, no blur, so it reads as machined
-       chassis, not a soft gradient poster. The white console "screen" sits on
-       top of this, untouched, so none of it touches text readability. */
-    --metal-texture: repeating-linear-gradient(115deg,
-            rgba(255, 255, 255, 0.55) 0px, rgba(255, 255, 255, 0.55) 1px,
-            rgba(13, 20, 38, 0.06) 1px, rgba(13, 20, 38, 0.06) 3px),
-        linear-gradient(115deg,
-            #eef1f7 0%, #f8fafc 10%,
-            #c3cbdc 24%, #eef1f7 38%,
-            #aab4c9 52%, #f4f6fb 66%,
-            #b7c0d3 80%, #e9edf5 100%);
-    --surface: #ffffff;        /* console interior */
-    --surface-2: #f4f6fb;      /* zebra rows, insets, head fills */
-    --surface-3: #eaeef6;      /* deeper insets, tracks */
-    --line: #d3dae7;           /* hairlines */
-    --line-strong: #9aa7bd;    /* major rules, frame */
+    /* ---- Ground and panels ------------------------------------------------
+       White page, soft neutral grey for anything inset or tiled. The brushed
+       metal chassis this used to sit in is gone: `none` rather than deleted so
+       the three rules that painted it now paint nothing. ---- */
+    --bg: #ffffff;
+    --metal-texture: none;
+    --surface: #ffffff;
+    --surface-2: #f5f5f7;      /* the reference's panel grey */
+    --surface-3: #ececf0;      /* one step deeper: tracks, insets, table heads */
+    --line: #d2d2d7;           /* the only divider weight that should be used */
+    --line-strong: #c2c2c7;
 
-    /* ---- Ink (all high-contrast on white; darkened for readability on cheap
-       panels — secondary/faint were the weakest links) ---- */
-    --ink: #0b1324;            /* headings, data values */
-    --ink-2: #212e44;          /* body copy */
-    --ink-3: #414e66;          /* labels, secondary (was #55637a) */
-    --ink-faint: #616e8a;      /* metadata, disabled (was #8894a8) */
+    /* ---- Ink ---- */
+    --ink: #1d1d1f;            /* headlines and data values */
+    --ink-2: #2c2c2e;          /* body copy */
+    --ink-3: #515154;          /* labels and secondary — deliberately darker
+                                  than the reference's #6e6e73 */
+    --ink-faint: #6e6e73;      /* metadata and disabled, and nothing smaller
+                                  than 12px is allowed to use it */
 
-    /* ---- Interactive accent: electric-but-readable blue ---- */
-    --accent: #1f4fff;
-    --accent-strong: #1636d6;
-    --accent-soft: #e7edff;
-    --accent-line: rgba(31, 79, 255, 0.5);
+    /* ---- One blue, for everything interactive ---- */
+    --accent: #0071e3;
+    --accent-strong: #0058b0;
+    --accent-soft: #e8f2fd;
+    --accent-line: rgba(0, 113, 227, 0.35);
 
-    /* ---- Lume: the instrument's edge light. This replaces an earlier full-
-       spectrum "gamer RGB" run (magenta → violet → blue → cyan → mint) that
-       cycled hue on a timer. The rainbow read as a peripheral, not an
-       instrument, and its magenta end actively fought the blue accent the rest
-       of the palette is tuned around.
+    /* ---- "Lume", retargeted ------------------------------------------------
+       Was a five-stop indigo→cyan ramp with a bloom behind it, painted along
+       every structural seam. Now it is the accent, flat, and the glows are off.
+       The names stay because two dozen rules ask for them; what they get is a
+       quiet blue line where they used to get a lit one. ---- */
+    --lume-1: #0071e3;
+    --lume-2: #0071e3;
+    --lume-3: #0071e3;
+    --lume: linear-gradient(90deg, #0071e3, #0071e3);
+    --lume-soft: linear-gradient(90deg, #d2d2d7, #d2d2d7);
+    --lume-glow: none;
+    --lume-glow-sm: none;
+    --lume-glow-xs: none;
 
-       What lights the seams now is ONE cool ramp — deep indigo through the
-       accent's own azure into cyan. It is the accent, stretched: every lit edge
-       is recognisably the same light as the buttons and links, so the console
-       reads as a single machine rather than a case with a light kit bolted on.
-       It still runs WIDE over LOUD — frame ring, nameplate edge, module and
-       ribbon ticks, table heads — held back far enough that the bloom never
-       tints the data beside it. ---- */
-    --lume-1: #4338ca;   /* indigo — the deep end   */
-    --lume-2: #2b5cff;   /* azure  — the accent     */
-    --lume-3: #22d3ee;   /* cyan   — the bright end */
-    --lume: linear-gradient(90deg, #3b2fbf 0%, #4338ca 22%, #2b5cff 52%, #189fe0 78%, #22d3ee 100%);
-    --lume-glow: 0 0 7px rgba(43, 92, 255, 0.62), 0 0 19px rgba(34, 211, 238, 0.5);
-    --lume-glow-sm: 0 0 5px rgba(67, 56, 202, 0.58), 0 0 12px rgba(34, 211, 238, 0.46);
-
-    /* The quiet tier, for the surfaces that only just gained edge light. Same
-       ramp, held a step under the tiers above so a stat-cell edge or a table
-       rule still yields to the signature rule under the console bar. */
-    --lume-soft: linear-gradient(90deg,
-        rgba(59, 47, 191, 0.6) 0%, rgba(67, 56, 202, 0.56) 22%,
-        rgba(43, 92, 255, 0.56) 52%, rgba(24, 159, 224, 0.56) 78%,
-        rgba(34, 211, 238, 0.6) 100%);
-    --lume-glow-xs: 0 0 3px rgba(43, 92, 255, 0.26);
-
-    /* ---- Glass: the translucent tier. Bars and overlays that float over
-       content are frosted rather than opaque, so what is underneath stays
-       faintly legible and the layer reads as a pane of glass in front of the
-       instrument. backdrop-filter is progressively enhanced — every rule that
-       uses these also declares an opaque fallback background first. ---- */
-    --glass: rgba(255, 255, 255, 0.72);
-    --glass-strong: rgba(255, 255, 255, 0.86);
-    --glass-tint: rgba(244, 246, 251, 0.74);
+    /* ---- Glass: the nav, and only the nav ---------------------------------
+       An earlier pass frosted panels that sat on solid white, where a backdrop
+       blur has nothing to blur — it was invisible and cost a compositor layer.
+       The nav is different: it is sticky, so real content scrolls underneath
+       it, and there the effect is the whole point. Everything here is
+       progressively enhanced behind an opaque fallback. ---- */
+    --glass: rgba(255, 255, 255, 0.8);
+    --glass-strong: rgba(255, 255, 255, 0.92);
+    --glass-tint: rgba(245, 245, 247, 0.82);
     --glass-blur: saturate(180%) blur(20px);
-    --glass-edge: inset 0 1px 0 0 rgba(255, 255, 255, 0.9),
-        inset 0 -1px 0 0 rgba(20, 45, 120, 0.09);
+    --glass-edge: none;
 
-    --ok: #0a8f57;
-    --ok-soft: #e2f5ec;
-    --err: #d21f3c;
-    --err-soft: #fdeaed;
+    --ok: #248a3d;
+    --ok-soft: #e6f4ea;
+    --err: #d70015;
+    --err-soft: #fdecee;
 
-    /* Readable, neutral system sans — no external fonts (Render cold-start).
-       system-ui first for the crispest native rendering on each platform. */
-    --font: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
-        "Helvetica Neue", Arial, sans-serif;
+    /* -apple-system resolves to SF on Apple hardware, which is what the
+       reference is set in; the rest is each platform's own UI sans. */
+    --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display",
+        "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
 
-    /* ---- Hard rectangular / brutalist surfacing ---- */
-    --radius: 0;
-    --radius-md: 0;
-    --radius-sm: 0;
-    /* Blur-free hard offset shadows — angular slabs, not lifted cards. */
-    --shadow-card: 12px 12px 0 -1px rgba(31, 79, 255, 0.10);
-    --shadow-soft: 6px 6px 0 -1px rgba(31, 79, 255, 0.09);
+    /* ---- Measure ----------------------------------------------------------
+       --page-max is the frame the data gets; --text-max is the much narrower
+       one prose gets. Keeping them separate is what lets a fifteen-column
+       correlation matrix have room without paragraphs running to 140
+       characters. ---- */
+    --page-max: 1320px;
+    --text-max: 46rem;
+    --page-inset: clamp(22px, 4vw, 64px);
 
-    /* ---- Metal / chrome: hard-banded brushed-steel fills + crisp 1px bezel
-       edges (no blur — hard stripes, not a soft specular sheen) for the
-       "instrument" pieces: the logo tile, the nameplate, badges, buttons.
-       Rationed the same way as the neon: a machined edge here and there, not
-       a chrome skin over everything. ---- */
-    --chrome-light: linear-gradient(155deg,
-        #f7f9fc 0%, #f7f9fc 20%,
-        #ffffff 20%, #ffffff 34%,
-        #e7ecf5 34%, #e7ecf5 46%,
-        #f7f9fc 46%, #f7f9fc 64%,
-        #dde3ee 64%, #dde3ee 72%,
-        #f7f9fc 72%, #f7f9fc 100%);
-    --chrome-dark: linear-gradient(155deg,
-        #1c273f 0%, #1c273f 16%,
-        #323f5c 16%, #323f5c 28%,
-        #05070d 28%, #05070d 42%,
-        #3b4967 42%, #3b4967 54%,
-        #05070d 54%, #05070d 70%,
-        #232e48 70%, #232e48 100%);
-    --chrome-edge-hi: rgba(255, 255, 255, 0.95);
-    --chrome-edge-lo: rgba(5, 10, 25, 0.5);
+    /* Kept so the two rules that still reference the old metal ramp resolve to
+       nothing rather than to an error. */
+    --sheet-fade: 0px;
+    --sheet-0: transparent;
+
+    /* ---- Radii and elevation ----------------------------------------------
+       Real corners now, and shadows that are soft, large and nearly invisible
+       — the opposite of the hard 12px offset slabs this replaced. Most panels
+       use no shadow at all and separate by background contrast instead. ---- */
+    --radius: 18px;
+    --radius-md: 12px;
+    --radius-sm: 8px;
+    --radius-pill: 980px;
+    --shadow-card: 0 4px 20px rgba(0, 0, 0, 0.05), 0 1px 3px rgba(0, 0, 0, 0.04);
+    --shadow-soft: 0 2px 10px rgba(0, 0, 0, 0.04);
+
+    /* The "chrome" tokens fed brushed-steel fills on the logo tile, badges and
+       the nameplate. Flattened to plain surfaces; the names remain because a
+       dozen rules ask for them. */
+    --chrome-light: #f5f5f7;
+    --chrome-dark: #1d1d1f;
+    --chrome-edge-hi: transparent;
+    --chrome-edge-lo: transparent;
 }
 
 * {
@@ -161,67 +146,69 @@
     display: none !important;
 }
 
+/* One flat white ground, edge to edge. The brushed-metal chassis and the
+   hundred-pixel ramp that used to blend into it are gone with the redesign:
+   the reference has no texture anywhere, and a page that is simply the same
+   colour as its margins has no edge for the eye to find in the first place.
+   17px body copy is the reference's own size, and it is a real improvement on
+   a laptop panel over the 16px this used to run at. */
 body {
     margin: 0;
     min-height: 100vh;
     font-family: var(--font);
-    font-size: 1rem;
-    line-height: 1.65;
+    font-size: 1.0625rem;
+    line-height: 1.53;
+    letter-spacing: -0.003em;
     color: var(--ink-2);
-    background-color: var(--bg);
-    background-image: var(--metal-texture);
+    background: var(--bg);
     -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
     display: flex;
     flex-direction: column;
-    padding: 26px 22px 46px;
+    padding: 0 0 96px;
+    overflow-x: clip;
 }
 
 /* ---- The console frame ------------------------------------------------- */
+/* Not a frame -- a measure. No border, no background of its own, no shadow:
+   this element exists only to stop the text running into the window edge on a
+   wide screen. Wider here means less enclosed rather than stretched, so the cap
+   is generous and the side padding grows with the viewport: the content gets
+   air around it instead of a wall. */
 .page {
     position: relative;
     width: 100%;
-    max-width: 1080px;
+    max-width: var(--page-max);
     margin: 0 auto;
     flex: 1;
-    background: var(--surface);
-    border: 1px solid var(--line-strong);
-    /* A white/dark two-tone bezel ring where the console meets the metal chassis
-       -- the "screen sits in a machined frame" beat -- then the usual hard,
-       blur-free offset shadow underneath it. */
-    box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.6), 0 0 0 4px rgba(13, 20, 38, 0.28), var(--shadow-card);
+    padding-inline: var(--page-inset);
 }
 
-/* A thin neon ring tracing the bezel, just outside the console's own border box
-   (negative inset) so it's never covered by its full-width children. The panel
-   reads as lit along its seam rather than fastened down.
-   Two horizontal hairlines rather than a full ring: --lume-soft runs left-to-
-   right, so painting it into a 1px-wide vertical strip would squeeze the whole
-   spectrum into one indeterminate blended pixel. Top and bottom is where the
-   gradient actually reads as a gradient. */
-.page::before {
-    content: "";
-    position: absolute;
-    inset: -5px;
-    pointer-events: none;
-    background-image: var(--lume-soft), var(--lume-soft);
-    background-repeat: no-repeat;
-    background-size: 100% 1px;
-    background-position: 0 0, 0 100%;
-}
+/* The lume seam that traced the bezel is gone with the bezel. There is no
+   frame left for it to light, and a glowing rule around the content would be
+   the loudest card edge on the page. The signature survives where it carries
+   meaning: the module ticks, the nav underline, the ribbon marks. */
 
 /* ---- Top status bar ---------------------------------------------------- */
+/* Chrome, on the same ground as everything else. The tint and the machined
+   groove made this the first of four stacked bands down the top of every page;
+   the nav rule below is the only line the reader needs to separate the controls
+   from the document. */
+/* The thin utility strip above the nav — the reference's equivalent carries
+   store links at 12px in grey on a hair of tint. Small, quiet, and not
+   competing with anything. */
 .console-bar {
     display: flex;
     align-items: center;
     justify-content: space-between;
     flex-wrap: wrap;
-    gap: 8px 16px;
-    padding: 11px 18px;
-    border-bottom: 1px solid var(--line);
+    gap: 6px 16px;
+    width: 100vw;
+    margin-inline: calc(50% - 50vw);
+    padding: 10px var(--page-inset);
+    font-size: 0.75rem;
+    color: var(--ink-faint);
     background: var(--surface-2);
-    /* Hairline top/bottom bezel — a machined-panel groove, not a color change,
-       so the text sitting on top keeps its contrast. */
-    box-shadow: inset 0 1px 0 0 var(--chrome-edge-hi), inset 0 -1px 0 0 rgba(20, 45, 120, 0.08);
 }
 
 .brand {
@@ -275,10 +262,10 @@ body {
 }
 
 .brand-name {
-    font-weight: 800;
+    font-weight: 500;
     font-size: 0.9rem;
-    letter-spacing: 0.02em;
-    text-transform: uppercase;
+    letter-spacing: 0;
+    text-transform: none;
     color: var(--ink);
     white-space: nowrap;
 }
@@ -300,8 +287,8 @@ body {
     gap: 18px;
     font-size: 0.68rem;
     font-weight: 600;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
+    letter-spacing: 0;
+    text-transform: none;
     color: var(--ink-3);
     white-space: nowrap;
 }
@@ -412,15 +399,24 @@ body {
 }
 
 /* ---- Masthead (hero + spec panel) ------------------------------------- */
+/* The hero: centred type on white, and nothing else.
+   This was a full-bleed near-black instrument panel with a brushed-steel
+   nameplate bolted to its right-hand side. The reference does the opposite --
+   an eyebrow, one very large headline, one short line of grey beneath it, and
+   a great deal of air. What used to carry the page's weight with a dark slab
+   now carries it with type size, which is the whole idea. */
 .masthead {
-    display: grid;
-    grid-template-columns: 1fr 288px;
-    align-items: stretch;
-    border-bottom: 1px solid var(--line-strong);
+    display: block;
+    width: 100vw;
+    margin-inline: calc(50% - 50vw);
+    padding: clamp(52px, 7vw, 104px) var(--page-inset) clamp(30px, 4vw, 56px);
+    text-align: center;
 }
 
 .masthead-main {
-    padding: 30px 26px 26px;
+    max-width: 52rem;
+    margin-inline: auto;
+    padding: 0;
 }
 
 .eyebrow {
@@ -429,102 +425,117 @@ body {
     font-weight: 700;
     text-transform: uppercase;
     /* Tighter than the old 0.2em — wide-tracked caps read poorly at this size. */
-    letter-spacing: 0.11em;
-    color: var(--accent-strong);
+    letter-spacing: 0.06em;
+    color: var(--accent);
 }
 
+/* 600, not 800. The reference's display weight is semibold with tight negative
+   tracking; 800 at this size reads as a poster rather than as a product. */
 h1 {
     margin: 0;
-    font-size: clamp(2.1rem, 1.3rem + 3.2vw, 3.3rem);
-    font-weight: 800;
-    line-height: 1.02;
-    letter-spacing: -0.025em;
-    /* Title case, not shouting caps — reads as a product, not a console. */
+    font-size: clamp(2.6rem, 1.5rem + 4vw, 4.25rem);
+    font-weight: 600;
+    line-height: 1.05;
+    letter-spacing: -0.017em;
     text-transform: none;
     color: var(--ink);
 }
 
 .tagline {
-    margin: 16px 0 0;
-    max-width: 46ch;
-    font-size: 1.15rem;
-    line-height: 1.55;
-    color: var(--ink-2);
+    margin: 18px auto 0;
+    max-width: 42rem;
+    font-size: clamp(1.15rem, 1rem + 0.5vw, 1.45rem);
+    font-weight: 400;
+    line-height: 1.42;
+    letter-spacing: -0.01em;
+    color: var(--ink-3);
 }
 
 .byline {
-    margin: 16px 0 0;
+    margin: 22px 0 0;
     display: inline-flex;
     align-items: center;
-    gap: 9px;
-    font-size: 0.76rem;
-    font-weight: 600;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: var(--ink-3);
+    gap: 8px;
+    font-size: 0.8125rem;
+    font-weight: 400;
+    letter-spacing: 0;
+    text-transform: none;
+    color: var(--ink-faint);
 }
 
+/* The lit dash that used to precede this is gone; the reference has no
+   decorative marks beside text. */
 .byline::before {
-    content: "";
-    width: 24px;
-    height: 3px;
-    background: var(--lume);
-    box-shadow: var(--lume-glow-sm);
+    content: none;
 }
 
-/* Spec panel: a dense key/value block that fills the hero's right side — real
-   engine metadata, and busywork that reads as an instrument nameplate. Brushed
-   steel fill + a bright top bezel + a neon seam where it meets the hero. */
+/* The engine's metadata, under the headline instead of bolted to its side.
+   It was a brushed-steel nameplate with a lit seam — an instrument-panel idea
+   that has nowhere to live on a page with no instrument panel. It is now what
+   the reference does with technical specifications: small centred pairs in a
+   row, label above value, separated by space. */
 .masthead-spec {
-    position: relative;
-    border-left: 1px solid var(--line-strong);
-    background: var(--chrome-light);
-    box-shadow: inset 0 1px 0 0 var(--chrome-edge-hi);
     display: flex;
-    flex-direction: column;
-}
-
-/* The seam itself. A vertical strip, so this uses its own 180deg gradient
-   rather than --lume-soft (see the note on .page::before). */
-.masthead-spec::before {
-    content: "";
-    position: absolute;
-    top: 0;
-    bottom: 0;
-    left: -1px;
-    width: 2px;
-    background: linear-gradient(180deg,
-        rgba(59, 47, 191, 0.6) 0%, rgba(43, 92, 255, 0.54) 40%,
-        rgba(34, 211, 238, 0.54) 100%);
-    box-shadow: var(--lume-glow-xs);
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 10px 44px;
+    margin: 34px auto 0;
+    max-width: 60rem;
 }
 
 .spec-row {
-    display: grid;
-    grid-template-columns: 82px 1fr;
-    gap: 10px;
-    padding: 11px 18px;
-    border-bottom: 1px solid var(--line);
-    font-size: 0.78rem;
-}
-
-.spec-row:last-child {
-    border-bottom: none;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    padding: 0;
+    font-size: 0.875rem;
 }
 
 .spec-k {
-    font-weight: 700;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    font-size: 0.7rem;
-    color: var(--ink-3);
-    align-self: center;
+    font-weight: 400;
+    letter-spacing: 0;
+    text-transform: none;
+    font-size: 0.75rem;
+    color: var(--ink-faint);
 }
 
 .spec-v {
+    /* min-width:0 because a grid track's automatic minimum is min-content, and
+       "nhanes_adolescent.csv" has no break opportunity in it -- so without this
+       the value pushes the 1fr track wider than the nameplate and the text runs
+       out past the console's right edge. */
+    min-width: 0;
+    overflow-wrap: anywhere;
     font-weight: 600;
     color: var(--ink);
     font-variant-numeric: tabular-nums;
+}
+
+/* Above this width there is room for the nameplate to hold a filename without
+   hyphenating it, and for the ruled definition grids to run three across
+   instead of two. Nothing reflows below it. */
+/* The nameplate runs out to the window edge with the panel behind it, rather
+   than stopping at the measure and leaving a seam across the dark ground that
+   reads as the edge of a card. Its rows keep the measure on their own padding.
+   Only while the masthead is two columns -- below 720px the nameplate stacks
+   under the hero and takes the ordinary inset. */
+@media (min-width: 721px) {
+    /* Nothing left to do here: the hero is a single centred column at every
+       width now, and the nameplate wraps on its own. */
+}
+
+@media (min-width: 1280px) {
+    .legend {
+        grid-template-columns: repeat(3, 1fr);
+    }
+
+    /* Eight to a row rather than six: the telemetry strips are single figures
+       with a short label, and at this width six left a third of the row ruled
+       and empty. */
+    .stat-cell {
+        flex-basis: 11%;
+    }
 }
 
 /* ---- Modules ----------------------------------------------------------- */
@@ -532,44 +543,51 @@ h1 {
     border-top: 1px solid var(--line-strong);
 }
 
+/* A heading, not a header bar. The fill and the rule under it turned every
+   section into a titled panel; the rule ABOVE the module (see .module +
+   .module) already says a new section has started, and one line does the job
+   that three pieces of chrome were doing. */
+/* Air above, not a rule. Fifty-six pixels of space says "new section" more
+   clearly than any border, and it is the single change that most makes the page
+   read like the reference. */
 .module-head {
     display: flex;
-    align-items: center;
+    align-items: baseline;
     flex-wrap: wrap;
-    gap: 6px 12px;
-    padding: 12px 18px;
-    border-bottom: 1px solid var(--line);
-    background: var(--surface-2);
+    gap: 6px 14px;
+    padding: 56px 0 18px;
 }
 
 /* Numbered module tag — this page IS a stack of instrument modules, so the
    index is a real address, not decoration. */
+/* Was a bordered blue badge. It is a number, so it is set as one -- grey, in
+   line with the title, at the same size as body copy. */
 .module-index {
     flex: none;
-    font-size: 0.68rem;
-    font-weight: 800;
-    letter-spacing: 0.06em;
-    color: var(--accent-strong);
-    padding: 3px 9px;
-    background: var(--accent-soft);
-    border: 1px solid var(--accent-line);
-    border-radius: var(--radius-sm);
+    font-size: 0.9375rem;
+    font-weight: 400;
+    letter-spacing: 0;
+    color: var(--ink-faint);
+    padding: 0;
+    background: none;
+    border: none;
+    border-radius: 0;
+    font-variant-numeric: tabular-nums;
 }
 
+/* The lit dash between the index and the title. The reference has no
+   decorative marks in headings; the space does the separating. */
 .module-tick {
-    flex: none;
-    width: 20px;
-    height: 4px;
-    background: var(--lume);
-    box-shadow: var(--lume-glow-sm);
+    display: none;
 }
 
 .module-title {
     margin: 0;
     min-width: 0;
-    font-size: 1.1rem;
-    font-weight: 800;
-    letter-spacing: -0.01em;
+    font-size: clamp(1.5rem, 1.1rem + 1.1vw, 2rem);
+    font-weight: 600;
+    letter-spacing: -0.015em;
+    line-height: 1.15;
     text-transform: none;
     color: var(--ink);
 }
@@ -579,10 +597,10 @@ h1 {
     display: flex;
     align-items: center;
     gap: 8px;
-    font-size: 0.72rem;
-    font-weight: 600;
-    letter-spacing: 0.04em;
-    color: var(--ink-3);
+    font-size: 0.8125rem;
+    font-weight: 400;
+    letter-spacing: 0;
+    color: var(--ink-faint);
     white-space: nowrap;
 }
 
@@ -595,26 +613,35 @@ h1 {
     padding: 1px 7px;
 }
 
+/* No horizontal padding: .page sets the measure now, and a second inset here
+   would push the data in from a margin the reader cannot see. */
 .module-body {
-    padding: 22px 26px;
+    padding: 0 0 34px;
 }
 
-.text {
-    margin: 0 0 20px;
-    max-width: 66ch;
-    color: var(--ink-2);
-    font-size: 1.04rem;
-    line-height: 1.7;
+/* One measure for prose, set once here, so widening the frame for the tables
+   never widens the paragraphs with it. `.prose` (the study's interpretation
+   paragraphs) shares it: at the frame's full width those ran to about a hundred
+   and fifty characters a line, which is roughly twice a comfortable measure. */
+.text,
+.prose {
+    margin: 0 0 24px;
+    max-width: var(--text-max);
+    color: var(--ink-3);
+    font-size: 1.0625rem;
+    line-height: 1.53;
+    letter-spacing: -0.003em;
 }
 
 code {
     font-family: var(--font);
-    font-weight: 700;
-    font-size: 0.92em;
-    color: var(--accent-strong);
-    background: var(--accent-soft);
-    border: 1px solid var(--accent-line);
-    padding: 0 5px;
+    font-weight: 400;
+    font-size: 0.94em;
+    color: var(--ink);
+    background: var(--surface-2);
+    border: none;
+    border-radius: var(--radius-sm);
+    padding: 1px 8px;
 }
 
 /* ---- Control fields (ledger rows) ------------------------------------- */
@@ -632,12 +659,12 @@ code {
 }
 
 .field-label {
-    padding-top: 7px;
-    font-size: 0.7rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.12em;
-    color: var(--ink-3);
+    padding-top: 9px;
+    font-size: 0.8125rem;
+    font-weight: 400;
+    text-transform: none;
+    letter-spacing: 0;
+    color: var(--ink-faint);
 }
 
 .field-note {
@@ -674,17 +701,20 @@ button {
    A crisp 1px bezel (bright top, dark bottom) rides along on every state —
    a machined toggle, not a flat swatch — and inverts on .is-active so a
    selected chip reads as pressed in rather than just recolored. */
+/* Pills on a soft ground -- the reference's filter control, more or less
+   exactly. The bezel highlights and the hard offset shadow that used to sit
+   under the selected chip are gone; selection is carried by a solid fill. */
 .channel {
-    padding: 8px 15px;
-    font-size: 0.84rem;
-    font-weight: 600;
-    letter-spacing: 0.01em;
+    padding: 9px 18px;
+    font-size: 0.9375rem;
+    font-weight: 400;
+    letter-spacing: -0.01em;
     color: var(--ink-2);
-    background: var(--surface);
-    border: 1px solid var(--line-strong);
-    box-shadow: inset 0 1px 0 0 var(--chrome-edge-hi), inset 0 -1px 0 0 rgba(154, 167, 189, 0.4);
-    transition: color 0.14s ease, background-color 0.14s ease,
-        border-color 0.14s ease, box-shadow 0.14s ease;
+    background: var(--surface-2);
+    border: 1px solid transparent;
+    border-radius: var(--radius-pill);
+    box-shadow: none;
+    transition: color 0.2s ease, background-color 0.2s ease, border-color 0.2s ease;
 }
 
 .channel:hover:not(:disabled) {
@@ -695,12 +725,93 @@ button {
         4px 4px 0 -1px var(--accent-line);
 }
 
+/* The tier ladder, in three steps that survive the redesign.
+   The escalation used to be built from gradients, a border-image ring, two
+   bloom shadows and a sheen that swept the selected chip every 4.5 seconds.
+   None of that belongs here, and the ladder does not need it:
+
+     basic / medium / categorical   a plain pill; selected, it fills with blue
+     advanced                       the label goes blue and gains a small ▲
+     expert                         the one chip that is NOT blue -- it fills
+                                    solid dark, and carries a ◆
+
+   So the reader still sees three distinct depths, and the deepest is marked by
+   being the only control on the page that breaks the accent. */
+.channel[data-tier="advanced"] {
+    color: var(--accent);
+    background: var(--surface-2);
+    border-color: transparent;
+}
+
+.channel[data-tier="advanced"]::after {
+    content: "\25B2";
+    margin-left: 7px;
+    font-size: 0.62em;
+    vertical-align: 1px;
+}
+
+.channel[data-tier="advanced"]:hover:not(:disabled) {
+    background: var(--accent-soft);
+    border-color: transparent;
+}
+
+.channel[data-tier="advanced"].is-active {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+    box-shadow: none;
+}
+
+.channel[data-tier="advanced"].is-active::after {
+    color: #fff;
+}
+
+.channel[data-tier="expert"] {
+    color: var(--ink);
+    background: var(--surface-2);
+    border: 1px solid transparent;
+    box-shadow: none;
+}
+
+.channel[data-tier="expert"]::after {
+    content: "\25C6";
+    margin-left: 8px;
+    font-size: 0.72em;
+    color: var(--accent);
+    -webkit-text-fill-color: var(--accent);
+    background: none;
+}
+
+.channel[data-tier="expert"]:hover:not(:disabled) {
+    color: var(--ink);
+    background: var(--surface-3);
+    box-shadow: none;
+}
+
+.channel[data-tier="expert"].is-active {
+    color: #fff;
+    background: var(--ink);
+    border-color: var(--ink);
+    box-shadow: none;
+    animation: none;
+}
+
+.channel[data-tier="expert"].is-active::after,
+.channel[data-tier="expert"].is-active:hover::after {
+    -webkit-text-fill-color: #fff;
+    color: #fff;
+}
+
+.channel[data-tier="expert"].is-active:hover {
+    background: var(--ink);
+    color: #fff;
+}
+
 .channel.is-active {
     color: #fff;
     background: var(--accent);
     border-color: var(--accent);
-    box-shadow: inset 0 1px 0 0 rgba(5, 10, 25, 0.45), inset 0 -1px 0 0 rgba(255, 255, 255, 0.3),
-        4px 4px 0 -1px var(--accent-strong);
+    box-shadow: none;
 }
 
 .channel.is-active:hover {
@@ -720,50 +831,6 @@ button {
 /* The deepest numeric tier reads as premium. Where the other tiers use flat
    accent blue, expert flies the full lume ramp: a gradient border and a
    diamond marker at rest, a lit gradient fill when selected. Stays square. */
-.channel[data-tier="expert"] {
-    font-weight: 700;
-    border: 1px solid transparent;
-    border-image: var(--lume) 1;
-    box-shadow: var(--lume-glow-sm);
-}
-
-.channel[data-tier="expert"]::after {
-    content: "◆";
-    margin-left: 8px;
-    font-size: 0.72em;
-    background: var(--lume);
-    -webkit-background-clip: text;
-    background-clip: text;
-    -webkit-text-fill-color: transparent;
-    color: transparent;
-}
-
-.channel[data-tier="expert"]:hover:not(:disabled) {
-    color: var(--ink);
-    background: var(--surface);
-    border-image: var(--lume) 1;
-    box-shadow: var(--lume-glow);
-}
-
-.channel[data-tier="expert"].is-active {
-    color: #fff;
-    background: var(--lume);
-    border-image: var(--lume) 1;
-    animation: lume-drift 9s ease-in-out infinite;
-    box-shadow: var(--lume-glow), 4px 4px 0 -1px rgba(43, 92, 255, 0.42);
-}
-
-.channel[data-tier="expert"].is-active::after,
-.channel[data-tier="expert"].is-active:hover::after {
-    -webkit-text-fill-color: #fff;
-    color: #fff;
-}
-
-.channel[data-tier="expert"].is-active:hover {
-    background: var(--lume);
-    color: #fff;
-}
-
 :focus-visible {
     outline: 2px solid var(--accent);
     outline-offset: 2px;
@@ -771,15 +838,15 @@ button {
 
 /* ---- Status line ------------------------------------------------------- */
 .status {
-    margin: 16px 0 0;
+    margin: 18px 0 0;
     min-height: 1.2em;
-    padding: 10px 14px;
-    border-left: 3px solid var(--accent);
-    border-radius: var(--radius-sm);
+    padding: 12px 16px;
+    border: none;
+    border-radius: var(--radius-md);
     background: var(--surface-2);
-    font-size: 0.86rem;
-    font-weight: 600;
-    color: var(--ink-2);
+    font-size: 0.9375rem;
+    font-weight: 400;
+    color: var(--ink-3);
 }
 
 .status:empty {
@@ -792,27 +859,21 @@ button {
     background: var(--err-soft);
 }
 
-/* ---- Result readout (hard ledger slab) -------------------------------- */
+/* ---- Result readout ---------------------------------------------------- */
+/* Opened along its top edge instead of boxed on four. The lume rule below is
+   what marks where the computed output begins, which is the only thing the
+   border was ever saying. */
 .results {
     position: relative;
-    margin-top: 18px;
-    border: 1px solid var(--line-strong);
-    box-shadow: var(--shadow-soft);
+    margin-top: 26px;
+    border: none;
 }
 
 /* Glowing lume rule capping the computed output — marks where results begin. */
+/* The lume rule that capped the computed output, drifting on a nine-second
+   loop. Where the results begin is now said by the heading above them. */
 .results::before {
-    content: "";
-    position: absolute;
-    top: -1px;
-    left: -1px;
-    right: -1px;
-    height: 3px;
-    background: var(--lume);
-    box-shadow: var(--lume-glow);
-    animation: lume-drift 9s ease-in-out infinite;
-    pointer-events: none;
-    z-index: 2;
+    content: none;
 }
 
 /* ---- Compute pipeline (perceived work) --------------------------------- */
@@ -833,17 +894,17 @@ button {
 
 .compute-title {
     font-size: 0.72rem;
-    font-weight: 800;
-    letter-spacing: 0.14em;
-    text-transform: uppercase;
+    font-weight: 500;
+    letter-spacing: 0;
+    text-transform: none;
     color: var(--ink-2);
 }
 
 .compute-tier {
     font-size: 0.72rem;
-    font-weight: 700;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
+    font-weight: 500;
+    letter-spacing: 0;
+    text-transform: none;
     color: var(--accent);
 }
 
@@ -956,9 +1017,9 @@ button {
 .compute-state {
     flex: none;
     font-size: 0.66rem;
-    font-weight: 700;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
+    font-weight: 500;
+    letter-spacing: 0;
+    text-transform: none;
     color: var(--ink-faint);
 }
 
@@ -1028,24 +1089,22 @@ button {
     display: flex;
     align-items: baseline;
     gap: 12px;
-    padding: 11px 16px;
-    border-bottom: 1px solid var(--line-strong);
-    background: var(--surface-2);
+    padding: 14px 0 10px;
 }
 
 .results-head-k {
-    font-size: 0.72rem;
-    font-weight: 800;
-    letter-spacing: 0.14em;
-    text-transform: uppercase;
-    color: var(--ink-2);
+    font-size: 0.8125rem;
+    font-weight: 600;
+    letter-spacing: 0;
+    text-transform: none;
+    color: var(--ink-3);
 }
 
 .results-head-tier {
-    font-size: 0.72rem;
-    font-weight: 700;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    letter-spacing: 0;
+    text-transform: none;
     color: var(--accent);
 }
 
@@ -1054,24 +1113,26 @@ button {
    into the stat list -- it is the label that says how much weight the numbers
    below it can carry, so it should be the second thing you read after the tier. */
 .results-head-layer {
-    padding: 2px 8px;
-    font-size: 0.64rem;
-    font-weight: 800;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-    color: var(--ink-2);
-    background: var(--surface-3);
-    border: 1px solid var(--line);
+    padding: 3px 10px;
+    font-size: 0.75rem;
+    font-weight: 400;
+    letter-spacing: 0;
+    text-transform: none;
+    color: var(--ink-3);
+    background: var(--surface-2);
+    border: none;
+    border-radius: var(--radius-pill);
 }
 
 .results-head-ms {
     margin-left: auto;
-    padding: 2px 10px;
-    font-size: 0.72rem;
-    font-weight: 800;
+    padding: 3px 11px;
+    font-size: 0.75rem;
+    font-weight: 400;
     font-variant-numeric: tabular-nums;
     color: var(--ok);
     background: var(--ok-soft);
+    border-radius: var(--radius-pill);
 }
 
 /* The engine's explanatory prose -- what a p-value does and doesn't mean, why a
@@ -1096,9 +1157,9 @@ button {
 
 .result-note-k {
     font-size: 0.64rem;
-    font-weight: 800;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
+    font-weight: 500;
+    letter-spacing: 0;
+    text-transform: none;
     color: var(--ink-3);
 }
 
@@ -1179,9 +1240,9 @@ button {
 }
 
 .results td.label {
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
+    font-weight: 500;
+    text-transform: none;
+    letter-spacing: 0;
     font-size: 0.78rem;
     color: var(--ink-2);
 }
@@ -1198,17 +1259,18 @@ button {
    cards): each value sits right beside its label, so the eye never has to track
    a lone label across a wide, empty row to the number at the far edge. The grid
    fills the available width and reflows to fewer columns on smaller screens. */
+/* A rounded panel of cells with space between them, not a ruled grid. Same
+   move as .stat-grid and .legend: one soft ground, and separation carried by
+   the gaps. The 208px track is unchanged and still load-bearing -- see the note
+   that used to sit here about labels and six-figure values. */
 .results .stat-list {
     display: grid;
-    /* 208px, not 184px. The label does not wrap and the value must not be
-       broken mid-token, so the cell has to hold both outright; 184px was about
-       15px short for a two-word label beside a six-figure number, and the
-       shortfall came out of the value. Pairs that still cannot fit are routed
-       to a full-width row by isWidePair() in lib/format.ts -- this width is the
-       point at which that fallback stops being needed for ordinary cells. */
     grid-template-columns: repeat(auto-fill, minmax(208px, 1fr));
-    border-top: 1px solid var(--line);
-    border-left: 1px solid var(--line);
+    gap: 2px;
+    border: none;
+    border-radius: var(--radius);
+    background: var(--surface-2);
+    padding: 6px;
 }
 
 .results .stat {
@@ -1217,9 +1279,10 @@ button {
     align-items: baseline;
     gap: 14px;
     min-width: 0;
-    padding: 11px 14px;
-    border-right: 1px solid var(--line);
-    border-bottom: 1px solid var(--line);
+    padding: 13px 15px;
+    border: none;
+    border-radius: var(--radius-md);
+    background: var(--surface);
 }
 
 .results .stat:hover {
@@ -1227,11 +1290,11 @@ button {
 }
 
 .results .stat-k {
-    font-size: 0.72rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    color: var(--ink-3);
+    font-size: 0.8125rem;
+    font-weight: 400;
+    text-transform: none;
+    letter-spacing: 0;
+    color: var(--ink-faint);
     white-space: nowrap;
 }
 
@@ -1272,35 +1335,48 @@ button {
 /* Compact horizontal bar chart for a handful of same-scale stats (mean/median/
    min/max/std, or a distribution's q1/q3/iqr/skewness/kurtosis) -- so the
    shape of a result reads at a glance next to the stat-list's exact figures. */
+/* The inline bar chart. Everything below the head is inside ONE <svg> -- see
+   components/BarChart.tsx for why -- so the label, track and value rules are
+   SVG paint (fill/stroke), not colour and background. */
 .stat-chart {
-    border-top: 1px solid var(--line);
-    border-left: 1px solid var(--line);
-    padding: 10px 14px;
+    margin-top: 26px;
+    border: none;
+    padding: 0;
+    max-width: 1200px;
 }
 
-.stat-chart-row {
+.stat-chart-head {
     display: flex;
     align-items: center;
-    gap: 12px;
-    padding: 5px 0;
+    justify-content: space-between;
+    gap: 8px 14px;
+    flex-wrap: wrap;
+    margin-bottom: 8px;
+}
+
+.stat-chart-title {
+    font-size: 0.8125rem;
+    font-weight: 400;
+    letter-spacing: 0;
+    text-transform: none;
+    color: var(--ink-faint);
+}
+
+.stat-chart-plot {
+    position: relative;
 }
 
 .stat-chart-label {
-    flex: 0 0 96px;
-    font-size: 0.72rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    color: var(--ink-3);
-    white-space: nowrap;
+    fill: var(--ink-3);
+    font-weight: 500;
+    letter-spacing: 0;
+    text-transform: none;
 }
 
 .stat-chart-track {
-    flex: 1 1 auto;
-    height: 12px;
-    min-width: 40px;
-    background: var(--surface-2);
-    border: 1px solid var(--line);
+    fill: var(--surface-2);
+    stroke: var(--line);
+    stroke-width: 1;
 }
 
 .stat-chart-bar {
@@ -1312,23 +1388,20 @@ button {
 }
 
 .stat-chart-value {
-    flex: 0 0 auto;
-    min-width: 64px;
-    text-align: right;
-    font-size: 0.86rem;
+    fill: var(--ink);
     font-weight: 800;
     font-variant-numeric: tabular-nums;
-    color: var(--ink);
 }
 
 /* Nested tier output: an indented module hung off a strong rail with a neon
    tick at the title. Top-level sections get real air between them so the rail
    reads as a stack of distinct blocks, not one unbroken line down the page. */
+/* Nested output was hung off a heavy accent rail with an inverted title band
+   on it. It is a subsection, so it is now a heading with space above it. */
 .result-group {
-    margin: 0;
-    padding: 0 0 0 20px;
-    border-top: 1px solid var(--line-strong);
-    border-left: 3px solid var(--accent);
+    margin: 26px 0 0;
+    padding: 0;
+    border: none;
 }
 
 .results > .result-group {
@@ -1357,15 +1430,15 @@ button {
     display: flex;
     align-items: center;
     gap: 10px;
-    margin: 0 0 12px -20px;
-    padding: 12px 16px 12px 20px;
-    background: var(--surface-2);
-    border-bottom: 1px solid var(--line);
-    font-size: 0.82rem;
-    font-weight: 800;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    color: var(--accent-strong);
+    margin: 0 0 12px;
+    padding: 0;
+    background: none;
+    border: none;
+    font-size: 1.0625rem;
+    font-weight: 600;
+    text-transform: none;
+    letter-spacing: -0.01em;
+    color: var(--ink);
 }
 
 .result-group-title::before {
@@ -1389,9 +1462,9 @@ button {
 .value-flag {
     display: inline-block;
     font-size: 0.68rem;
-    font-weight: 800;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
+    font-weight: 500;
+    text-transform: none;
+    letter-spacing: 0;
     padding: 2px 8px;
     border: 1px solid transparent;
 }
@@ -1428,9 +1501,10 @@ button {
 }
 
 .record {
-    border: 1px solid var(--line);
-    background: var(--surface);
-    box-shadow: var(--shadow-soft);
+    border: none;
+    border-radius: var(--radius);
+    background: var(--surface-2);
+    overflow: hidden;
 }
 
 .record-title {
@@ -1439,9 +1513,9 @@ button {
     background: var(--surface-3);
     border-bottom: 2px solid var(--accent);
     font-size: 0.74rem;
-    font-weight: 800;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
+    font-weight: 500;
+    text-transform: none;
+    letter-spacing: 0;
     color: var(--accent-strong);
     overflow-wrap: break-word;
 }
@@ -1476,9 +1550,9 @@ button {
     flex: 1 1 auto;
     min-width: 6ch;
     font-size: 0.74rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
+    font-weight: 500;
+    text-transform: none;
+    letter-spacing: 0;
     color: var(--ink-3);
     overflow-wrap: break-word;
 }
@@ -1536,16 +1610,16 @@ button {
 }
 
 .matrix thead th {
-    padding: 12px 18px;
+    padding: 14px 18px;
     text-align: right;
     white-space: normal;
-    font-size: 0.72rem;
-    font-weight: 800;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    color: var(--ink);
-    background: var(--surface-3);
-    border-bottom: 2px solid var(--accent);
+    font-size: 0.8125rem;
+    font-weight: 400;
+    text-transform: none;
+    letter-spacing: 0;
+    color: var(--ink-faint);
+    background: transparent;
+    border-bottom: 1px solid var(--line);
 }
 
 .matrix tbody tr:nth-child(even) {
@@ -1606,9 +1680,9 @@ button {
     padding-left: 30px;
     background: var(--surface);
     font-size: 0.76rem;
-    font-weight: 800;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
+    font-weight: 500;
+    text-transform: none;
+    letter-spacing: 0;
     color: var(--accent-strong);
 }
 
@@ -1638,25 +1712,29 @@ button {
    have -- drew four cells and then two columns of ruled emptiness. Flex lets N
    cells fill the row whatever N is, and the media queries below set a basis
    rather than a column count. */
+/* One soft panel holding N cells, instead of N ruled boxes. This is the
+   reference's whole approach to grouping: a rounded neutral ground, and the
+   items inside separated by space rather than by lines. */
 .stat-grid {
     display: flex;
     flex-wrap: wrap;
-    border-top: 1px solid var(--line-strong);
-    border-left: 1px solid var(--line-strong);
-    box-shadow: var(--shadow-soft);
+    border: none;
+    border-radius: var(--radius);
+    background: var(--surface-2);
+    padding: 6px;
+    overflow: hidden;
 }
 
+/* No grid of ruled boxes. The cells sit in one rounded panel (see .stat-grid)
+   and are separated by the space between them. */
 .stat-cell {
     position: relative;
-    /* Grow to share the row, never shrink below something readable. 15% basis
-       so up to six sit on one line and a seventh wraps. */
     flex: 1 1 15%;
     min-width: 0;
-    padding: 14px 16px;
-    border-right: 1px solid var(--line-strong);
-    border-bottom: 1px solid var(--line-strong);
-    background: var(--surface);
-    transition: background-color 0.14s ease;
+    padding: 20px 22px;
+    border: none;
+    background: none;
+    transition: none;
 }
 
 /* Hovering a cell lights its bottom edge. Painted always and revealed by
@@ -1683,12 +1761,12 @@ button {
 }
 
 .stat-k {
-    margin: 0 0 9px;
-    font-size: 0.7rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    color: var(--ink-3);
+    margin: 0 0 6px;
+    font-size: 0.8125rem;
+    font-weight: 400;
+    text-transform: none;
+    letter-spacing: 0;
+    color: var(--ink-faint);
 }
 
 .stat-note {
@@ -1701,10 +1779,11 @@ button {
 
 .stat-v {
     margin: 0;
-    font-size: 1.7rem;
-    font-weight: 800;
+    font-size: 1.875rem;
+    font-weight: 600;
     font-variant-numeric: tabular-nums;
-    line-height: 1;
+    line-height: 1.1;
+    letter-spacing: -0.02em;
     color: var(--ink);
 }
 
@@ -1713,15 +1792,19 @@ button {
     margin: 0;
     display: grid;
     grid-template-columns: 1fr 1fr;
-    border-top: 1px solid var(--line-strong);
-    border-left: 1px solid var(--line-strong);
+    gap: 2px;
+    border: none;
+    border-radius: var(--radius);
+    background: var(--surface-2);
+    padding: 6px;
+    overflow: hidden;
 }
 
 .legend-row {
-    padding: 14px 16px;
-    border-right: 1px solid var(--line-strong);
-    border-bottom: 1px solid var(--line-strong);
-    transition: background-color 0.14s ease;
+    padding: 16px 18px;
+    border: none;
+    border-radius: var(--radius-md);
+    transition: background-color 0.2s ease;
 }
 
 .legend-row:hover {
@@ -1732,9 +1815,9 @@ button {
     display: block;
     margin-bottom: 6px;
     font-size: 0.82rem;
-    font-weight: 800;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
+    font-weight: 500;
+    text-transform: none;
+    letter-spacing: 0;
     color: var(--accent-strong);
 }
 
@@ -1770,9 +1853,9 @@ button {
     display: block;
     margin-bottom: 6px;
     font-size: 0.7rem;
-    font-weight: 800;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
+    font-weight: 500;
+    text-transform: none;
+    letter-spacing: 0;
     color: var(--accent-strong);
 }
 
@@ -1785,18 +1868,19 @@ button {
 }
 
 .chips a {
-    font-size: 0.86rem;
-    font-weight: 600;
-    padding: 6px 14px;
+    font-size: 0.9375rem;
+    font-weight: 400;
+    padding: 8px 16px;
     text-decoration: none;
-    border: 1px solid var(--line-strong);
+    border: none;
+    border-radius: var(--radius-pill);
     color: var(--ink-2);
-    background: var(--surface);
+    background: var(--surface-2);
 }
 
 .chips a:hover {
-    border-color: var(--accent);
     color: var(--accent);
+    background: var(--accent-soft);
 }
 
 .token {
@@ -1812,16 +1896,16 @@ button {
 /* ---- Footer bar -------------------------------------------------------- */
 .page-footer {
     position: relative;
-    border-top: 1px solid var(--line-strong);
-    background: var(--surface-2);
-    padding: 16px 18px;
+    margin-top: 72px;
+    border-top: 1px solid var(--line);
+    padding: 26px 0 0;
     display: flex;
     flex-wrap: wrap;
     align-items: center;
     justify-content: space-between;
     gap: 8px 18px;
-    font-size: 0.76rem;
-    color: var(--ink-3);
+    font-size: 0.75rem;
+    color: var(--ink-faint);
 }
 
 /* Glowing lume rule capping the footer — bookends the signature rule up top. */
@@ -1843,16 +1927,16 @@ button {
 }
 
 .page-footer a {
-    color: var(--ink-2);
-    font-weight: 600;
+    color: var(--accent);
+    font-weight: 400;
     text-decoration: none;
-    border-bottom: 1px solid var(--line-strong);
-    transition: color 0.14s ease, border-color 0.14s ease;
+    border: none;
+    transition: color 0.2s ease;
 }
 
 .page-footer a:hover {
     color: var(--accent-strong);
-    border-bottom-color: var(--accent);
+    text-decoration: underline;
 }
 
 .footer-meta {
@@ -1923,9 +2007,9 @@ button {
 .loader-brand {
     margin: 0;
     font-size: 1rem;
-    font-weight: 800;
-    letter-spacing: 0.03em;
-    text-transform: uppercase;
+    font-weight: 500;
+    letter-spacing: 0;
+    text-transform: none;
     color: var(--ink);
 }
 
@@ -1962,9 +2046,9 @@ button {
 
 .boot-channel-label {
     font-size: 0.66rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
+    font-weight: 500;
+    text-transform: none;
+    letter-spacing: 0;
     color: var(--ink-3);
     white-space: nowrap;
 }
@@ -2056,9 +2140,9 @@ button {
     justify-content: center;
     gap: 6px 18px;
     font-size: 0.64rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
+    font-weight: 500;
+    text-transform: none;
+    letter-spacing: 0;
     color: var(--ink-faint);
 }
 
@@ -2153,9 +2237,9 @@ button {
 .boot-transition-label {
     margin: 0;
     font-size: 0.72rem;
-    font-weight: 800;
-    text-transform: uppercase;
-    letter-spacing: 0.24em;
+    font-weight: 500;
+    text-transform: none;
+    letter-spacing: 0;
     text-indent: 0.24em;
     color: var(--ink);
     opacity: 0;
@@ -2200,24 +2284,25 @@ body.boot-page-enter .page {
 
 .fig-save-label {
     font-size: 0.62rem;
-    font-weight: 700;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
+    font-weight: 500;
+    letter-spacing: 0;
+    text-transform: none;
     color: var(--ink-faint);
     margin-right: 2px;
 }
 
 .fig-save-btn {
     font: inherit;
-    font-size: 0.64rem;
-    font-weight: 700;
-    letter-spacing: 0.06em;
-    padding: 2px 7px;
-    color: var(--ink-3);
-    background: var(--surface);
-    border: 1px solid var(--line);
-    border-radius: 0;
+    font-size: 0.75rem;
+    font-weight: 400;
+    letter-spacing: 0;
+    padding: 5px 13px;
+    color: var(--accent);
+    background: var(--surface-2);
+    border: none;
+    border-radius: var(--radius-pill);
     cursor: pointer;
+    transition: background-color 0.2s ease, color 0.2s ease;
 }
 
 .fig-save-btn:hover:not(:disabled) {
@@ -2438,35 +2523,20 @@ body.boot-page-enter .page {
 }
 
 @media (max-width: 720px) {
-    .masthead {
-        grid-template-columns: 1fr;
-    }
-
     .masthead-spec {
-        border-left: none;
-        border-top: 1px solid var(--line);
-        flex-direction: row;
-        flex-wrap: wrap;
-    }
-
-    .spec-row {
-        flex: 1 1 46%;
-        border-bottom: 1px solid var(--line);
+        gap: 14px 28px;
     }
 }
 
 @media (max-width: 560px) {
     body {
-        padding: 14px 12px 32px;
+        padding: 0 0 48px;
     }
 
-    .page {
-        border-radius: var(--radius-md);
-        box-shadow: var(--shadow-soft);
-    }
-
+    /* No inset here: .page owns the measure at every width, and a second one
+       pushed the body copy in from a margin the reader could not see. */
     .module-body {
-        padding: 18px 16px;
+        padding: 0 0 28px;
     }
 
     .bar-meta {
@@ -2478,11 +2548,7 @@ body.boot-page-enter .page {
     }
 
     .masthead-spec {
-        flex-direction: column;
-    }
-
-    .spec-row {
-        flex: 1 1 auto;
+        gap: 12px 22px;
     }
 
     .legend {
@@ -2528,31 +2594,36 @@ body.boot-page-enter .page {
 /* ---- Primary navigation ------------------------------------------------- */
 .mainnav {
     display: flex;
-    align-items: stretch;
-    padding: 0 8px;
-    background: var(--surface);
-    border-bottom: 1px solid var(--line);
-    /* WRAPS, never scrolls. This used to be `overflow-x: auto` with the
-       scrollbar hidden, which on a phone put four of the seven links past the
-       right edge with no affordance at all -- the last visible one was sliced
-       mid-word and nothing said there was more. A nav is the one thing on the
-       page that must never be hidden, so it takes a second line instead. */
+    align-items: center;
+    width: 100vw;
+    margin-inline: calc(50% - 50vw);
+    padding-inline: max(var(--page-inset), calc((100vw - var(--page-max)) / 2 + var(--page-inset)));
     flex-wrap: wrap;
+    /* Opaque first, then frosted where it is supported. This is the ONE place
+       on the site where glass earns its cost: the nav is sticky, so real
+       content passes underneath it. Every other frosted panel here sat on solid
+       white, where a backdrop blur has nothing to blur. */
+    background: var(--glass-strong);
+    -webkit-backdrop-filter: var(--glass-blur);
+    backdrop-filter: var(--glass-blur);
+    border-bottom: 1px solid var(--line);
 }
 
+/* 13px, regular weight, sentence case. The old nav shouted in 11px letter-
+   spaced capitals; the reference's is deliberately the quietest type on the
+   page, because navigation is not content. */
 .mainnav-link {
     position: relative;
     flex: none;
-    padding: 11px 15px 9px;
-    font-size: 0.7rem;
-    font-weight: 700;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-    color: var(--ink-3);
+    padding: 13px 12px;
+    font-size: 0.8125rem;
+    font-weight: 400;
+    letter-spacing: -0.01em;
+    color: var(--ink-2);
     text-decoration: none;
     white-space: nowrap;
-    border-bottom: 2px solid transparent;
-    transition: color 0.15s ease;
+    border-radius: var(--radius-sm);
+    transition: color 0.2s ease, opacity 0.2s ease;
 }
 
 .mainnav-link:hover {
@@ -2584,12 +2655,15 @@ body.boot-page-enter .page {
 }
 
 /* ---- Capability ribbon (the marquee figures under a masthead) ----------- */
+/* Four headline numbers standing in open space. This was a tinted band ruled
+   top, bottom and between every cell -- six lines and a fill to present four
+   figures that are already the largest type on the page. The lume tick over
+   each one is kept: it marks them as a set without drawing a container. */
 .ribbon {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
-    border-top: 1px solid var(--line);
-    border-bottom: 1px solid var(--line);
-    background: var(--surface-2);
+    gap: 12px 32px;
+    padding: 8px 0 44px;
 }
 
 /* Each headline figure sits under its own short neon tick — the same mark the
@@ -2597,30 +2671,22 @@ body.boot-page-enter .page {
    same lit instrument without four more things blooming at the reader. */
 .ribbon-cell {
     position: relative;
-    padding: 16px 18px 14px;
-    border-left: 1px solid var(--line);
+    padding: 0;
+    text-align: center;
 }
 
+/* The lit tick over each headline figure. Nothing in the reference puts a
+   decorative mark above a number. */
 .ribbon-cell::before {
-    content: "";
-    position: absolute;
-    top: 0;
-    left: 18px;
-    width: 26px;
-    height: 2px;
-    background: var(--lume-soft);
-}
-
-.ribbon-cell:first-child {
-    border-left: none;
+    content: none;
 }
 
 .ribbon-v {
-    font-size: 1.45rem;
-    font-weight: 800;
-    line-height: 1.1;
+    font-size: clamp(2rem, 1.4rem + 1.6vw, 2.75rem);
+    font-weight: 600;
+    line-height: 1.08;
     color: var(--ink);
-    letter-spacing: -0.01em;
+    letter-spacing: -0.02em;
     font-variant-numeric: tabular-nums;
 }
 
@@ -2631,22 +2697,25 @@ body.boot-page-enter .page {
     letter-spacing: 0;
 }
 
+/* Sentence case, regular weight, grey. Wide-tracked capitals under a number
+   is a dashboard convention the reference does not use anywhere -- a caption is
+   a caption. */
 .ribbon-k {
-    margin-top: 3px;
-    font-size: 0.63rem;
-    font-weight: 700;
-    letter-spacing: 0.14em;
-    text-transform: uppercase;
-    color: var(--ink-3);
+    margin-top: 6px;
+    font-size: 0.8125rem;
+    font-weight: 400;
+    letter-spacing: 0;
+    text-transform: none;
+    color: var(--ink-faint);
 }
 
 /* ---- Breadcrumb --------------------------------------------------------- */
 .crumbs {
-    padding: 13px 18px 0;
-    font-size: 0.67rem;
-    font-weight: 600;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
+    padding: 20px 0 0;
+    font-size: 0.75rem;
+    font-weight: 400;
+    letter-spacing: 0;
+    text-transform: none;
     color: var(--ink-faint);
 }
 
@@ -2680,9 +2749,9 @@ body.boot-page-enter .page {
 .sheet caption {
     text-align: left;
     font-size: 0.68rem;
-    font-weight: 700;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
+    font-weight: 500;
+    letter-spacing: 0;
+    text-transform: none;
     color: var(--ink-faint);
     padding-bottom: 8px;
 }
@@ -2690,7 +2759,7 @@ body.boot-page-enter .page {
 .sheet th,
 .sheet td {
     text-align: left;
-    padding: 8px 12px;
+    padding: 14px 16px;
     border-bottom: 1px solid var(--line);
     vertical-align: top;
 }
@@ -2703,26 +2772,32 @@ body.boot-page-enter .page {
    as N separate gradients instead of one sweep. The row is the only box that
    spans the full width, which also means the cells must stay transparent --
    a background-color on `th` paints over the row underneath it. */
+/* Header cells carry their own bottom rule (see .sheet th below); the band
+   fill and the lit underline are gone. */
 .sheet thead tr {
-    background-color: var(--surface-2);
-    background-image: var(--lume-soft);
-    background-repeat: no-repeat;
-    background-size: 100% 2px;
-    background-position: 0 100%;
+    background-color: transparent;
+    background-image: none;
 }
 
 .sheet thead th {
-    font-size: 0.68rem;
-    letter-spacing: 0.07em;
-    text-transform: uppercase;
+    font-size: 0.8125rem;
+    letter-spacing: 0;
+    text-transform: none;
     color: var(--ink-faint);
-    font-weight: 700;
+    font-weight: 400;
     background: transparent;
-    border-bottom: 1px solid var(--line-strong);
+    border-bottom: 1px solid var(--line);
 }
 
+/* No zebra. Row banding is a density device for tables that are too tight to
+   track by eye; at 14px of vertical padding the rules alone do it, and the
+   alternating fill was the last thing making these read as a ledger. */
 .sheet tbody tr:nth-child(even) {
-    background: var(--surface-2);
+    background: transparent;
+}
+
+.sheet tbody tr:last-child td {
+    border-bottom: none;
 }
 
 .sheet td.num,
@@ -2741,26 +2816,28 @@ body.boot-page-enter .page {
 /* A restrained inline formula token — sans, boxed, not a monospace break. */
 .expr {
     display: inline-block;
-    padding: 1px 7px;
-    background: var(--surface-3);
-    border: 1px solid var(--line);
+    padding: 1px 8px;
+    background: var(--surface-2);
+    border: none;
+    border-radius: var(--radius-sm);
     color: var(--ink);
     font-variant-numeric: tabular-nums;
-    letter-spacing: 0.01em;
+    letter-spacing: 0;
     white-space: nowrap;
 }
 
 /* ---- Status tags -------------------------------------------------------- */
 .tag {
     display: inline-block;
-    font-size: 0.6rem;
-    font-weight: 700;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    padding: 2px 7px;
-    border: 1px solid var(--line);
+    font-size: 0.75rem;
+    font-weight: 400;
+    letter-spacing: 0;
+    text-transform: none;
+    padding: 2px 10px;
+    border: none;
+    border-radius: var(--radius-pill);
     color: var(--ink-3);
-    background: var(--surface);
+    background: var(--surface-2);
     vertical-align: middle;
 }
 
@@ -2829,8 +2906,8 @@ body.boot-page-enter .page {
 .release-date {
     font-size: 0.68rem;
     font-weight: 600;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
+    letter-spacing: 0;
+    text-transform: none;
     color: var(--ink-faint);
 }
 
@@ -2969,9 +3046,9 @@ body.boot-page-enter .page {
         background: var(--surface-3);
         border-bottom: 2px solid var(--accent);
         font-size: 0.74rem;
-        font-weight: 800;
-        text-transform: uppercase;
-        letter-spacing: 0.05em;
+        font-weight: 500;
+        text-transform: none;
+        letter-spacing: 0;
         color: var(--accent-strong);
     }
 
@@ -2989,9 +3066,9 @@ body.boot-page-enter .page {
         flex: 0 1 auto;
         text-align: left;
         font-size: 0.72rem;
-        font-weight: 700;
-        text-transform: uppercase;
-        letter-spacing: 0.04em;
+        font-weight: 500;
+        text-transform: none;
+        letter-spacing: 0;
         color: var(--ink-3);
     }
 }
@@ -3079,9 +3156,18 @@ body.boot-page-enter .page {
     --fig-s3: #9333ea;
 }
 
+/* A figure is a COLUMN, capped, not a block that spans the frame.
+   A viewBox scales its text along with its marks, so a 720-unit drawing painted
+   across a 1500px module renders its 11-unit tick labels at 23px -- past a
+   point the figure stops getting more readable and just gets louder. Capping
+   the plot alone would leave the title, caption and controls stretching past
+   the chart they belong to, so the cap goes on the whole figure and everything
+   in it shares one left and right edge. Tables and ledgers are not capped;
+   they are what the wider frame is for. */
 .fig {
     margin: 0;
     padding: 0;
+    max-width: 1200px;
 }
 
 .fig + .fig {
@@ -3100,37 +3186,41 @@ body.boot-page-enter .page {
 
 .fig-title {
     margin: 0;
-    font-size: 0.92rem;
-    font-weight: 800;
+    font-size: 1.0625rem;
+    font-weight: 600;
+    letter-spacing: -0.01em;
     color: var(--ink);
 }
 
 .fig-meta {
     font-size: 0.7rem;
-    font-weight: 700;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
+    font-weight: 500;
+    letter-spacing: 0;
+    text-transform: none;
     color: var(--ink-faint);
     font-variant-numeric: tabular-nums;
 }
 
 .fig-caption {
-    margin: 5px 0 0;
-    font-size: 0.84rem;
-    color: var(--ink-3);
+    margin: 6px 0 0;
+    font-size: 0.9375rem;
+    color: var(--ink-faint);
 }
 
 /* Controls sit ABOVE the plot in one row -- never down the side, where they
    compete with the y-axis for the reader's left-to-right entry into the chart. */
+/* A ruled strip, not a panel. The filters sat in their own tinted, bordered
+   box directly above a second bordered box holding the plot -- two nested cards
+   for one figure. A rule under the controls says "these belong to what follows"
+   with one line instead of four sides. */
 .fig-controls {
     display: flex;
     flex-wrap: wrap;
-    gap: 10px 18px;
+    gap: 10px 20px;
     align-items: center;
-    margin-top: 14px;
-    padding: 10px 12px;
-    background: var(--surface-2);
-    border: 1px solid var(--line);
+    margin-top: 16px;
+    padding: 0;
+    border: none;
 }
 
 .fig-pick {
@@ -3141,21 +3231,21 @@ body.boot-page-enter .page {
 
 .fig-pick-label {
     font-size: 0.66rem;
-    font-weight: 700;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
+    font-weight: 500;
+    letter-spacing: 0;
+    text-transform: none;
     color: var(--ink-3);
 }
 
 .fig-pick-input {
     font: inherit;
-    font-size: 0.82rem;
-    font-weight: 700;
+    font-size: 0.9375rem;
+    font-weight: 400;
     color: var(--ink);
-    padding: 5px 8px;
-    background: var(--surface);
-    border: 1px solid var(--line-strong);
-    border-radius: 0;
+    padding: 7px 12px;
+    background: var(--surface-2);
+    border: 1px solid transparent;
+    border-radius: var(--radius-sm);
 }
 
 .fig-pick-input:focus-visible {
@@ -3243,9 +3333,7 @@ body.boot-page-enter .page {
 .fig-plot {
     position: relative;
     margin-top: 14px;
-    padding: 10px 4px 2px;
-    background: var(--surface);
-    border: 1px solid var(--line);
+    padding: 10px 0 2px;
 }
 
 .fig-svg {
@@ -3259,8 +3347,8 @@ body.boot-page-enter .page {
     padding: 44px 12px;
     text-align: center;
     font-size: 0.8rem;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
+    letter-spacing: 0;
+    text-transform: none;
     color: var(--ink-faint);
 }
 
@@ -3273,16 +3361,16 @@ body.boot-page-enter .page {
 
 .fig-toggle {
     font: inherit;
-    font-size: 0.66rem;
-    font-weight: 700;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: var(--ink-3);
-    padding: 4px 9px;
-    margin: 0 0 8px;
+    font-size: 0.8125rem;
+    font-weight: 400;
+    letter-spacing: 0;
+    text-transform: none;
+    color: var(--accent);
+    padding: 6px 15px;
+    margin: 0 0 10px;
     background: var(--surface-2);
-    border: 1px solid var(--line-strong);
-    border-radius: 0;
+    border: none;
+    border-radius: var(--radius-pill);
     cursor: pointer;
 }
 
@@ -3315,9 +3403,9 @@ body.boot-page-enter .page {
 .fig-tip-title {
     margin: 0 0 4px;
     font-size: 0.7rem;
-    font-weight: 800;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
+    font-weight: 500;
+    letter-spacing: 0;
+    text-transform: none;
     color: var(--ink);
 }
 
@@ -3362,9 +3450,9 @@ body.boot-page-enter .page {
 
 .fig-axis-text.is-title {
     font-size: 10px;
-    font-weight: 800;
-    letter-spacing: 0.07em;
-    text-transform: uppercase;
+    font-weight: 500;
+    letter-spacing: 0;
+    text-transform: none;
     fill: var(--ink-3);
 }
 
@@ -3855,12 +3943,14 @@ input.fig-pick-input::placeholder {
 
 .grade {
     display: inline-block;
-    padding: 1px 7px;
-    border: 1px solid currentColor;
-    font-size: 0.62rem;
-    font-weight: 800;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
+    padding: 2px 10px;
+    border: none;
+    border-radius: var(--radius-pill);
+    background: var(--surface-2);
+    font-size: 0.75rem;
+    font-weight: 400;
+    letter-spacing: 0;
+    text-transform: none;
     white-space: nowrap;
 }
 
@@ -3999,10 +4089,10 @@ input.fig-pick-input::placeholder {
 }
 
 @media print {
-    /* Printed for the fair board: drop the chassis, the neon and the bezels --
-       none of them survive a printer, and the metal mat alone would eat a
-       cartridge. What is left is the instrument's actual content, black on
-       white, with hairlines kept so the tables still read as tables. */
+    /* Printed for the fair board. Much less to undo than there used to be --
+       the chassis, the neon and the bezels are gone from the screen design too
+       -- so this is now mostly a matter of dropping the controls and letting
+       the type and the hairlines through at full contrast. */
     body {
         padding: 0;
         background: #fff;
@@ -4012,12 +4102,16 @@ input.fig-pick-input::placeholder {
 
     .page {
         max-width: none;
-        border: none;
-        box-shadow: none;
+        padding-inline: 0;
     }
 
-    .page::before {
-        display: none;
+    /* The masthead is 100vw and negatively margined out of the measure on
+       screen; on paper there is no viewport to bleed to, and vw units resolve
+       against the page box, so it is pulled back into the flow. */
+    .masthead {
+        width: auto;
+        margin-inline: 0;
+        padding-inline: 0;
     }
 
     /* Navigation, status pips and the boot sequence are controls, not findings. */
@@ -4035,56 +4129,26 @@ input.fig-pick-input::placeholder {
 }
 
 /* ======================================================================
-   THE HERO PANEL — the one dark object on the page.
+   THE HERO — light, and made of type.
 
-   Everything here is light-on-white by mandate (readability on cheap panels).
-   That mandate applies to DATA. The masthead has no data on it: an eyebrow, a
-   title, a tagline, a byline. So it can carry the contrast the rest of the
-   page cannot, and one inverted panel at the top does more for the page than
-   any amount of effect work spread thin across it.
+   This block used to invert the masthead into the page's one dark object:
+   near-black ground, cool radial washes, a faint rule grid, white display type
+   and a lit seam along its bottom edge. That was the right answer for the
+   design it belonged to, where the alternative effects (frosted glass over
+   white, particles on a metal mat) had all failed for want of contrast.
 
-   This supersedes an earlier attempt that put frosted glass on the nav and a
-   drifting particle field on the page mat. Both failed for the same reason:
-   translucency over a white panel has nothing to reveal, and unbounded specks
-   on a light ground read as dirt. Contrast is the effect that survives a
-   washed-out laptop display; blur and opacity are the two that don't.
+   The redesign does not need it. The reference gets its hierarchy from scale
+   and space — a 68px headline on white with sixty pixels of air around it is
+   already the loudest thing on the page, and it stays readable on a bad panel
+   in a way white-on-black display type does not. So the panel is gone and what
+   is left below is the scatter that used to sit inside it, kept because it is
+   a real correlated cloud rather than decoration, and dropped to a weight that
+   sits behind the words instead of competing with them.
    ====================================================================== */
 
-.masthead {
-    position: relative;
-    background: #080d1a;
-    background-image:
-        /* A wide cool wash off the top-left, so the panel is lit rather than
-           flat black -- and a fine rule grid, the same graph-paper the data
-           tables below are built from, at the threshold of visibility. */
-        radial-gradient(120% 150% at 0% 0%, rgba(43, 92, 255, 0.34), transparent 62%),
-        radial-gradient(90% 120% at 100% 100%, rgba(34, 211, 238, 0.2), transparent 60%),
-        repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.045) 0 1px, transparent 1px 34px),
-        repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.045) 0 1px, transparent 1px 34px);
-    border-bottom: none;
-}
-
-/* The lit seam where the dark panel meets the white instrument below it. This
-   is the page's strongest single edge, and it is the full lume ramp. */
-.masthead::after {
-    content: "";
-    position: absolute;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    height: 3px;
-    background: var(--lume);
-    box-shadow: var(--lume-glow);
-}
-
-.masthead-main {
-    position: relative;
-    /* Roomier than the light version was: the panel is the page's one moment
-       of scale, and cramped padding is what made it read as a header strip. */
-    padding: 46px 30px 42px;
-    z-index: 1;
-}
-
+/* The seeded scatter, now a faint mark behind centred type rather than a
+   right-weighted graphic beside left-aligned type. Same drawing, same fixed
+   seed, still static after it arrives. */
 .hero-plot {
     position: absolute;
     inset: 0;
@@ -4092,88 +4156,26 @@ input.fig-pick-input::placeholder {
     height: 100%;
     z-index: -1;
     pointer-events: none;
-    /* Right-weighted: the headline lives on the left, so the cloud is densest
-       where the type isn't. */
-    -webkit-mask-image: linear-gradient(90deg, transparent 8%, #000 62%);
-    mask-image: linear-gradient(90deg, transparent 8%, #000 62%);
+    opacity: 0.5;
+    /* Faded at both edges now that the headline is centred over it -- a
+       one-sided mask would put the densest part of the cloud under the words. */
+    -webkit-mask-image: radial-gradient(70% 120% at 50% 45%, transparent 22%, #000 78%);
+    mask-image: radial-gradient(70% 120% at 50% 45%, transparent 22%, #000 78%);
 }
 
-/* ---- Inverted type ---------------------------------------------------- */
-.masthead .eyebrow {
-    color: #7dd3fc;
-    /* A lit dot ahead of the eyebrow -- the panel's "powered" tell. */
-    display: inline-flex;
-    align-items: center;
-    gap: 9px;
-}
-
-.masthead .eyebrow::before {
-    content: "";
-    width: 7px;
-    height: 7px;
-    background: #22d3ee;
-    box-shadow: 0 0 8px #22d3ee, 0 0 16px rgba(34, 211, 238, 0.6);
-}
-
-.masthead h1 {
-    color: #ffffff;
-    /* Bigger here than the global h1: this is the only place on the site with
-       the room for display scale. */
-    font-size: clamp(2.4rem, 1.4rem + 3.8vw, 3.9rem);
-    /* A soft cool halo, so the white type sits ON the lit panel rather than
-       being punched out of it. */
-    text-shadow: 0 0 34px rgba(43, 92, 255, 0.55);
-}
-
-.masthead .tagline {
-    color: #c3cfe6;
-    max-width: 42ch;
-}
-
-.masthead .byline {
-    color: #93a4c4;
-}
-
-/* ---- The nameplate, inverted to match --------------------------------- */
-.masthead-spec {
-    background: rgba(255, 255, 255, 0.05);
-    /* Here translucency finally has something behind it worth showing: the
-       lit panel and the plot. This is the one real glass surface on the site. */
-    -webkit-backdrop-filter: saturate(140%) blur(6px);
-    backdrop-filter: saturate(140%) blur(6px);
-    border-left: 1px solid rgba(255, 255, 255, 0.14);
-    box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.12);
-}
-
-.masthead-spec .spec-row {
-    border-bottom-color: rgba(255, 255, 255, 0.09);
-}
-
-.masthead-spec .spec-k {
-    color: #8fa3c4;
-}
-
-.masthead-spec .spec-v {
-    color: #ffffff;
-}
-
-/* On a phone the nameplate stacks under the hero; without this it keeps the
-   white-on-white rule colours and the whole block loses its edges. */
-@media (max-width: 720px) {
-    .masthead-main {
-        padding: 34px 22px 30px;
-    }
+.masthead-main {
+    position: relative;
+    z-index: 1;
 }
 
 /* ---- Sticky nav, minus the invisible glass ---------------------------- */
-/* The ribbon stays stuck to the top -- that part was a real improvement -- but
-   the frosting is gone: it sat on a solid white panel, where a backdrop blur
-   has nothing to blur and cost a compositor layer for no visible change. */
+/* Sticky, and frosted -- see the note on .mainnav above for why the glass is
+   worth its cost here and nowhere else on the site. The opaque declaration in
+   that rule stays as the fallback for engines without backdrop-filter. */
 .mainnav {
     position: sticky;
     top: 0;
     z-index: 30;
-    background: var(--surface);
 }
 
 /* A shadow that only appears once the ribbon is actually overlapping content,
@@ -4200,10 +4202,10 @@ input.fig-pick-input::placeholder {
         position: static;
     }
 
-    /* A black panel is a dead cartridge. */
+    /* The hero is already white; all it needs on paper is a rule under it so
+       the title block is visibly separate from the first section. */
     .masthead {
-        background: #fff;
-        background-image: none;
+        padding-block: 0 24px;
         border-bottom: 1px solid #000;
     }
 
@@ -4234,78 +4236,11 @@ input.fig-pick-input::placeholder {
    ====================================================================== */
 
 /* ---- Advanced: filled, not outlined ----------------------------------- */
-.channel[data-tier="advanced"] {
-    font-weight: 700;
-    color: var(--accent-strong);
-    background: linear-gradient(160deg, var(--accent-soft), #f3f6ff);
-    border-color: var(--accent-line);
-}
-
-.channel[data-tier="advanced"]::after {
-    content: "▲";
-    margin-left: 7px;
-    font-size: 0.62em;
-    /* The glyph's own metrics leave it riding high beside uppercase labels. */
-    vertical-align: 1px;
-}
-
-.channel[data-tier="advanced"]:hover:not(:disabled) {
-    background: linear-gradient(160deg, #dbe4ff, var(--accent-soft));
-    border-color: var(--accent);
-}
-
-.channel[data-tier="advanced"].is-active {
-    background: linear-gradient(120deg, var(--accent-strong), var(--lume-2) 72%);
-    border-color: var(--lume-2);
-    color: #fff;
-    box-shadow: var(--lume-glow-sm), 4px 4px 0 -1px rgba(43, 92, 255, 0.34);
-}
-
-.channel[data-tier="advanced"].is-active::after {
-    color: #fff;
-}
-
-/* ---- Expert: the dark chip -------------------------------------------- */
-/* Overrides the outlined treatment defined further up: at rest the top tier is
-   now inverted rather than merely ringed. */
-.channel[data-tier="expert"] {
-    position: relative;
-    overflow: hidden;
-    font-weight: 800;
-    color: #ffffff;
-    background: linear-gradient(150deg, #131c33, #080d1a 60%);
-    box-shadow: var(--lume-glow-sm);
-}
-
-.channel[data-tier="expert"]::after {
-    color: #22d3ee;
-    -webkit-text-fill-color: #22d3ee;
-    background: none;
-    text-shadow: 0 0 7px rgba(34, 211, 238, 0.9);
-}
-
-.channel[data-tier="expert"]:hover:not(:disabled) {
-    color: #ffffff;
-    background: linear-gradient(150deg, #1b2745, #0c1424 60%);
-    box-shadow: var(--lume-glow);
-}
-
-/* A highlight sweeping the selected top-tier chip. One travelling highlight on
-   the whole page, spent on the single control worth drawing the eye to. */
-@media (prefers-reduced-motion: no-preference) {
-    .channel[data-tier="expert"].is-active::before {
-        content: "";
-        position: absolute;
-        top: 0;
-        bottom: 0;
-        width: 45%;
-        pointer-events: none;
-        background: linear-gradient(105deg, transparent,
-            rgba(255, 255, 255, 0.55), transparent);
-        /* Long pause between passes: a sheen every second is a loading bar. */
-        animation: chip-sheen 4.5s ease-in-out infinite;
-    }
-}
+/* The sweeping highlight that used to travel across the selected top-tier chip
+   every 4.5 seconds is gone. Nothing on the reference moves on a loop, and a
+   control that shimmers while you read past it is the kind of motion the
+   redesign is meant to remove. The @keyframes below is kept only because the
+   reduced-motion block still names it. */
 
 @keyframes chip-sheen {
     0%, 62% { transform: translateX(-160%); }
@@ -4333,11 +4268,9 @@ input.fig-pick-input::placeholder {
 
 /* Expert: the readout header inverts to match the hero and the chip, so the
    deep tier's numbers arrive under a dark, lit band. Only the HEADER -- the
-   data itself stays black-on-white, always. */
-.results.is-expert {
-    box-shadow: var(--shadow-card), 0 0 0 1px rgba(43, 92, 255, 0.2),
-        0 0 34px -14px rgba(43, 92, 255, 0.55);
-}
+   data itself stays black-on-white, always. The slab shadow and ring that used
+   to come with it are gone; the inverted head is what marks the deep tier, and
+   it does not need the readout to become a card as well. */
 
 .results.is-expert .results-head {
     background: linear-gradient(150deg, #131c33, #080d1a 70%);
@@ -4394,461 +4327,374 @@ input.fig-pick-input::placeholder {
 }
 
 /* ======================================================================
-   EXPERT MODE — the whole console, re-lit.
+   EXPERT MODE — the same design, inverted.
 
-   Selecting the deepest tier doesn't just restyle a chip and a results box: it
-   changes the machine. `document.body.dataset.mode` is set from Overview, and
-   everything below hangs off it, so the chassis, the frame, the bars and the
-   ticks all shift together. The point is that the site visibly ESCALATES when
-   you ask for the heavy analysis — the demo has a top gear.
+   Selecting the deepest tier sets `document.body.dataset.mode` from Overview
+   and everything below hangs off it, so the whole site changes rather than one
+   chip and one results box. The demo has a top gear, and that is the point.
 
-   Two hard rules, both inherited from the readability mandate:
-     - the console interior stays WHITE and the data stays black-on-white. Only
-       the chassis around it and the chrome on top of it change.
-     - the mat goes DARKER, never lighter. A near-white brushed metal is what
-       the default chassis already is; expert is machined steel, held between
-       #6f7a8d and #b0b9c9 with no near-white stops at all.
+   WHAT THIS USED TO BE
+   Machined steel: the chassis went from light blue-grey to a darker neutral
+   brushed metal, the frame gained a black bezel and a lume halo, the bars
+   inverted to near-black gradients, table heads got lit underlines, and the
+   interior greys shifted from neutral to blue. It was a lot of surface for one
+   idea.
+
+   WHAT IT IS NOW
+   Dark mode, done the way the reference does it: near-black ground, one step
+   up for panels, white type, and the SAME blue brightened just enough to hold
+   its own on black (#0071e3 goes muddy there; #2997ff is the reference's own
+   dark-mode blue). Nothing else changes -- same radii, same spacing, same type
+   scale. That is what makes it read as the same product with the lights off
+   rather than a second theme.
+
+   The readability mandate still applies and is easier to keep here than it was:
+   white on near-black at these sizes is high contrast on any panel. The one
+   thing to watch is that nothing ends up mid-grey on mid-grey, which is why the
+   secondary ink below is a real step lighter than the reference's.
    ====================================================================== */
 
 body[data-mode="expert"] {
-    /* Mid metal grey. Deliberately a good few steps down from the default
-       #c7cedd so the switch is unmistakable from across a room. */
-    --bg: #868b95;
-    /* Near-neutral steel, not the default's blue-grey: expert mode should read
-       as bare machined metal. Every stop sits between #6a6f79 and #9ba1ac --
-       the brightest band here is still darker than the DEFAULT chassis's
-       darkest, which is what makes the switch unmistakable. */
-    --metal-texture:
-        repeating-linear-gradient(115deg,
-            rgba(255, 255, 255, 0.14) 0px, rgba(255, 255, 255, 0.14) 1px,
-            rgba(8, 13, 26, 0.18) 1px, rgba(8, 13, 26, 0.18) 3px),
-        linear-gradient(115deg,
-            #939aa5 0%, #9ba1ac 10%,
-            #7d838e 24%, #929aa4 38%,
-            #6a6f79 52%, #8f959f 66%,
-            #757b85 80%, #939aa5 100%);
-    /* The offset shadows under every panel go from a blue tint to a real
-       shadow: on a mid-grey mat, a 10%-alpha blue slab is invisible. */
-    --shadow-card: 12px 12px 0 -1px rgba(8, 13, 26, 0.3);
-    --shadow-soft: 6px 6px 0 -1px rgba(8, 13, 26, 0.26);
-    /* Slightly hotter edge light across every seam that draws from the ramp --
-       the whole instrument is running harder, not just the one chip. */
-    --lume-glow: 0 0 9px rgba(43, 92, 255, 0.75), 0 0 24px rgba(34, 211, 238, 0.62);
-    --lume-glow-sm: 0 0 7px rgba(67, 56, 202, 0.7), 0 0 16px rgba(34, 211, 238, 0.58);
+    color-scheme: dark;
+
+    --bg: #000000;
+    --metal-texture: none;
+    --surface: #000000;
+    --surface-2: #1d1d1f;
+    --surface-3: #2c2c2e;
+    --line: #38383a;
+    --line-strong: #48484a;
+
+    --ink: #f5f5f7;
+    --ink-2: #e8e8ed;
+    --ink-3: #b8b8bd;      /* a step lighter than the reference's #a1a1a6 */
+    --ink-faint: #98989d;
+
+    --accent: #2997ff;
+    --accent-strong: #6bb6ff;
+    --accent-soft: #16334f;
+    --accent-line: rgba(41, 151, 255, 0.4);
+
+    --lume-1: #2997ff;
+    --lume-2: #2997ff;
+    --lume-3: #2997ff;
+    --lume: linear-gradient(90deg, #2997ff, #2997ff);
+    --lume-soft: linear-gradient(90deg, #38383a, #38383a);
+
+    --glass: rgba(0, 0, 0, 0.72);
+    --glass-strong: rgba(0, 0, 0, 0.82);
+    --glass-tint: rgba(29, 29, 31, 0.8);
+
+    --ok: #30d158;
+    --ok-soft: #10361c;
+    --err: #ff453a;
+    --err-soft: #3a1512;
+
+    --shadow-card: 0 4px 24px rgba(0, 0, 0, 0.5);
+    --shadow-soft: 0 2px 12px rgba(0, 0, 0, 0.4);
+
+    --chrome-light: #1d1d1f;
+    --chrome-dark: #000000;
 }
 
-/* The frame reads as machined into the darker chassis: a black bezel ring in
-   place of the white one, plus a lume halo bleeding onto the metal. */
-body[data-mode="expert"] .page {
-    box-shadow: 0 0 0 3px rgba(8, 13, 26, 0.55), 0 0 0 4px rgba(120, 180, 255, 0.35),
-        0 0 64px -8px rgba(43, 92, 255, 0.6), var(--shadow-card);
+/* The console bar reads as the quietest strip on the page in both modes, which
+   on black means one step up rather than one step down. */
+body[data-mode="expert"] .console-bar {
+    background: #1d1d1f;
 }
 
-/* Full ring rather than the two hairlines: against a mid grey the vertical
-   edges finally have enough contrast to be worth lighting. */
-body[data-mode="expert"] .page::before {
-    background-image: var(--lume-soft), var(--lume-soft),
-        linear-gradient(180deg, rgba(67, 56, 202, 0.55), rgba(34, 211, 238, 0.55)),
-        linear-gradient(180deg, rgba(67, 56, 202, 0.55), rgba(34, 211, 238, 0.55));
-    background-size: 100% 1px, 100% 1px, 1px 100%, 1px 100%;
-    background-position: 0 0, 0 100%, 0 0, 100% 0;
+/* The tier ladder's top rung. In light mode the expert chip is the one filled
+   black pill; on black that would vanish, so it inverts to white. Same idea --
+   the deepest tier is the one chip that is not the accent. */
+body[data-mode="expert"] .channel[data-tier="expert"].is-active,
+body[data-mode="expert"] .channel[data-tier="expert"].is-active:hover {
+    background: #f5f5f7;
+    border-color: #f5f5f7;
+    color: #000000;
 }
 
-/* ---- The chrome on top of the white interior -------------------------- */
-/* Status bar and nav invert to match the hero, so the console is bookended by
-   dark chrome with the data bright in between. */
-body[data-mode="expert"] .console-bar,
-body[data-mode="expert"] .mainnav {
-    background: linear-gradient(150deg, #131c33, #080d1a 70%);
-    border-bottom-color: rgba(255, 255, 255, 0.12);
-    box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.12);
+/* The ◆ is painted white for the light theme's black chip; on the inverted one
+   it has to come back to black or it disappears into its own pill. */
+body[data-mode="expert"] .channel[data-tier="expert"].is-active::after,
+body[data-mode="expert"] .channel[data-tier="expert"].is-active:hover::after {
+    color: #000000;
+    -webkit-text-fill-color: #000000;
 }
 
-body[data-mode="expert"] .brand-name,
-body[data-mode="expert"] .bar-meta-item b {
-    color: #ffffff;
-}
-
-body[data-mode="expert"] .brand-ver,
-body[data-mode="expert"] .bar-meta-item {
-    color: #93a4c4;
-}
-
-body[data-mode="expert"] .mainnav-link {
-    color: #a9b8d4;
-}
-
-body[data-mode="expert"] .mainnav-link:hover {
-    color: #ffffff;
-    background: rgba(255, 255, 255, 0.06);
-}
-
-body[data-mode="expert"] .mainnav-link[aria-current] {
-    color: #22d3ee;
-}
-
-/* ---- Escalation the eye actually catches ------------------------------ */
-/* Module ticks and index tags pick up the hotter light, so scrolling the page
-   in expert mode looks different all the way down, not just at the top. */
-body[data-mode="expert"] .module-head {
-    background: linear-gradient(90deg, rgba(43, 92, 255, 0.07), var(--surface-2) 60%);
-}
-
-body[data-mode="expert"] .module-index {
-    color: #ffffff;
-    background: linear-gradient(150deg, #1b2745, #0c1424);
-    border-color: transparent;
-}
-
-body[data-mode="expert"] .footer-meta,
-body[data-mode="expert"] .page-footer {
+/* Charts: the marks were built from tokens, so re-pointing the tokens above
+   already re-themed every chart type at once -- histogram, ECDF, box, scatter,
+   heatmap, bootstrap, sample size, outlier rules, and the five added since.
+   Only the plot ground needs saying, because an SVG has no background of its
+   own to inherit. */
+body[data-mode="expert"] .fig-plot,
+body[data-mode="expert"] .dl-plot {
     background: var(--surface-2);
 }
 
-/* The hero panel is already dark; in expert it gets the hotter wash so it
-   doesn't end up the calmest thing on an escalated page. */
-body[data-mode="expert"] .masthead {
-    background-image:
-        radial-gradient(120% 150% at 0% 0%, rgba(43, 92, 255, 0.5), transparent 62%),
-        radial-gradient(90% 120% at 100% 100%, rgba(34, 211, 238, 0.3), transparent 60%),
-        repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.06) 0 1px, transparent 1px 34px),
-        repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.06) 0 1px, transparent 1px 34px);
+/* Bands with too little contrast to survive the inversion: a 4%-alpha fill on
+   white is a tint, and on black it is nothing. */
+body[data-mode="expert"] .fig-band {
+    opacity: 0.28;
 }
 
-/* The mode change itself is worth a beat: the chassis fades between greys
-   rather than snapping, which is what makes it read as the machine spinning up
-   instead of a stylesheet swap. */
-@media (prefers-reduced-motion: no-preference) {
-    body {
-        transition: background-color 0.55s ease;
-    }
+/* =========================================================================
+   DOWNLOADS PAGE
+   The one place on the site where a control is allowed to shout. Everything
+   else was flattened on purpose (see the notes on .page and .module-head), but
+   these buttons ARE the page -- a reader arrives here having already decided
+   they want the file, and the thing they came for should be the loudest object
+   in front of them. They are still square, still ruled, still flat: bigger and
+   filled, not lifted onto a card.
+   ========================================================================= */
 
-    .page,
-    .console-bar,
-    .mainnav,
-    .masthead {
-        transition: box-shadow 0.55s ease, background-color 0.55s ease;
-    }
+/* ---- Take everything ---------------------------------------------------- */
+.bundle {
+    margin: 4px 0 30px;
+    padding: 0 0 26px;
+    border-bottom: 1px solid var(--line);
 }
 
-@media print {
-    /* Expert mode is a screen state; paper gets the plain chassis. */
-    body[data-mode="expert"] .console-bar,
-    body[data-mode="expert"] .mainnav {
-        background: none;
-    }
+/* A segmented control: three pills in a soft track, the chosen one filled.
+   Straight out of the reference's own controls. */
+.bundle-formats {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6px;
+    padding: 6px;
+    border: none;
+    border-radius: var(--radius);
+    background: var(--surface-2);
 }
 
-/* The selected top tier keeps its lit fill under the cursor. Without this the
-   dark hover treatment above wins on source order and the chip visibly
-   "unselects" itself whenever the pointer rests on it. */
-.channel[data-tier="expert"].is-active,
-.channel[data-tier="expert"].is-active:hover {
-    background: var(--lume);
-    color: #fff;
-    box-shadow: var(--lume-glow), 4px 4px 0 -1px rgba(43, 92, 255, 0.42);
+.bundle-format {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    padding: 14px 18px;
+    border: none;
+    border-radius: var(--radius-md);
+    background: transparent;
+    color: var(--ink-2);
+    font-family: inherit;
+    text-align: center;
+    cursor: pointer;
+    transition: background-color 0.2s ease, color 0.2s ease;
 }
 
-.channel[data-tier="expert"].is-active::after,
-.channel[data-tier="expert"].is-active:hover::after {
-    color: #ffffff;
-    -webkit-text-fill-color: #ffffff;
-    text-shadow: none;
-}
-
-/* ---- Expert mode, INSIDE the console ----------------------------------
-   The first cut of expert mode changed the chassis and the chrome and left the
-   content untouched, so on a page like Study or Docs -- which is nearly all
-   content -- nothing appeared to happen at all.
-
-   So the interior changes too. The constraint from the readability mandate
-   still holds and is what shapes all of this: DATA stays black-on-white. What
-   changes is everything around the data — headers, rails, rules, wells and
-   grounds — which is where an instrument shows its state anyway.
-   ---------------------------------------------------------------------- */
-
-body[data-mode="expert"] {
-    /* The interior's greys pick up the ramp's blue. Same lightness ladder as
-       the default tokens, so nothing that was readable stops being readable --
-       the surfaces just stop being neutral. */
-    --surface-2: #eef2fd;
-    --surface-3: #dfe7f8;
-    --line: #c9d5ee;
-    --line-strong: #8b9dc4;
-    --accent-soft: #dfe7ff;
-}
-
-/* Module bodies get the hero's rule grid at a whisper -- the same graph-paper
-   the dark panel is built from, so the whole console shares one substrate. */
-body[data-mode="expert"] .module-body,
-body[data-mode="expert"] .results {
-    background-color: var(--surface);
-    background-image:
-        repeating-linear-gradient(0deg, rgba(43, 92, 255, 0.045) 0 1px, transparent 1px 34px),
-        repeating-linear-gradient(90deg, rgba(43, 92, 255, 0.045) 0 1px, transparent 1px 34px);
-}
-
-/* ---- Table heads invert ------------------------------------------------ */
-/* The single highest-impact change inside the console: every data table on
-   every page gets a dark, lit header band. Headers are labels, not data, so
-   this costs nothing in readability -- and it makes the ruled tables that fill
-   Study, Benchmarks and Methodology read as instrument readouts. */
-body[data-mode="expert"] .sheet thead tr,
-body[data-mode="expert"] .matrix thead th {
-    background-color: #0f1728;
-    background-image: var(--lume-soft);
-    background-repeat: no-repeat;
-    background-size: 100% 2px;
-    background-position: 0 100%;
-}
-
-body[data-mode="expert"] .sheet thead th,
-body[data-mode="expert"] .matrix thead th {
-    color: #b7c8e8;
-    border-bottom-color: transparent;
-}
-
-body[data-mode="expert"] .sheet caption {
-    color: var(--accent-strong);
-}
-
-/* Group headers inside a result -- and the section bands that carry them --
-   invert to match, so a long expert readout is visibly chaptered. */
-body[data-mode="expert"] .result-group-title {
-    background: linear-gradient(90deg, #131c33, #0f1728 70%);
-    border-bottom-color: transparent;
-    color: #7dd3fc;
-}
-
-/* The rail down the left of a nested group becomes a lit edge rather than a
-   grey hairline: it is the thing that shows how deep the analysis nested. */
-body[data-mode="expert"] .result-group {
-    border-left-color: var(--lume-2);
-}
-
-/* ---- Wells and rails --------------------------------------------------- */
-body[data-mode="expert"] .stat-cell,
-body[data-mode="expert"] .ribbon-cell {
-    background: linear-gradient(180deg, rgba(43, 92, 255, 0.05), transparent 60%);
-}
-
-body[data-mode="expert"] .status {
-    background: linear-gradient(90deg, var(--accent-soft), transparent 70%);
-    border-left-color: var(--lume-2);
-}
-
-body[data-mode="expert"] .text code,
-body[data-mode="expert"] code {
-    border-color: var(--accent-line);
+.bundle-format:hover {
     background: var(--accent-soft);
 }
 
-/* Anything already sitting on --surface-2 (module heads, note blocks, record
-   bodies) now sits on the tinted version automatically, via the token above.
-   The inline bar charts are the one interior element that goes deeper: SVG, so
-   this is a fill, and the track behind it darkens to give the bar something to
-   read against. */
-body[data-mode="expert"] .stat-chart-bar {
-    fill: #1636d6;
+/* The chosen format inverts. A tint would be the polite choice and the wrong
+   one -- this decides what ten files will be, and it has to be unmistakable
+   across the room on a projector. */
+.bundle-format.is-active {
+    background: var(--accent);
+    color: #ffffff;
 }
 
-body[data-mode="expert"] .stat-chart-track {
+.bundle-format-label {
+    font-size: 1.0625rem;
+    font-weight: 500;
+    letter-spacing: -0.01em;
+}
+
+.bundle-format-note {
+    font-size: 0.8125rem;
+    font-weight: 400;
+    letter-spacing: 0;
+    opacity: 0.72;
+}
+
+/* A pill. The reference's primary action is a rounded blue capsule at body
+   size in regular weight -- never a full-width uppercase slab. */
+.bundle-go {
+    display: block;
+    width: 100%;
+    margin-top: 16px;
+    padding: 18px 28px;
+    border: none;
+    border-radius: var(--radius-pill);
+    background: var(--accent);
+    color: #ffffff;
+    font-family: inherit;
+    font-size: 1.0625rem;
+    font-weight: 400;
+    letter-spacing: -0.01em;
+    text-transform: none;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+}
+
+.bundle-go:hover:not(:disabled) {
+    background: var(--accent-strong);
+}
+
+.bundle-go:disabled {
     background: var(--surface-3);
+    border-color: var(--line-strong);
+    color: var(--ink-faint);
+    cursor: not-allowed;
 }
 
-/* ---- Pages with no analysis widget ------------------------------------ */
-/* Study, Methodology, Benchmarks, Docs and Changelog never set the mode --
-   they inherit it. Their furniture is the crumb trail, the step list and the
-   figure frames, so those need the treatment too, or navigating away from the
-   Overview in expert mode lands on a page that only half-changed. */
-body[data-mode="expert"] .crumbs {
-    border-bottom-color: var(--line-strong);
+.bundle-progress {
+    margin: 14px 0 0;
+    font-size: 0.875rem;
+    font-weight: 400;
+    color: var(--ink-faint);
+    font-variant-numeric: tabular-nums;
 }
 
-body[data-mode="expert"] .step-head {
-    background: linear-gradient(90deg, rgba(43, 92, 255, 0.08), var(--surface-2) 60%);
+.dl-controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px 24px;
+    align-items: center;
+    padding: 0;
 }
 
-body[data-mode="expert"] .step-head[aria-expanded="true"] {
-    background: linear-gradient(90deg, #131c33, #0f1728 70%);
-    color: #dbe6ff;
+/* ---- One tile per figure ------------------------------------------------ */
+/* auto-fit with a min of 460px: two across on a desktop, one on a laptop, one
+   on a phone. The floor is `min(460px, 100%)` so the track can still shrink
+   below its own minimum on a narrow screen instead of overflowing. */
+.dl-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(460px, 100%), 1fr));
+    gap: 34px 40px;
+    margin-top: 18px;
 }
 
-body[data-mode="expert"] .step-head[aria-expanded="true"] .step-title {
-    color: #ffffff;
+/* A soft rounded tile, which is the reference's grid unit. It replaced a rule
+   above each figure -- the tiles are the page's content, and content that is
+   meant to be picked from a grid is exactly where a panel earns its keep. */
+.dl {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    padding: 22px;
+    border: none;
+    border-radius: var(--radius);
+    background: var(--surface-2);
 }
 
-body[data-mode="expert"] .step-head[aria-expanded="true"] .step-index {
-    color: #7dd3fc;
-}
-
-/* Figures: a lit rail down the left of every chart, which is the cheapest way
-   to mark a whole page of them without touching the plots themselves (their
-   colours encode data and must not shift with a display mode). */
-body[data-mode="expert"] .fig {
-    border-left: 3px solid var(--lume-2);
-    padding-left: 14px;
-}
-
-/* ---- Expert mode: the figures become instrument displays ---------------
-   The charts are the last thing to change, and the trick is WHERE to draw the
-   line. It is `.fig-svg`, not `.fig-plot`: the plot box also contains the
-   "Show data" toggle and the data table it swaps in, and darkening those would
-   put a dense numeric table on a dark ground -- which is exactly the thing the
-   readability mandate exists to prevent.
-
-   So the SVG alone inverts: the chart becomes a lit screen inset into the
-   white plot frame, and the table behind the toggle stays black-on-white.
-
-   Nearly all of this is token re-pointing rather than per-mark rules. The
-   figure marks were already built from --surface/--ink/--line/--accent, so
-   redefining those ON the SVG re-themes every chart type at once -- histogram,
-   box plot, scatter, ECDF, heatmap, bootstrap, sample-size, outlier rules --
-   including any chart added later. Only the handful of marks that need to GLOW
-   are named explicitly below.
-   ---------------------------------------------------------------------- */
-
-body[data-mode="expert"] .fig-svg {
-    /* The screen itself: the same near-black and the same rule grid as the
-       hero panel, so the charts are visibly cut from the console's material. */
-    background-color: #080d1a;
-    background-image:
-        radial-gradient(120% 140% at 0% 0%, rgba(43, 92, 255, 0.22), transparent 65%),
-        repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.05) 0 1px, transparent 1px 30px),
-        repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.05) 0 1px, transparent 1px 30px);
-    /* overflow:visible on .fig-svg lets marks paint outside the box; the
-       padding keeps the lit ground from cutting the axis labels. */
-    padding: 6px 4px;
-
-    /* Structure, inverted. */
-    --surface: #080d1a;
-    --surface-2: #131c33;
-    --surface-3: #16203a;
-    --line: rgba(255, 255, 255, 0.13);
-    --line-strong: rgba(255, 255, 255, 0.32);
-
-    /* Ink, inverted. Axis numbers land at --fig-ink, so it gets the brightest
-       of the secondary tiers -- small type on a dark ground needs the help. */
-    --ink: #ffffff;
-    --ink-2: #dbe6ff;
-    --ink-3: #aebdd9;
-    --ink-faint: #93a4c4;
-    --fig-ink: #b7c8e8;
-
-    /* Marks. The accent brightens rather than shifts hue: on a near-black
-       ground the light-theme blue reads as almost purple-grey. */
-    --accent: #5b8cff;
-    --accent-strong: #22d3ee;
-    --accent-line: rgba(91, 140, 255, 0.6);
-
-    /* The diverging pair for the correlation matrix keeps blue-vs-red, but the
-       neutral has to invert too, or "no relationship" would glow white -- the
-       loudest thing on the chart would be the absence of a finding. */
-    --fig-neg: #ff7a7a;
-    --fig-neutral: #16203a;
-    /* Lifted for a dark surface: the light-theme series colours are chosen for
-       contrast against white and go muddy against #0e1626. Same hue order, so a
-       reader switching themes sees the same series in the same place. */
-    --fig-s0: #6f9bff;
-    --fig-s1: #f0a24b;
-    --fig-s2: #3fbfae;
-    --fig-s3: #c084fc;
-    --fig-missing: repeating-linear-gradient(45deg,
-        #131c33 0 3px, #080d1a 3px 6px);
-}
-
-/* Bars, curves and fits pick up a bloom. This is the one place on the site
-   where a glow lands on DATA rather than on structure, and it is legitimate
-   here for the same reason it works on the brand mark: a lit mark on a black
-   ground is how an instrument display actually looks. */
-body[data-mode="expert"] .fig-bar {
-    fill-opacity: 0.82;
-    filter: drop-shadow(0 0 4px rgba(91, 140, 255, 0.55));
-}
-
-body[data-mode="expert"] .fig-line,
-body[data-mode="expert"] .fig-fit,
-body[data-mode="expert"] .fig-thresh {
-    filter: drop-shadow(0 0 5px rgba(34, 211, 238, 0.6));
-}
-
-body[data-mode="expert"] .fig-dot {
-    fill-opacity: 0.6;
-}
-
-body[data-mode="expert"] .fig-dot.is-cursor,
-body[data-mode="expert"] .fig-dot.is-meandot {
-    filter: drop-shadow(0 0 6px rgba(34, 211, 238, 0.85));
-}
-
-/* The median rule is drawn in --ink, which is now white -- correct on black,
-   but it needs its own weight back: on the light theme it read as "the darkest
-   line on the chart", and the equivalent here is the brightest. */
-body[data-mode="expert"] .fig-ref.is-median,
-body[data-mode="expert"] .fig-box-median {
-    stroke: #ffffff;
-    filter: drop-shadow(0 0 4px rgba(255, 255, 255, 0.5));
-}
-
-/* The band under a curve is a fill at 16% -- invisible against black at that
-   level, so it comes up to where it reads as a shaded interval again. */
-body[data-mode="expert"] .fig-band {
-    fill-opacity: 0.26;
-}
-
-/* Heatmap cells are separated by --surface, which is now the dark ground: that
-   is exactly right, but the diagonal's hairline needs to stay visible. */
-body[data-mode="expert"] .fig-cell.is-diagonal {
-    stroke: rgba(255, 255, 255, 0.22);
-}
-
-/* The plot frame becomes the screen's bezel rather than a hairline box. */
-body[data-mode="expert"] .fig-plot {
-    border-color: rgba(255, 255, 255, 0.16);
-    background: #080d1a;
-    box-shadow: inset 0 0 0 1px rgba(43, 92, 255, 0.25), var(--lume-glow-xs);
-}
-
-/* ...which means the toggle and the placeholder now sit ON the dark bezel. */
-body[data-mode="expert"] .fig-toggle {
-    color: #b7c8e8;
-    background: rgba(255, 255, 255, 0.07);
-    border-color: rgba(255, 255, 255, 0.22);
-}
-
-body[data-mode="expert"] .fig-toggle:hover,
-body[data-mode="expert"] .fig-toggle[aria-pressed="true"] {
-    color: #ffffff;
-    background: rgba(43, 92, 255, 0.35);
-    border-color: var(--lume-2);
-}
-
-body[data-mode="expert"] .fig-placeholder {
-    color: #93a4c4;
-}
-
-/* The data table swapped in behind the toggle keeps the light treatment -- it
-   is a table of numbers, and those are never light-on-dark. It gets an inset
-   white card so it doesn't float on the bezel. */
-body[data-mode="expert"] .fig-plot .sheet {
+.dl-plot {
+    position: relative;
+    min-height: 60px;
+    padding: 12px;
+    border-radius: var(--radius-md);
     background: var(--surface);
 }
 
-/* The legend sits outside the plot on white paper, so its TEXT stays dark --
-   inverting it would make it vanish. The diverging colour ramp is the one
-   exception: its middle swatch means "no relationship", and if the key shows
-   that as white while the matrix shows it as near-black, the reader is being
-   handed two different codes for the same value. The swatches follow the
-   chart; the labels stay on the paper. */
-body[data-mode="expert"] .fig-scale-ramp {
-    --fig-neutral: #16203a;
-    --fig-neg: #ff7a7a;
-    --accent: #5b8cff;
-    /* A dark hairline instead of the light one, so the pale end of the ramp
-       still has an edge against white paper. */
-    border: 1px solid rgba(11, 19, 36, 0.5);
+.dl-waiting {
+    margin: 0;
+    padding: 46px 0;
+    text-align: center;
+    font-size: 0.84rem;
+    font-weight: 600;
+    color: var(--ink-faint);
 }
 
-body[data-mode="expert"] .fig-scale-step {
-    border: 0;
+.dl-title {
+    margin: 0;
+    font-size: 1.0625rem;
+    font-weight: 600;
+    line-height: 1.3;
+    letter-spacing: -0.01em;
+    color: var(--ink);
 }
+
+.dl-note {
+    margin: 4px 0 0;
+    font-size: 0.9375rem;
+    color: var(--ink-faint);
+}
+
+.dl-file {
+    margin: 6px 0 0;
+    font-size: 0.75rem;
+    font-weight: 400;
+    letter-spacing: 0;
+    color: var(--ink-faint);
+}
+
+.dl-file::after {
+    content: ".pdf · .png · .svg";
+    margin-left: 6px;
+    opacity: 0.7;
+}
+
+.dl-actions {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    margin-top: 2px;
+}
+
+/* The buttons the page exists for. Tall enough to hit without aiming, filled
+   on hover rather than outlined, and each one says what the format is FOR --
+   "PDF" alone makes a reader guess, and the wrong guess is a blurry poster. */
+.dl-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    min-height: 62px;
+    padding: 10px 8px;
+    border: none;
+    border-radius: var(--radius-md);
+    background: var(--surface);
+    color: var(--accent);
+    font-family: inherit;
+    cursor: pointer;
+    transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+.dl-btn:hover:not(:disabled) {
+    background: var(--accent);
+    border-color: var(--accent-strong);
+    color: #ffffff;
+}
+
+.dl-btn:disabled {
+    border-color: var(--line);
+    color: var(--ink-faint);
+    cursor: not-allowed;
+}
+
+.dl-btn-label {
+    font-size: 1.0625rem;
+    font-weight: 500;
+    letter-spacing: -0.01em;
+}
+
+.dl-btn-note {
+    font-size: 0.75rem;
+    font-weight: 400;
+    letter-spacing: 0;
+    opacity: 0.72;
+    text-align: center;
+}
+
+@media (max-width: 560px) {
+    .bundle-formats {
+        grid-template-columns: 1fr;
+    }
+
+    .bundle-format {
+        border: none;
+    }
+
+    .dl-btn {
+        min-height: 60px;
+    }
+}
+
+/* Expert mode: the tiles' rules and the outlined buttons pick up the inverted
+   chrome, so the page does not stay stubbornly light while the rest of the
+   console darkens. The filled buttons already read correctly. */
+/* Both of these are token-driven now, so the inversion carries them without
+   help. The two overrides that used to live here re-declared borders and fills
+   the tokens already handle, and one of them tinted every format button so the
+   segmented control read as having all three selected. */

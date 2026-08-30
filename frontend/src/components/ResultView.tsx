@@ -236,8 +236,15 @@ function Matrix({ entries }: { entries: [string, EngineObject][] }): JSX.Element
   );
 }
 
-/** Recursively render one object's contents into the current container. */
-function Nodes({ obj }: { obj: EngineObject }): JSX.Element {
+/**
+ * Recursively render one object's contents into the current container.
+ *
+ * `label` is the path taken to get here — "ALT · expert", then
+ * "ALT · expert · Residual Checks" — and exists so a bar chart nested three
+ * groups deep can name the file it downloads as. Without it every chart in a
+ * result would export as the same anonymous figure.
+ */
+function Nodes({ obj, label }: { obj: EngineObject; label?: string }): JSX.Element {
   const { rows, groups, notes } = partitionEntries(obj);
 
   const chartable = rows.filter(
@@ -262,7 +269,9 @@ function Nodes({ obj }: { obj: EngineObject }): JSX.Element {
         </div>
       )}
 
-      {chartable.length >= 2 && <BarChart entries={chartable} />}
+      {chartable.length >= 2 && (
+        <BarChart entries={chartable} {...(label ? { title: label } : {})} />
+      )}
 
       {notes.map(([key, text]) => (
         <Note noteKey={key} text={text} key={key} />
@@ -276,14 +285,23 @@ function Nodes({ obj }: { obj: EngineObject }): JSX.Element {
             <p className="result-group-title">{prettify(key)}</p>
             {Array.isArray(value)
               ? value.map((item, i) =>
-                  isPlainObject(item) ? <Nodes obj={item} key={i} /> : null,
+                  isPlainObject(item) ? (
+                    <Nodes obj={item} label={childLabel(label, key)} key={i} />
+                  ) : null,
                 )
-              : isPlainObject(value) && <Nodes obj={value} />}
+              : isPlainObject(value) && (
+                  <Nodes obj={value} label={childLabel(label, key)} />
+                )}
           </div>
         ))
       )}
     </>
   );
+}
+
+/** Extend a result path by one group name, or start one. */
+function childLabel(parent: string | undefined, key: string): string {
+  return parent ? `${parent} · ${prettify(key)}` : prettify(key);
 }
 
 export interface ResultViewProps {
@@ -309,7 +327,13 @@ export function ResultView({ result, tier, elapsedMs }: ResultViewProps): JSX.El
         {layer && <span className="results-head-layer">{layer}</span>}
         <span className="results-head-ms">{elapsedMs} ms</span>
       </div>
-      <Nodes obj={result} />
+      <Nodes obj={result} label={titleOf(result, tier)} />
     </div>
   );
+}
+
+/** "ALT — expert", the name a figure downloaded out of this result gets. */
+function titleOf(result: EngineObject, tier: string): string {
+  const column = result["column"];
+  return typeof column === "string" ? `${column} — ${tier}` : `Result — ${tier}`;
 }

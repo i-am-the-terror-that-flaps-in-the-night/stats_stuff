@@ -349,7 +349,9 @@ export function StudioIndex(): JSX.Element {
         {analysis.error && <Status message={analysis.error} isError />}
         {saveError && <Status message={saveError} isError />}
 
-        {bars.length > 0 && <BarChart entries={bars} format={scalar} />}
+        {bars.length > 0 && activeColumn && (
+          <BarChart entries={bars} format={scalar} title={`${activeColumn} — ${tier}`} />
+        )}
 
         {ledger.length === 0 && !analysis.error ? (
           <p className="text">{analysis.loading ? "Computing…" : "Nothing to report."}</p>

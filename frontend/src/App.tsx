@@ -11,6 +11,7 @@ import { Overview } from "./routes/Overview";
 import { Methodology } from "./routes/Methodology";
 import { Benchmarks } from "./routes/Benchmarks";
 import { Changelog } from "./routes/Changelog";
+import { Downloads } from "./routes/Downloads";
 import { Figures } from "./routes/Figures";
 import { Study } from "./routes/Study";
 import { StudioIndex } from "./routes/StudioIndex";
@@ -28,6 +29,7 @@ const router = createBrowserRouter([
       { index: true, element: <Overview /> },
       { path: "study", element: <Study /> },
       { path: "figures", element: <Figures /> },
+      { path: "downloads", element: <Downloads /> },
       { path: "methodology", element: <Methodology /> },
       { path: "benchmarks", element: <Benchmarks /> },
       { path: "changelog", element: <Changelog /> },

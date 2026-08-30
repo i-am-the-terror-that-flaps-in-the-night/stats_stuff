@@ -99,7 +99,7 @@ function isDrawn(el: Element, style: CSSStyleDeclaration): boolean {
 }
 
 /** Ask the browser to save a blob under a name. */
-function saveBlob(blob: Blob, filename: string): void {
+export function saveBlob(blob: Blob, filename: string): void {
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
@@ -338,12 +338,50 @@ export function pdfString(text: string): string {
     "−": "-",
     "≤": "<=",
     "≥": ">=",
+    "≈": "~=",
+    "→": "->",
     "×": "\\327",
     "·": "\\267",
     "…": "...",
     "“": '"',
     "”": '"',
     "’": "'",
+    // Characters WinAnsi does have, and which the axis labels use constantly:
+    // every error bar is written "± 1 SE" and every rate is per m². Left out of
+    // this table they fell through to "?" — the fallback is for glyphs the
+    // encoding genuinely lacks, and these are not those.
+    "±": "\\261",
+    "²": "\\262",
+    "³": "\\263",
+    "°": "\\260",
+    "µ": "\\265",
+    "μ": "\\265",
+    // Greek, which WinAnsi genuinely lacks. Spelled out rather than dropped: a
+    // legend reading "Standardized beta" is worth more to a reader holding the
+    // printout than one reading "Standardized ?". The base-14 Symbol font could
+    // draw these properly, but only by switching fonts mid-line, which means
+    // measuring each run to place the next — a real amount of machinery for
+    // four characters.
+    "α": "alpha",
+    "β": "beta",
+    "η": "eta",
+    "σ": "sigma",
+    "ρ": "rho",
+    "χ": "chi",
+    "δ": "delta",
+    // The capitals are not decoration. Axis captions are uppercased by CSS and
+    // that transform is applied before this runs (see applyTransform), so
+    // "Standardized β" arrives here as "STANDARDIZED Β" — a different code
+    // point, which fell straight through to "?" while the lowercase entry above
+    // sat unused. Whatever is added to this table needs both cases.
+    "Α": "ALPHA",
+    "Β": "BETA",
+    "Η": "ETA",
+    "Σ": "SIGMA",
+    "Ρ": "RHO",
+    "Χ": "CHI",
+    "Δ": "DELTA",
+    "Μ": "MU",
   };
   let out = "";
   for (const character of text) {
@@ -643,7 +681,14 @@ export function toPdfBlob(svg: SVGSVGElement, title: string): Blob {
   // by walking transforms down the tree: the browser has already resolved every
   // nested translate/rotate, and asking it is both shorter and exact.
   const rootScreen = svg.getScreenCTM();
-  for (const element of svg.querySelectorAll<SVGGraphicsElement>("*")) {
+  for (const element of svg.querySelectorAll("*")) {
+    // Not everything under an <svg> is drawable. <title> is the standard way to
+    // give a shape a native tooltip and appears inside the marks it describes;
+    // <desc>, <defs>, <style> and <metadata> are the same kind of thing. None of
+    // them is an SVGGraphicsElement, so none of them has getScreenCTM, and
+    // calling it threw a TypeError that aborted the whole export -- a figure
+    // whose only fault was being accessible would not save as a PDF.
+    if (!(element instanceof SVGGraphicsElement)) continue;
     const own = element.getScreenCTM();
     const toRoot = rootScreen && own ? rootScreen.inverse().multiply(own) : new DOMMatrix();
     drawElement(element, content, toRoot);
@@ -741,8 +786,26 @@ export async function downloadFigure(
   title: string,
   format: ExportFormat,
 ): Promise<void> {
-  const stem = slugify(title);
-  if (format === "svg") saveBlob(toSvgBlob(svg), `${stem}.svg`);
-  else if (format === "pdf") saveBlob(toPdfBlob(svg, title), `${stem}.pdf`);
-  else saveBlob(await toPngBlob(svg), `${stem}.png`);
+  saveBlob(await figureBlob(svg, title, format), figureName(title, format));
+}
+
+/**
+ * The same three exporters behind one call, returning the blob instead of
+ * saving it — which is what the bundle on the Downloads page needs, since it
+ * collects ten of these before anything reaches the disk.
+ */
+export async function figureBlob(
+  svg: SVGSVGElement,
+  title: string,
+  format: ExportFormat,
+): Promise<Blob> {
+  if (format === "svg") return toSvgBlob(svg);
+  if (format === "pdf") return toPdfBlob(svg, title);
+  return toPngBlob(svg);
+}
+
+/** The filename a figure downloads under, in one place so the single-file and
+ *  bundled paths cannot drift apart. */
+export function figureName(title: string, format: ExportFormat): string {
+  return `${slugify(title)}.${format}`;
 }

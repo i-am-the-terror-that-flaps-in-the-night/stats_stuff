@@ -84,7 +84,7 @@ export function StudioAnalyze(): JSX.Element {
 
       {bars.length > 0 && (
         <Module index="02" title="Shape" meta="Same-scale figures">
-          <BarChart entries={bars} format={scalar} />
+          <BarChart entries={bars} format={scalar} title={`${column} — ${tier}`} />
         </Module>
       )}
 
