@@ -2999,16 +2999,58 @@ def _wstd(values, weights) -> float:
 
 
 def _wquantile(values, weights, q) -> float:
-    """Weighted quantile, by linear interpolation on the weighted CDF."""
+    """Weighted quantile: the smallest observed value whose weighted CDF
+    reaches q, with tied values pooled.
+
+    WHY THIS IS NOT INTERPOLATED, AND WHY THAT IS A BUG FIX
+        The obvious implementation sorts the rows, puts one CDF point on each,
+        and interpolates. That is what this function used to do, and it made the
+        answer depend on the order tied rows happened to land in: a block of
+        participants sharing a value contributes CDF points positioned by each
+        row's individual weight, so which of them sorts first moves the number
+        that gets read off.
+
+        That is not hypothetical. numpy's default sort is introsort -- not
+        stable, and SIMD-dispatched per architecture -- so this cohort sorted on
+        an arm64 laptop broke ties differently from the same cohort on an x86_64
+        CI runner. Six adolescents sit at exactly BMI 22.3 and three at 22.4,
+        straddling the median, and the weighted median came out anywhere in
+        22.20 to 22.29 depending on the machine. A published number that changes
+        with the computer that produced it is not a published number. CI caught
+        it on the predictor's model card; the same function also sets the
+        study's sugar quartile boundaries.
+
+        Pooling the ties and taking the CDF crossing fixes it at the root rather
+        than papering over it with a stable sort, which would only have made one
+        arbitrary tie-break reproducible. One entry per DISTINCT value, carrying
+        the summed weight of every row holding it, is order-independent by
+        construction: no sort's tie-breaking can reach it.
+
+    THE CONVENTION, AND WHAT IT COSTS
+        This is the inverse-CDF ("lower") quantile -- the definition survey
+        packages use for weighted quantiles, and it returns a value somebody
+        actually had. That matters on this cohort, which is mostly discrete:
+        interpolating a median age across 699 adolescents aged 12-17 produces
+        something like 14.6, which is not an age and not a median. The
+        interpolating conventions differ only for continuous variables, where
+        they land between the two adjacent observations instead of on the lower
+        one.
+    """
     values, weights = np.asarray(values, float), np.asarray(weights, float)
     ok = np.isfinite(values) & np.isfinite(weights) & (weights > 0)
     if not ok.any():
         return float("nan")
     values, weights = values[ok], weights[ok]
-    order = np.argsort(values)
-    values, weights = values[order], weights[order]
-    cdf = (np.cumsum(weights) - 0.5 * weights) / np.sum(weights)
-    return float(np.interp(q, cdf, values))
+    # np.unique returns the distinct values already sorted, so this pools the
+    # ties and orders them in one pass.
+    distinct, index = np.unique(values, return_inverse=True)
+    pooled = np.bincount(index, weights=weights)
+    cdf = np.cumsum(pooled) / np.sum(pooled)
+    # side="left" gives the first value whose cumulative weight REACHES q. The
+    # clamp is for the top of the range only: floating-point summation can leave
+    # cdf[-1] a hair under 1.0, and q = 1 would then index past the end.
+    position = int(np.searchsorted(cdf, q, side="left"))
+    return float(distinct[min(position, len(distinct) - 1)])
 
 
 def _clusters(frame: pd.Series | pd.DataFrame) -> pd.Series:
