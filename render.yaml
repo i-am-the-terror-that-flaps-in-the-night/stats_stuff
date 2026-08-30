@@ -5,6 +5,22 @@ services:
   - type: web
     name: stats-and-more
     runtime: python
+    # STAYING ON FREE IS A DECISION, AND IT IS THE ONE THING HERE THAT COSTS
+    # MONEY TO CHANGE. The free plan spins the service down after ~15 minutes
+    # idle and the next request pays a ~1 minute cold start. Gaps between judges
+    # at a science fair are almost always longer than 15 minutes, so the failure
+    # mode is: judge walks up, you hit submit, they watch a blank tab.
+    #
+    # Two ways to close that, and they are not equivalent:
+    #   1. `plan: starter` (~$7/month). Always on. Change this one line, redeploy,
+    #      and cancel after the fair. This is the recommended fix.
+    #   2. The keepalive pinger in .github/workflows/keepalive.yml, which is free
+    #      but leaves a window: GitHub's cron is best-effort and routinely runs
+    #      late, and the workflow HAS NEVER RUN SUCCESSFULLY here because the
+    #      repo variable it needs is unset. Fix that with:
+    #          gh variable set SERVICE_URL --body https://<service>.onrender.com
+    #
+    # Left on free because switching plans is a billing decision, not a code one.
     plan: free
     # Build and run from the repo root. The default start command `uvicorn
     # main:app` resolves the root main.py, which re-exports Backend/app.py. No
@@ -21,6 +37,13 @@ services:
     # `npm ci` (not `npm install`) so the deploy resolves the exact tree in
     # package-lock.json. The frontend build runs first: if it fails, the deploy
     # fails before touching Python, and the previous version stays live.
+    #
+    # The trained LightGBM model (Backend/model/) is committed like the cohort
+    # is, and for the same reasons: the free tier's filesystem is ephemeral, so
+    # anything trained at runtime is lost on the next restart, and 0.1 vCPU is
+    # not something to run a fit on inside a request. The build installs
+    # lightgbm and reads the artifact; it never trains. `engine.py train-model
+    # --check` in CI is what keeps the committed model matching its derivation.
     #
     # NO GIT LFS STEP, deliberately. Data/nhanes_analytic.csv (the 17 MB raw
     # NHANES merge) is tracked in LFS, and this build never fetches it: the app
@@ -57,3 +80,48 @@ services:
       # will not show the difference.
       - key: MALLOC_ARENA_MAX
         value: "2"
+
+      # ---- The prediction demo's language model (Backend/predict_api.py) ----
+      #
+      # `sync: false` means "Render prompts for this in the dashboard and stores
+      # it there". The value is NOT in this file and must never be: a key in the
+      # repo is a key in every clone and every fork.
+      #
+      # THE KEY IS SERVER-SIDE ONLY. The browser calls this service; this service
+      # calls OpenRouter. Nothing under frontend/ has ever seen it, which is what
+      # makes it safe from a judge with dev tools open:
+      #
+      #     browser -> Render (holds the key) -> OpenRouter -> Nemotron
+      #
+      # LEAVING IT UNSET IS SAFE, and that is deliberate. /api/predict is pure
+      # local arithmetic and never touches this; /api/predict/explain falls back
+      # to prose it generates itself from the same SHAP contributions and labels
+      # the answer as a fallback. So an unconfigured deploy is a working demo
+      # minus the model-written paragraph, not a broken one. Check which you have
+      # with: curl https://<service>.onrender.com/api/predict/llm
+      - key: OPENROUTER_API_KEY
+        sync: false
+
+      # The failover chain, primary first. Both are real OpenRouter slugs;
+      # they are settable here so a model that gets renamed or retired can be
+      # swapped from the dashboard without a redeploy. Defaults live in
+      # Backend/predict_api.py and match these.
+      #
+      # Do NOT point these at the ":free" variants for the fair. They are
+      # rate-limited per account, and a night of testing followed by a queue of
+      # judges is exactly the traffic shape that trips them. Paid, this costs
+      # cents: ~600 tokens in and ~120 out per explanation.
+      - key: OPENROUTER_MODEL
+        value: nvidia/nemotron-3.5-lightning
+      - key: OPENROUTER_FALLBACK_MODEL
+        value: nvidia/nemotron-3-ultra-550b-a55b
+
+      # Seconds, and hard socket ceilings rather than hopes. The primary budget
+      # is how long a person will stand still; the fallback gets more because by
+      # the time it runs the reader has already waited once. Raise the first one
+      # only if the venue's network is slow enough that Lightning times out on a
+      # request it would otherwise have answered.
+      - key: OPENROUTER_TIMEOUT
+        value: "3.0"
+      - key: OPENROUTER_FALLBACK_TIMEOUT
+        value: "8.0"

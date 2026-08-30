@@ -604,6 +604,20 @@ h1 {
     white-space: nowrap;
 }
 
+/* nowrap above is right for the short chips this slot is for ("Primary",
+   "14.4 U/L") and wrong for anything longer: .module-head is a flex row, so an
+   unbreakable chip cannot shrink and instead widens the DOCUMENT -- one long
+   meta string took a page to 838px inside a 430px viewport. Callers should keep
+   these short, and on the narrowest layout the chip wraps to its own line
+   rather than trusting them to. */
+@media (max-width: 560px) {
+    .module-meta {
+        margin-left: 0;
+        white-space: normal;
+        overflow-wrap: anywhere;
+    }
+}
+
 .module-meta code {
     font-family: var(--font);
     font-weight: 700;
@@ -2487,6 +2501,39 @@ body.boot-page-enter .page {
     background: var(--accent);
 }
 
+/* Contribution bars (ContributionChart.tsx). The diverging pair the correlation
+   matrix already uses, so "blue is up, red is down" means one thing across the
+   whole site -- and because both tokens are re-pointed under
+   body[data-mode="expert"], this chart follows into dark mode without a rule of
+   its own. Direction is carried by the SIDE of the axis first and the colour
+   second; the legend names both. */
+.fig-contrib {
+    transition: fill-opacity 0.1s ease;
+    fill-opacity: 0.72;
+}
+
+.fig-contrib.is-up {
+    fill: var(--fig-pos);
+}
+
+.fig-contrib.is-down {
+    fill: var(--fig-neg);
+}
+
+.fig-contrib:hover {
+    fill-opacity: 1;
+}
+
+.fig-key-mark.is-contrib-up,
+.fig-key-mark.is-contrib-down {
+    height: 10px;
+    width: 16px;
+    border: 0;
+}
+
+.fig-key-mark.is-contrib-up { background: var(--fig-pos); }
+.fig-key-mark.is-contrib-down { background: var(--fig-neg); }
+
 @media (prefers-reduced-motion: reduce) {
     .loader-overlay,
     .boot-channel-fill,
@@ -2851,6 +2898,12 @@ body.boot-page-enter .page {
     color: var(--accent);
     border-color: var(--accent-line);
     background: var(--accent-soft);
+}
+
+.tag--major {
+    color: var(--err);
+    border-color: rgba(215, 0, 21, 0.4);
+    background: var(--err-soft);
 }
 
 /* ---- Release timeline (changelog) --------------------------------------- */
@@ -4698,3 +4751,169 @@ body[data-mode="expert"] .fig-band {
    help. The two overrides that used to live here re-declared borders and fills
    the tokens already handle, and one of them tinted every format button so the
    segmented control read as having all three selected. */
+
+/* =========================================================================
+   PREDICT — the interactive demo (routes/Predict.tsx)
+   =========================================================================
+   Panels on the page's inset grey, items separated by gaps, pill buttons: the
+   same system every other route uses, and no new tokens. The one thing this
+   page needs that nothing else does is a slider, and native `input[type=range]`
+   still needs its track and thumb styled per engine.
+   ========================================================================= */
+
+.predict-form {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 12px;
+    margin-top: 24px;
+}
+
+.predict-field {
+    padding: 18px 20px;
+    border-radius: var(--radius-md);
+    background: var(--surface-2);
+}
+
+.predict-label {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    font-size: 1.0625rem;
+    font-weight: 500;
+    color: var(--ink);
+}
+
+.predict-unit {
+    font-size: 0.8125rem;
+    font-weight: 400;
+    color: var(--ink-faint);
+}
+
+.predict-slider {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-top: 10px;
+}
+
+.predict-slider input[type="range"] {
+    flex: 1;
+    min-width: 0;
+    /* The browser default track is grey-on-grey against --surface-2 and the
+       default thumb is a different size in every engine, so both are declared. */
+    appearance: none;
+    height: 4px;
+    border-radius: var(--radius-pill);
+    background: var(--surface-3);
+    cursor: pointer;
+}
+
+.predict-slider input[type="range"]::-webkit-slider-thumb {
+    appearance: none;
+    width: 22px;
+    height: 22px;
+    border: none;
+    border-radius: 50%;
+    background: var(--accent);
+    cursor: grab;
+}
+
+.predict-slider input[type="range"]::-moz-range-thumb {
+    width: 22px;
+    height: 22px;
+    border: none;
+    border-radius: 50%;
+    background: var(--accent);
+    cursor: grab;
+}
+
+.predict-slider input[type="range"]:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 4px;
+}
+
+/* Tabular numerals and a reserved width, or the layout jumps a pixel every time
+   the value crosses a digit boundary while the reader is dragging. */
+.predict-value {
+    min-width: 4.5ch;
+    font-size: 1.0625rem;
+    font-weight: 500;
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+    color: var(--ink);
+}
+
+.predict-choices {
+    display: flex;
+    gap: 8px;
+    margin-top: 10px;
+}
+
+.predict-choice {
+    flex: 1;
+    padding: 9px 16px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-pill);
+    background: var(--surface);
+    color: var(--ink-2);
+    font-family: inherit;
+    font-size: 0.9375rem;
+    cursor: pointer;
+    transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.predict-choice.is-active {
+    border-color: var(--accent);
+    background: var(--accent);
+    color: #ffffff;
+}
+
+.predict-about {
+    margin-top: 10px;
+    font-size: 0.8125rem;
+    line-height: 1.45;
+    color: var(--ink-faint);
+}
+
+.predict-median {
+    color: var(--ink-3);
+}
+
+.predict-actions {
+    margin-top: 20px;
+    max-width: 340px;
+}
+
+.predict-prose {
+    padding: 22px 24px;
+    border-radius: var(--radius-md);
+    background: var(--surface-2);
+}
+
+/* The paragraph a judge reads. Set a step larger than body copy, because it is
+   the one piece of text on the page that is meant to be read out loud. */
+.predict-explanation {
+    font-size: 1.1875rem;
+    line-height: 1.5;
+    color: var(--ink);
+}
+
+.predict-prose.is-waiting .text {
+    color: var(--ink-faint);
+}
+
+.predict-attempts {
+    font-variant-numeric: tabular-nums;
+    color: var(--ink-faint);
+}
+
+@media (max-width: 560px) {
+    .predict-form {
+        grid-template-columns: 1fr;
+    }
+
+    .predict-actions {
+        max-width: none;
+    }
+}

@@ -1,0 +1,199 @@
+{
+  "model": "LightGBM gradient-boosted trees",
+  "outcome": "ln(ALT), U/L",
+  "outcome_label": "Alanine aminotransferase (ALT)",
+  "features": [
+    "Sugar10g",
+    "ScreenTime",
+    "Age",
+    "Male",
+    "TrigHDLRatio",
+    "HbA1c",
+    "BMI"
+  ],
+  "specification": "Model B with BMI -- the study's pre-specified primary specification, fitted here by gradient boosting instead of weighted least squares.",
+  "n": 586,
+  "clusters": 30,
+  "weighted": "the day-1 dietary weight (WTDRD1), applied as a per-row training weight",
+  "rounds": 45,
+  "params": {
+    "objective": "regression",
+    "metric": "l2",
+    "num_leaves": 7,
+    "min_data_in_leaf": 25,
+    "learning_rate": 0.05,
+    "feature_fraction": 0.9,
+    "lambda_l2": 1.0,
+    "bagging_freq": 0,
+    "verbosity": -1,
+    "seed": 20260830,
+    "deterministic": true,
+    "force_row_wise": true,
+    "num_threads": 1
+  },
+  "base_value": 2.64567,
+  "elevated_alt_thresholds": {
+    "Male": 26.0,
+    "Female": 22.0
+  },
+  "elevated_alt_source": "Schwimmer et al. 2010 (SAFETY study); adopted in the NASPGHAN 2017 pediatric NAFLD screening guideline",
+  "validation": {
+    "scheme": "5-fold, grouped by PSU within stratum, rounds chosen in an inner 4-fold",
+    "folds": 5,
+    "clusters": 30,
+    "rounds_per_fold": [
+      47,
+      42,
+      44,
+      46,
+      36
+    ],
+    "gradient_boosting": {
+      "r_squared_log_alt": 0.2786,
+      "mean_absolute_error_u_per_l": 5.43
+    },
+    "linear_model_b_with_bmi": {
+      "r_squared_log_alt": 0.24,
+      "mean_absolute_error_u_per_l": 5.58
+    },
+    "note": "Scores are out-of-fold, with the folds split by SAMPLING CLUSTER rather than by participant: two adolescents from the same sampled location are more alike than two strangers, so splitting them across the train/test line would let the model see its own answer and report a score it cannot reproduce. The number of boosting rounds is chosen INSIDE each training fold, by a second cross-validation that never touches the held-out cluster, so the reported score pays for that choice instead of hiding it. The linear figure beside it is the study's own primary specification (Model B with BMI) scored on exactly the same folds, which is what makes the two comparable."
+  },
+  "importance": [
+    {
+      "feature": "BMI",
+      "label": "BMI",
+      "gain_percent": 41.59,
+      "mean_abs_shap": 0.14234
+    },
+    {
+      "feature": "Male",
+      "label": "Sex",
+      "gain_percent": 22.61,
+      "mean_abs_shap": 0.10922
+    },
+    {
+      "feature": "TrigHDLRatio",
+      "label": "Triglyceride / HDL ratio",
+      "gain_percent": 11.0,
+      "mean_abs_shap": 0.05084
+    },
+    {
+      "feature": "HbA1c",
+      "label": "HbA1c",
+      "gain_percent": 9.86,
+      "mean_abs_shap": 0.0253
+    },
+    {
+      "feature": "ScreenTime",
+      "label": "Screen time",
+      "gain_percent": 9.21,
+      "mean_abs_shap": 0.02468
+    },
+    {
+      "feature": "Sugar10g",
+      "label": "Dietary sugar",
+      "gain_percent": 5.5,
+      "mean_abs_shap": 0.01599
+    },
+    {
+      "feature": "Age",
+      "label": "Age",
+      "gain_percent": 0.23,
+      "mean_abs_shap": 0.00074
+    }
+  ],
+  "inputs": {
+    "Sugar10g": {
+      "name": "Sugar10g",
+      "label": "Dietary sugar",
+      "unit": "10 g/day",
+      "about": "Total sugars from the day-1 24-hour dietary recall. The model works in tens of grams, because that is the contrast the study reports; the control shows plain grams.",
+      "min": 1.0,
+      "max": 36.5,
+      "step": 0.5,
+      "default": 10.0,
+      "cohort_median": 9.963,
+      "display_factor": 10,
+      "display_unit": "g/day"
+    },
+    "ScreenTime": {
+      "name": "ScreenTime",
+      "label": "Screen time",
+      "unit": "hours/day",
+      "about": "Self-reported recreational screen time on a typical day.",
+      "min": 1.0,
+      "max": 10.0,
+      "step": 0.5,
+      "default": 6.0,
+      "cohort_median": 6.0
+    },
+    "Age": {
+      "name": "Age",
+      "label": "Age",
+      "unit": "years",
+      "about": "Age at screening. The cohort is adolescents aged 12-17.",
+      "min": 12.0,
+      "max": 17.0,
+      "step": 1,
+      "default": 15.0,
+      "cohort_median": 15.0
+    },
+    "Male": {
+      "name": "Male",
+      "label": "Sex",
+      "unit": "0 = female, 1 = male",
+      "about": "Sex as recorded by NHANES. The strongest single predictor here after body mass: adolescent boys sit well above girls on ALT.",
+      "min": 0.0,
+      "max": 1.0,
+      "step": 1,
+      "default": 1.0,
+      "cohort_median": 1.0,
+      "choices": [
+        {
+          "value": 0,
+          "label": "Female"
+        },
+        {
+          "value": 1,
+          "label": "Male"
+        }
+      ]
+    },
+    "TrigHDLRatio": {
+      "name": "TrigHDLRatio",
+      "label": "Triglyceride / HDL ratio",
+      "unit": "ratio",
+      "about": "Triglycerides divided by HDL cholesterol, both in mg/dL -- a standard marker of insulin resistance.",
+      "min": 0.4,
+      "max": 8.8,
+      "step": 0.1,
+      "default": 1.7,
+      "cohort_median": 1.685
+    },
+    "HbA1c": {
+      "name": "HbA1c",
+      "label": "HbA1c",
+      "unit": "%",
+      "about": "Glycated haemoglobin: average blood sugar over ~3 months.",
+      "min": 4.5,
+      "max": 6.1,
+      "step": 0.1,
+      "default": 5.3,
+      "cohort_median": 5.3
+    },
+    "BMI": {
+      "name": "BMI",
+      "label": "BMI",
+      "unit": "kg/m\u00b2",
+      "about": "Body mass index. Not age- and sex-standardized here, because the protocol's models use raw BMI and this model must match them.",
+      "min": 16.0,
+      "max": 44.5,
+      "step": 0.5,
+      "default": 22.5,
+      "cohort_median": 22.341
+    }
+  },
+  "trained_on": "NHANES 2017-2018, adolescents aged 12-17",
+  "caveat": "This is a prediction, not a diagnosis and not a causal statement. The model reports where NHANES adolescents with these numbers tended to sit, from one survey cycle and 586 participants. Moving an input changes the model's guess; it does not tell you what would happen to a real person if that number changed.",
+  "not_causal": "This is an association measured in observational data. It does not establish that changing one variable would change the other."
+}

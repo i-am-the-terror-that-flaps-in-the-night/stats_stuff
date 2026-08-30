@@ -81,6 +81,9 @@ export function Shell(): JSX.Element {
         <NavLink className={navClass} to="/study">
           Study
         </NavLink>
+        <NavLink className={navClass} to="/predict">
+          Predict
+        </NavLink>
         <NavLink className={navClass} to="/figures">
           Figures
         </NavLink>

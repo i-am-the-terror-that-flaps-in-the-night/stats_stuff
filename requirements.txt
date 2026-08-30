@@ -15,6 +15,15 @@
 #     lazily inside figure_production(), which no route calls, so leaving it out
 #     keeps the build lean without affecting boot or any served response. If you
 #     add a figures endpoint, put matplotlib back or it will fail at runtime.
+#
+# DELIBERATELY INCLUDED, and worth knowing why:
+#   * lightgbm (and narwhals, which only it pulls in). It IS needed at runtime --
+#     /api/predict loads the committed booster from Backend/model/ -- but the
+#     import is lazy, inside engine.py's predictor functions, so a visitor who
+#     never opens the Predict page never pays its ~10 MB and ~25 ms. It is also
+#     what supplies the SHAP explanations: LightGBM's pred_contrib runs TreeSHAP
+#     in the booster, so the `shap` package (scikit-learn + numba + llvmlite +
+#     cloudpickle) is NOT here and is not needed. See engine.py's PART FOUR.
 
 annotated-doc==0.0.4
 annotated-types==0.7.0
@@ -26,7 +35,9 @@ h11==0.16.0
 httptools==0.8.0
 idna==3.18
 jinja2==3.1.6
+lightgbm==4.7.0
 markupsafe==3.0.3
+narwhals==2.25.0
 numpy==2.5.1
 packaging==26.2
 pandas==3.0.3

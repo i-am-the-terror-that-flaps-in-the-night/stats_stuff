@@ -22,9 +22,14 @@ import type {
   DensityResponse,
   DiagnosticsResponse,
   EngineObject,
+  ExplainResponse,
   HistogramResponse,
+  LlmStatus,
   OutliersResponse,
   OverviewResponse,
+  PredictBody,
+  PredictionResponse,
+  PredictorCard,
   RecordRunBody,
   RunRecord,
   SampleSizeResponse,
@@ -242,6 +247,65 @@ export function fetchStudyHeadline(): Promise<StudyHeadline> {
 
 export function fetchStudyStep(name: string): Promise<StudyStep> {
   return getJson<StudyStep>(`/api/study/step/${enc(name)}`);
+}
+
+// ---- The prediction demo ---------------------------------------------------
+// Backend/predict_api.py. The card is a plain GET and memoized like everything
+// else; the two POSTs are not, because their key space is the seven-dimensional
+// input space and an unbounded memo over it is a leak with a form attached.
+
+export function fetchPredictorCard(): Promise<PredictorCard> {
+  return getJson<PredictorCard>("/api/predict/model");
+}
+
+export function fetchLlmStatus(): Promise<LlmStatus> {
+  return getJson<LlmStatus>("/api/predict/llm");
+}
+
+/** POST a JSON body and parse the answer. The GET path's cache does not apply. */
+async function postJson<T>(path: string, body: unknown): Promise<T> {
+  const base = await resolveApiBase();
+  const res = await fetch(`${base}${path}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    let detail = `HTTP ${res.status}`;
+    try {
+      const parsed = (await res.json()) as { detail?: string };
+      if (parsed.detail) detail = parsed.detail;
+    } catch {
+      // Non-JSON error body -- the status is all we have.
+    }
+    throw new ApiError(detail, res.status);
+  }
+  return (await res.json()) as T;
+}
+
+/**
+ * One prediction with its SHAP breakdown.
+ *
+ * Deliberately a separate call from explain() rather than one request that
+ * returns both. The prediction is local arithmetic on a committed model and
+ * answers in about a millisecond; the explanation may spend three seconds
+ * waiting on a language model, or fail over twice. Bundling them would make the
+ * chart wait on the paragraph, which is exactly backwards -- the prediction is
+ * the science, the paragraph is the caption.
+ */
+export function predict(body: PredictBody): Promise<PredictionResponse> {
+  return postJson<PredictionResponse>("/api/predict", body);
+}
+
+/**
+ * The same prediction, narrated.
+ *
+ * Never rejects for a language-model failure: the server falls back to prose
+ * generated from the contributions and says so in `source`. A rejection here
+ * means the request itself did not land.
+ */
+export function explain(body: PredictBody): Promise<ExplainResponse> {
+  return postJson<ExplainResponse>("/api/predict/explain", body);
 }
 
 /** One analysis, with the round-trip time the UI reports. */
