@@ -270,10 +270,10 @@ export function StudioExperiments(): JSX.Element {
                 r.std_shift === 0 ? "—" : formatTick(r.std_shift),
               ])}
             />
-            <p className="field-label">Standard deviation under each rule</p>
             <BarChart
               entries={outliers.data.results.map((r) => [r.rule, r.std ?? 0])}
               format={(v) => formatTick(v)}
+              title={`${outlierColumn} — standard deviation under each rule`}
             />
             <Table
               corner="Rule"

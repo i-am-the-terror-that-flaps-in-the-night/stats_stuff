@@ -10,7 +10,7 @@
 import type { JSX } from "react";
 import { NavLink, Outlet } from "react-router";
 import { useEffect, useState } from "react";
-import { knownApiBase, measureLatency } from "../lib/api";
+import { measureLatency } from "../lib/api";
 import { restoreMode } from "../lib/mode";
 
 /** The ascending-bars mark, shared by the bar, the loader and the transition. */
@@ -55,7 +55,7 @@ export function Shell(): JSX.Element {
             <BrandMark />
           </span>
           <span className="brand-name">Data Analysis Engine</span>
-          <span className="brand-ver">v1.2.0</span>
+          <span className="brand-ver">v1.3.1</span>
         </span>
         <div className="bar-meta">
           <span className="bar-meta-item">Engine · FastAPI</span>
@@ -84,6 +84,9 @@ export function Shell(): JSX.Element {
         <NavLink className={navClass} to="/figures">
           Figures
         </NavLink>
+        <NavLink className={navClass} to="/downloads">
+          Downloads
+        </NavLink>
         <NavLink className={navClass} to="/methodology">
           Methodology
         </NavLink>
@@ -108,7 +111,7 @@ export function Shell(): JSX.Element {
       <footer className="page-footer">
         <p>Built with FastAPI, Pandas, React and TypeScript</p>
         <p>
-          <a href={`${knownApiBase() ?? ""}/docs`}>API docs</a> ·{" "}
+          <a href="https://fastapi.tiangolo.com/reference/">API docs</a> ·{" "}
           <a href="https://github.com/i-am-the-terror-that-flaps-in-the-night">GitHub</a> ·{" "}
           <a href="mailto:anirudh.gupta.sa@gmail.com">Contact</a> ·{" "}
           <a href="https://404-page-62v.pages.dev/">About Me</a>

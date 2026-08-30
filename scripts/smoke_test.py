@@ -91,6 +91,7 @@ SPA_ROUTES = [
     "/",
     "/study",
     "/figures",
+    "/downloads",
     "/methodology",
     "/benchmarks",
     "/changelog",

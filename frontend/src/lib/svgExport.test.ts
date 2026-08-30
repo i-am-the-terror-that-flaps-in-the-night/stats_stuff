@@ -92,8 +92,35 @@ describe("pdfString", () => {
     expect(pdfString("3 × IQR")).toBe("3 \\327 IQR");
   });
 
+  it("keeps the characters WinAnsi does have", () => {
+    // These are on every chart — error bars and per-square-metre rates — and
+    // they were falling through to the "?" fallback, which is meant for glyphs
+    // the encoding genuinely cannot represent.
+    expect(pdfString("24.2 ± 0.4")).toBe("24.2 \\261 0.4");
+    expect(pdfString("kg/m²")).toBe("kg/m\\262");
+    expect(pdfString("37 °C")).toBe("37 \\260C");
+  });
+
+  it("spells out Greek, which WinAnsi does not have", () => {
+    // "Standardized ?" on a printed poster is worse than a spelled-out word.
+    expect(pdfString("Standardized β")).toBe("Standardized beta");
+    expect(pdfString("α = 0.05")).toBe("alpha = 0.05");
+  });
+
+  it("spells out Greek that CSS has already uppercased", () => {
+    // The forest plot's axis caption is uppercased by text-transform, and the
+    // exporter applies that BEFORE escaping — so what reaches here is capital
+    // beta, a different code point from the lowercase one. It printed as
+    // "STANDARDIZED ?" on the real download until both cases were listed.
+    // The parentheses come back escaped, as they must inside a PDF literal.
+    expect(pdfString("STANDARDIZED Β (SDS OF LOG ALT)")).toBe(
+      "STANDARDIZED BETA \\(SDS OF LOG ALT\\)",
+    );
+    expect(pdfString("β".toUpperCase())).toBe("BETA");
+  });
+
   it("replaces anything else outside ASCII rather than emitting raw bytes", () => {
-    expect(pdfString("α")).toBe("?");
+    expect(pdfString("字")).toBe("?");
   });
 });
 
