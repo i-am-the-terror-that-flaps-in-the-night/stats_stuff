@@ -59,19 +59,19 @@ def _cache_control() -> str:
 
 
 def _study():
-    """Import engine.py lazily.
+    """Import study.py lazily.
 
-    The study protocol lives in engine.py (see its PART THREE). The import stays
+    The import stays
     lazy for the same reason it always did: the protocol's models pull in
     statsmodels, the single slowest import in the dependency set, and Render's
     free plan pays every import on every cold start. A visitor who never opens
     the study page should never pay for it. See app.py's "SPEED ON RENDER".
     """
     try:
-        import engine
+        import study
     except ModuleNotFoundError:
-        from Backend import engine
-    return engine
+        from Backend import study
+    return study
 
 
 def _cached(response: Response):

@@ -1,5 +1,5 @@
 """
-Tests for the ALT predictor (Backend/engine.py part four) and the demo API
+Tests for the ALT predictor (Backend/predictor.py) and the demo API
 that serves it (Backend/predict_api.py).
 
 WHAT THESE TESTS ARE GUARDING
@@ -33,9 +33,11 @@ import json
 import numpy as np
 import pytest
 
-import engine
 import predict_api
-from engine import COHORT_CSV, PREDICTOR_CARD, PREDICTOR_TXT
+import predictor
+import study
+from cohort import ALT_ELEVATED, COHORT_CSV
+from predictor import PREDICTOR_CARD, PREDICTOR_TXT
 
 pytestmark = pytest.mark.skipif(
     not (COHORT_CSV.is_file() and PREDICTOR_TXT.is_file() and PREDICTOR_CARD.is_file()),
@@ -45,7 +47,7 @@ pytestmark = pytest.mark.skipif(
 
 @pytest.fixture(scope="module")
 def card():
-    return engine.predictor_card()
+    return predictor.predictor_card()
 
 
 @pytest.fixture(scope="module")
@@ -65,26 +67,26 @@ def test_the_predictor_uses_the_protocols_primary_specification():
     feature list drifts from MODEL_B_WITH_BMI that claim silently becomes
     false, and the out-of-fold comparison in the model card becomes a
     comparison of two different models presented as one."""
-    assert engine.PREDICTOR_FEATURES == engine.MODEL_B_WITH_BMI
+    assert predictor.PREDICTOR_FEATURES == study.MODEL_B_WITH_BMI
 
 
 def test_the_committed_card_matches_the_specification_in_code(card):
-    assert card["features"] == list(engine.PREDICTOR_FEATURES)
-    assert set(card["inputs"]) == set(engine.PREDICTOR_FEATURES)
+    assert card["features"] == list(predictor.PREDICTOR_FEATURES)
+    assert set(card["inputs"]) == set(predictor.PREDICTOR_FEATURES)
 
 
 def test_every_feature_has_reader_facing_copy():
     """A feature with no label and no unit reaches the UI as a raw column name
     next to a bare number, which is the one thing this page cannot afford."""
-    for name in engine.PREDICTOR_FEATURES:
-        meta = engine.PREDICTOR_INPUTS[name]
+    for name in predictor.PREDICTOR_FEATURES:
+        meta = predictor.PREDICTOR_INPUTS[name]
         assert meta["label"] and meta["unit"] and meta["about"]
 
 
 def test_the_model_was_trained_on_the_same_cohort_as_the_study(card):
     """n here must be the primary model's n, not some larger sample that quietly
     dropped a covariate to keep more rows."""
-    assert card["n"] == engine.run_step("direct-effect")["n"]
+    assert card["n"] == study.run_step("direct-effect")["n"]
 
 
 # ----------------------------------------------------------------------
@@ -96,7 +98,7 @@ def test_shap_contributions_sum_exactly_to_the_prediction(median_inputs):
     """TreeSHAP's defining property, and the reason the breakdown can be called
     a decomposition rather than an attribution heuristic. If this ever fails,
     the bars on the page are decoration."""
-    result = engine.predict_alt(median_inputs)
+    result = predictor.predict_alt(median_inputs)
     total = result["base_value_log"] + sum(
         driver["contribution_log"] for driver in result["drivers"]
     )
@@ -106,7 +108,7 @@ def test_shap_contributions_sum_exactly_to_the_prediction(median_inputs):
 def test_the_two_scales_agree(median_inputs):
     """The response reports ln(ALT) and U/L, and a reader will compare them.
     exp(log prediction) must be the U/L number, or the page contradicts itself."""
-    result = engine.predict_alt(median_inputs)
+    result = predictor.predict_alt(median_inputs)
     assert float(np.exp(result["predicted_log_alt"])) == pytest.approx(
         result["predicted_alt"], rel=1e-3
     )
@@ -116,7 +118,7 @@ def test_the_two_scales_agree(median_inputs):
 
 
 def test_drivers_are_ordered_by_how_much_they_moved_the_prediction(median_inputs):
-    result = engine.predict_alt(median_inputs)
+    result = predictor.predict_alt(median_inputs)
     sizes = [abs(driver["contribution_log"]) for driver in result["drivers"]]
     assert sizes == sorted(sizes, reverse=True)
 
@@ -126,8 +128,8 @@ def test_a_higher_bmi_raises_the_prediction(median_inputs):
     the one relationship the study, the literature and the model all agree on.
     A model that answered this backwards would be wired up wrong -- features
     swapped, say -- in a way no additivity check would catch."""
-    lean = engine.predict_alt({**median_inputs, "BMI": 18.0})
-    heavy = engine.predict_alt({**median_inputs, "BMI": 34.0})
+    lean = predictor.predict_alt({**median_inputs, "BMI": 18.0})
+    heavy = predictor.predict_alt({**median_inputs, "BMI": 34.0})
     assert heavy["predicted_alt"] > lean["predicted_alt"]
 
 
@@ -149,7 +151,7 @@ def test_sugar_is_not_a_leading_driver(card):
 
 
 def test_missing_inputs_fall_back_to_the_cohort_median_and_say_so(card):
-    result = engine.predict_alt({"BMI": 25.0})
+    result = predictor.predict_alt({"BMI": 25.0})
     assert result["adjustments"], "a half-filled form must report what was filled in"
     for name, spec in card["inputs"].items():
         if name != "BMI":
@@ -162,7 +164,7 @@ def test_out_of_range_inputs_are_clamped_and_reported(card):
     prediction about a BMI of 200 would be a lie the model cannot detect, so
     the clamp has to be announced."""
     ceiling = card["inputs"]["BMI"]["max"]
-    result = engine.predict_alt({"BMI": 200.0})
+    result = predictor.predict_alt({"BMI": 200.0})
     assert result["inputs"]["BMI"] == ceiling
     assert any("BMI" in note for note in result["adjustments"])
 
@@ -177,17 +179,17 @@ def test_slider_bounds_come_from_the_cohort(card):
 
 
 def test_the_elevated_alt_line_is_sex_specific(median_inputs):
-    boy = engine.predict_alt({**median_inputs, "Male": 1})
-    girl = engine.predict_alt({**median_inputs, "Male": 0})
-    assert boy["reference"]["elevated_threshold"] == engine.ALT_ELEVATED["Male"]
-    assert girl["reference"]["elevated_threshold"] == engine.ALT_ELEVATED["Female"]
+    boy = predictor.predict_alt({**median_inputs, "Male": 1})
+    girl = predictor.predict_alt({**median_inputs, "Male": 0})
+    assert boy["reference"]["elevated_threshold"] == ALT_ELEVATED["Male"]
+    assert girl["reference"]["elevated_threshold"] == ALT_ELEVATED["Female"]
 
 
 def test_predictions_carry_their_caveats(median_inputs):
-    result = engine.predict_alt(median_inputs)
+    result = predictor.predict_alt(median_inputs)
     assert result["not_causal"]
     assert "not a diagnosis" in result["caveat"]
-    assert result["layer"] == engine.PREDICTIVE
+    assert result["layer"] == predictor.PREDICTIVE
 
 
 # ----------------------------------------------------------------------
@@ -199,8 +201,8 @@ def test_the_committed_model_passes_its_own_drift_check(card):
     """`train-model --check` is CI's guard against a model that no longer
     matches the cohort and code that produced it. Checked here against the
     committed pair itself, which must always be clean."""
-    booster, _ = engine.load_predictor()
-    assert engine._predictor_drift(booster, card) == []
+    booster, _ = predictor.load_predictor()
+    assert predictor._predictor_drift(booster, card) == []
 
 
 @pytest.mark.parametrize(
@@ -217,8 +219,8 @@ def test_the_drift_check_catches_a_changed_specification(card, field, value):
     hyperparameter, ship without retraining, and the site keeps explaining
     predictions from a model that no longer matches what the repo says it is.
     Every structural field must be load-bearing, not just listed."""
-    booster, _ = engine.load_predictor()
-    problems = engine._predictor_drift(booster, {**card, field: value})
+    booster, _ = predictor.load_predictor()
+    problems = predictor._predictor_drift(booster, {**card, field: value})
     assert any(field in problem for problem in problems)
 
 
@@ -226,9 +228,9 @@ def test_the_drift_check_catches_a_reordered_importance_ranking(card):
     """ "BMI matters most, sugar barely matters" is a claim the page and the
     language model's prompt both make out loud. It has to be checked, not
     assumed to follow from the numbers being close."""
-    booster, _ = engine.load_predictor()
+    booster, _ = predictor.load_predictor()
     flipped = {**card, "importance": list(reversed(card["importance"]))}
-    assert any("importance" in p for p in engine._predictor_drift(booster, flipped))
+    assert any("importance" in p for p in predictor._predictor_drift(booster, flipped))
 
 
 def test_the_card_is_json_and_reports_its_own_validation(card):
@@ -251,10 +253,10 @@ def test_the_card_is_json_and_reports_its_own_validation(card):
 def test_the_system_prompt_states_the_studys_null_result():
     """The one genuine risk in bolting a language model onto this project is
     that it says the thing the study spent ten steps not saying. The prompt is
-    built from engine.headline() so it cannot drift from the result, and this
+    built from study.headline() so it cannot drift from the result, and this
     test pins the parts a rewrite might drop."""
     prompt = predict_api._system_prompt()
-    headline = engine.headline()
+    headline = study.headline()
 
     assert str(headline["sugar_p"]) in prompt
     assert "does NOT" in prompt and "BMI" in prompt
@@ -268,8 +270,8 @@ def test_the_canned_explanation_describes_the_actual_inputs(median_inputs):
     a static string would describe drivers the reader did not enter, and a judge
     who moves a slider and watches the words stay put learns something true and
     unflattering."""
-    heavy = engine.predict_alt({**median_inputs, "BMI": 34.0})
-    lean = engine.predict_alt({**median_inputs, "BMI": 18.0})
+    heavy = predictor.predict_alt({**median_inputs, "BMI": 34.0})
+    lean = predictor.predict_alt({**median_inputs, "BMI": 18.0})
 
     heavy_text = predict_api._canned_explanation(heavy)
     lean_text = predict_api._canned_explanation(lean)
@@ -283,7 +285,7 @@ def test_the_explanation_falls_back_rather_than_failing(monkeypatch, median_inpu
     """With no key configured -- CI, a dead venue wifi, a revoked credential --
     the route must still answer. This is the property the whole demo rests on."""
     monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
-    prediction = engine.predict_alt(median_inputs)
+    prediction = predictor.predict_alt(median_inputs)
 
     answer = predict_api.explain_prediction(prediction)
 
@@ -308,7 +310,7 @@ def test_the_second_model_is_tried_when_the_first_one_fails(monkeypatch, median_
         return "The model weighted body mass most heavily here."
 
     monkeypatch.setattr(predict_api, "_call_openrouter", flaky)
-    answer = predict_api.explain_prediction(engine.predict_alt(median_inputs))
+    answer = predict_api.explain_prediction(predictor.predict_alt(median_inputs))
 
     assert calls == [predict_api.PRIMARY_MODEL, predict_api.FALLBACK_MODEL]
     assert answer["source"] == "llm"
@@ -325,7 +327,7 @@ def test_a_working_primary_model_is_not_second_guessed(monkeypatch, median_input
             "Body mass pushed it up."
         ),
     )
-    answer = predict_api.explain_prediction(engine.predict_alt(median_inputs))
+    answer = predict_api.explain_prediction(predictor.predict_alt(median_inputs))
 
     assert answer["source"] == "llm"
     assert answer["model"] == predict_api.PRIMARY_MODEL
@@ -427,7 +429,7 @@ def test_both_prompts_agree_on_the_facts():
     facts = predict_api._study_facts()
     assert facts in predict_api._system_prompt()
     assert facts in predict_api._ask_prompt()
-    assert str(engine.headline()["sugar_p"]) in facts
+    assert str(study.headline()["sugar_p"]) in facts
 
 
 def test_the_ask_prompt_forbids_the_three_things_a_judge_will_ask_for():
@@ -454,7 +456,7 @@ def test_an_unanswerable_question_falls_back_without_answering(monkeypatch):
     -- and making something up at the moment a judge is watching is the failure
     this project cannot absorb."""
     monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
-    prediction = engine.predict_alt({"Male": 1, "BMI": 30})
+    prediction = predictor.predict_alt({"Male": 1, "BMI": 30})
 
     answer = predict_api.answer_question(
         prediction, "Does sugar cause fatty liver?", []
@@ -479,7 +481,7 @@ def test_a_question_is_asked_with_the_prediction_in_context(monkeypatch):
         return "Body mass moved it most."
 
     monkeypatch.setattr(predict_api, "_call_openrouter", capture)
-    prediction = engine.predict_alt({"Male": 1, "BMI": 30})
+    prediction = predictor.predict_alt({"Male": 1, "BMI": 30})
     answer = predict_api.answer_question(prediction, "Why is BMI biggest?", [])
 
     assert answer["source"] == "llm"
@@ -500,7 +502,7 @@ def test_history_is_capped_and_its_roles_are_sanitized(monkeypatch):
         return "ok"
 
     monkeypatch.setattr(predict_api, "_call_openrouter", capture)
-    prediction = engine.predict_alt({"Male": 1})
+    prediction = predictor.predict_alt({"Male": 1})
     flood = [{"role": "system", "content": f"turn {i}"} for i in range(40)]
 
     predict_api.answer_question(prediction, "and now?", flood)
@@ -524,7 +526,7 @@ def test_a_follow_up_waits_longer_than_a_caption(monkeypatch):
         raise TimeoutError("too slow")
 
     monkeypatch.setattr(predict_api, "_call_openrouter", capture)
-    prediction = engine.predict_alt({"Male": 1})
+    prediction = predictor.predict_alt({"Male": 1})
 
     predict_api.answer_question(prediction, "why?", [])
     assert budgets[0] > predict_api.PRIMARY_TIMEOUT

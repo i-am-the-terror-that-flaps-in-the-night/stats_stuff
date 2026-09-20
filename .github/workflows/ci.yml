@@ -121,7 +121,7 @@ jobs:
         run: uv sync
 
       - name: Rebuild the cohort and diff it against the committed CSV
-        run: uv run python Backend/engine.py build-cohort --check
+        run: uv run python Backend/cli.py build-cohort --check
 
   model:
     name: Model -- predictor and offline page match their derivation
@@ -153,7 +153,7 @@ jobs:
       # deterministic=True, single-threaded, no bagging). A difference means
       # something really moved.
       - name: Retrain the predictor and diff it against the committed model
-        run: uv run python Backend/engine.py train-model --check
+        run: uv run python Backend/cli.py train-model --check
 
       # offline/index.html is the demo's lifeboat -- one self-contained file for
       # a venue with no working network. Its numbers are baked in at build time,

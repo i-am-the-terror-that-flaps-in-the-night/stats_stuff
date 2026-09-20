@@ -8,7 +8,7 @@ WHAT THIS IS FOR
     per-variable breakdown of how the model got there, and -- separately, and
     strictly optionally -- a plain-English paragraph explaining that breakdown.
 
-    The prediction and the breakdown come from engine.py's part four: a LightGBM
+    The prediction and the breakdown come from predictor.py: a LightGBM
     model fitted on the study's own cohort and its own primary specification,
     with SHAP contributions from the booster's own TreeSHAP. All of that is
     arithmetic on a committed artifact, and none of it involves a language
@@ -164,15 +164,25 @@ APP_TITLE = "NHANES Adolescent Liver Stress -- science fair demo"
 APP_URL = os.environ.get("OPENROUTER_REFERER", "https://github.com/")
 
 
-def _engine():
-    """engine.py, imported lazily -- it pulls in pandas, numpy and (here)
+def _predictor():
+    """predictor.py, imported lazily -- it pulls in pandas, numpy and (here)
     LightGBM, and a visitor who never opens this page should not pay for any of
     them. Same idiom and same reason as study_api.py's _study()."""
     try:
-        import engine
+        import predictor
     except ModuleNotFoundError:
-        from Backend import engine
-    return engine
+        from Backend import predictor
+    return predictor
+
+
+def _study():
+    """study.py, imported lazily -- the system prompt below is built from
+    headline(), which fits the protocol's models and so pulls in statsmodels."""
+    try:
+        import study
+    except ModuleNotFoundError:
+        from Backend import study
+    return study
 
 
 def _cache_control() -> str:
@@ -194,12 +204,12 @@ class PredictIn(BaseModel):
     """The seven inputs, all optional.
 
     Optional because the model card ships a cohort median for every one of them
-    and engine.py fills a missing value with it, reporting that it did. A form
+    and predictor.py fills a missing value with it, reporting that it did. A form
     the reader has only half filled in should still produce an answer with an
     honest note attached, not a 422.
 
     The bounds here are deliberately wider than the sliders the UI offers: the
-    cohort's own 1st-99th percentile range is enforced in engine.py by clamping
+    cohort's own 1st-99th percentile range is enforced in predictor.py by clamping
     and reporting, which is more useful than refusing. These are only the outer
     limits of physical plausibility, to keep a fuzzed request from reaching the
     booster with 1e308 in it.
@@ -215,14 +225,14 @@ class PredictIn(BaseModel):
 
 
 def _predict(body: PredictIn) -> dict:
-    """engine.predict_alt(), with a missing artifact turned into a clean 503.
+    """predictor.predict_alt(), with a missing artifact turned into a clean 503.
 
     A 503 and not a 500: the model file is a build product, and the honest
     reading of "it is not there" is that this instance cannot serve the feature
     right now, with an actionable message rather than a stack trace.
     """
     try:
-        return _engine().predict_alt(body.model_dump(exclude_none=True))
+        return _predictor().predict_alt(body.model_dump(exclude_none=True))
     except FileNotFoundError as missing:
         raise HTTPException(status_code=503, detail=str(missing)) from None
     except ValueError as bad:
@@ -238,7 +248,7 @@ def model_card(response: Response):
     sliders, so a retrain that moves a range moves the control with it.
     """
     try:
-        card = _engine().predictor_card()
+        card = _predictor().predictor_card()
     except FileNotFoundError as missing:
         raise HTTPException(status_code=503, detail=str(missing)) from None
     response.headers["Cache-Control"] = _cache_control()
@@ -265,7 +275,7 @@ def predict(body: PredictIn):
 
 @lru_cache(maxsize=1)
 def _study_facts() -> str:
-    """Everything true about this project, written from engine.py at call time.
+    """Everything true about this project, written from the analysis at call time.
 
     THIS IS THE FACT-CHECKING STEP, done by construction rather than by
     proofreading. Every number below is read from the same functions that
@@ -279,9 +289,8 @@ def _study_facts() -> str:
     answer to a follow-up about it could contradict each other, in front of the
     person who asked.
     """
-    engine = _engine()
-    head = engine.headline()
-    card = engine.predictor_card()
+    head = _study().headline()
+    card = _predictor().predictor_card()
     scores = card["validation"]
     ranking = ", ".join(
         f"{row['label']} ({row['mean_abs_shap']})" for row in card["importance"]

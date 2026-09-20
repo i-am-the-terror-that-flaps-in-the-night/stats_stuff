@@ -1,5 +1,5 @@
 """
-Tests for the cohort derivation in Backend/engine.py (part two).
+Tests for the cohort derivation in Backend/cohort.py.
 
 These lock in the decisions that are invisible once the CSV is written. A
 derivation bug does not crash -- it produces a slightly different cohort, and
@@ -25,13 +25,12 @@ import numpy as np
 import pandas as pd
 import pytest
 
-import engine
-from engine import (
+import cohort
+from cohort import (
     ALT_ELEVATED,
-    ANALYTIC_MISSING_SENTINEL,
+    NON_ANALYTIC_COLUMNS,
     ATTRITION_JSON,
     COHORT_CSV,
-    NON_ANALYTIC_COLUMNS,
     build_cohort,
     cohort_attrition,
     decode_screen_hours,
@@ -41,6 +40,7 @@ from engine import (
     raw_merge_available,
     risk_score,
 )
+from engine import ANALYTIC_MISSING_SENTINEL
 
 # What Git LFS leaves at Data/nhanes_analytic.csv on a checkout that never
 # fetched the object -- which is every Render deploy and every CI job here
@@ -378,7 +378,7 @@ def test_attrition_answers_on_a_deploy_with_no_lfs_object(tmp_path, monkeypatch)
     """
     stub = tmp_path / "nhanes_analytic.csv"
     stub.write_text(LFS_POINTER)
-    monkeypatch.setattr(engine, "RAW_CSV", stub)
+    monkeypatch.setattr(cohort, "RAW_CSV", stub)
     cohort_attrition.cache_clear()
 
     try:
@@ -400,8 +400,8 @@ def test_attrition_degrades_honestly_when_the_artifact_is_gone(tmp_path, monkeyp
     """
     stub = tmp_path / "nhanes_analytic.csv"
     stub.write_text(LFS_POINTER)
-    monkeypatch.setattr(engine, "RAW_CSV", stub)
-    monkeypatch.setattr(engine, "ATTRITION_JSON", tmp_path / "absent.json")
+    monkeypatch.setattr(cohort, "RAW_CSV", stub)
+    monkeypatch.setattr(cohort, "ATTRITION_JSON", tmp_path / "absent.json")
     cohort_attrition.cache_clear()
 
     try:
@@ -417,14 +417,14 @@ def test_attrition_degrades_honestly_when_the_artifact_is_gone(tmp_path, monkeyp
 def test_build_cohort_resolves_raw_csv_when_it_runs(tmp_path, monkeypatch):
     """RAW_CSV is read at call time, not frozen into a default argument.
 
-    As a default it was bound once at import, so repointing engine.RAW_CSV --
+    As a default it was bound once at import, so repointing cohort.RAW_CSV --
     which every other function in the module honours -- left build_cohort()
     still reading the real 17 MB file, and made any test of the deploy shape
     quietly measure the development shape instead.
     """
     raw = tmp_path / "raw.csv"
     raw_frame(n=4).to_csv(raw, index=False)
-    monkeypatch.setattr(engine, "RAW_CSV", raw)
+    monkeypatch.setattr(cohort, "RAW_CSV", raw)
 
     _, log = build_cohort()
 

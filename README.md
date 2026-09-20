@@ -12,22 +12,27 @@ do. See [The study](#the-study).
 
 | Component | Entry point | What it does |
 |---|---|---|
-| **Stats engine** | `Backend/engine.py` (part one) | General-purpose basic/medium/advanced/expert/categorical tiers on any dataframe |
-| **Cohort derivation** | `Backend/engine.py` (part two) | Turns the raw 412-column NHANES merge into the 699-adolescent analytic cohort, with a logged attrition table |
-| **The study** | `Backend/engine.py` (part three) | The pre-specified ten-step analysis: weighted regressions, mediation, dose-response, risk score |
+| **Stats engine** | `Backend/engine.py` | General-purpose basic/medium/advanced/expert/categorical tiers on any dataframe |
+| **Cohort derivation** | `Backend/cohort.py` | Turns the raw 412-column NHANES merge into the 699-adolescent analytic cohort, with a logged attrition table |
+| **The study** | `Backend/study.py` | The pre-specified ten-step analysis: weighted regressions, mediation, dose-response, risk score |
+| **ALT predictor** | `Backend/predictor.py` | The LightGBM model behind the interactive demo, plus its committed model card |
 | **Web service** | `Backend/app.py` | FastAPI: `/healthz`, the JSON API, and the built frontend; deploys to Render |
 | **Study API** | `Backend/study_api.py` | `/api/study/*` — the study's results over HTTP |
 | **Studio API** | `Backend/studio.py` | `/api/datasets` and `/api/runs` — dataset inventory and the local SQLite run log |
 | **Frontend** | `frontend/` | React 19 + Vite 8 + TypeScript 7 SPA: the dashboard, the Study page, the static pages and the Studio |
 
-All three live in one file, in three labelled parts. The boundary between them is still real, it
-is just a section banner rather than a separate module: part one knows nothing about livers — hand
-it any spreadsheet and it will describe any column, which is what makes it reusable. Part three
+The four analysis modules import in one direction only — `engine` ← `cohort` ← `study` ←
+`predictor` — and that order is the architecture. `engine.py` knows nothing about livers: hand it
+any spreadsheet and it will describe any column, which is what makes it reusable. `study.py`
 answers one fixed set of questions about one cohort with every variable's role decided in advance.
 Because those roles are pre-specified, the study may do things the engine's tiers refuse to do on
 an arbitrary column (apply a sex-specific clinical threshold, decompose an association into direct
 and mediated parts). `DataAnalyzer` still has exactly seven methods; the cohort builder and the
-protocol are module-level code beside it, not an eighth tier inside it.
+protocol sit beside it in their own files, never as an eighth tier inside it.
+
+All four share one command-line front door, `Backend/cli.py`, so there is still one command to
+remember rather than four scripts to find. Nothing imports the CLI and the CLI imports everything,
+which is what keeps the arrows above pointing one way.
 
 ## The study
 
@@ -88,7 +93,7 @@ The sex and subgroup analyses are exploratory and uncorrected for multiplicity, 
 
 Each is a case where the protocol names a variable that doesn't mean what its name suggests, or
 doesn't exist at the stated sample size. All three are documented at their definitions in
-`Backend/engine.py`'s cohort section.
+`Backend/cohort.py`.
 
 | # | Protocol says | What the data says | Resolution |
 |---|---|---|---|
@@ -126,11 +131,12 @@ quietly replaced by whichever subgroup happened to clear *p* < 0.05.
 stats_and_more/
 ├── main.py                  # Deploy entry point: re-exports Backend/app.py (Render's `uvicorn main:app`)
 ├── Backend/
-│   ├── engine.py            # ONE analysis file, four parts:
-│   │                        #   1. the five generic stats tiers (DataAnalyzer)
-│   │                        #   2. the cohort derivation (+ `build-cohort` CLI)
-│   │                        #   3. the pre-specified ten-step study
-│   │                        #   4. the LightGBM predictor (+ `train-model` CLI)
+│   ├── engine.py            # The five generic stats tiers (DataAnalyzer)
+│   ├── cohort.py            # The cohort derivation         (`cli.py build-cohort`)
+│   ├── study.py             # The pre-specified ten-step study     (`cli.py study`)
+│   ├── predictor.py         # The LightGBM ALT predictor  (`cli.py train-model`)
+│   ├── cli.py               # The terminal front door for all four of the above
+│   #  Imports run one way: engine <- cohort <- study <- predictor <- cli.
 │   ├── model/               # The trained predictor -- a committed build artifact
 │   │   ├── alt_lgbm.txt     #   the booster, LightGBM's own text format (~44 KB)
 │   │   └── alt_lgbm.json    #   the model card: features, ranges, CV scores, caveats
@@ -199,20 +205,20 @@ extra_data/csv_data/*.csv    16 NHANES component files, joined on SEQN
         ▼
 Data/nhanes_analytic.csv     9,254 participants × 412 raw-coded columns   [Git LFS]
         │
-        │  engine.py part 2   ── age 12–17, viral hepatitis excluded,
+        │  cohort.py          ── age 12–17, viral hepatitis excluded,
         │                        answer codes decoded, complete core variables
         ▼
 Data/nhanes_adolescent.csv   699 adolescents × 21 named columns           [tracked, ~100 KB]
         │
-        ├──►  engine.py part 1    the five generic tiers
-        └──►  engine.py part 3    the ten-step study
+        ├──►  engine.py           the five generic tiers
+        └──►  study.py            the ten-step study
 ```
 
 Rebuild the cohort (needs the LFS file):
 
 ```bash
-python Backend/engine.py build-cohort          # rebuild, print the attrition table
-python Backend/engine.py build-cohort --check  # verify the artifacts still match the code
+python Backend/cli.py build-cohort          # rebuild, print the attrition table
+python Backend/cli.py build-cohort --check  # verify the artifacts still match the code
 ```
 
 It writes two files: `Data/nhanes_adolescent.csv` (the cohort) and `Data/cohort_attrition.json`
@@ -433,8 +439,8 @@ heuristic. `tests/test_predictor.py` pins that identity.
 ### Training is offline; the model is committed
 
 ```bash
-uv run python Backend/engine.py train-model          # refit, write Backend/model/
-uv run python Backend/engine.py train-model --check  # CI's drift guard
+uv run python Backend/cli.py train-model          # refit, write Backend/model/
+uv run python Backend/cli.py train-model --check  # CI's drift guard
 ```
 
 Same bargain as the cohort CSV: Render's filesystem is ephemeral and 0.1 vCPU is not something to
@@ -507,7 +513,7 @@ someone already waiting on purpose. And the transcript is **cleared whenever an 
 answer about the previous adolescent sitting under a new chart is the one way this page could
 actively mislead someone, and it is the obvious way to build it if nobody thinks about it.
 
-The system prompt is **built from `engine.headline()` at call time**, not written by hand, so it
+The system prompt is **built from `study.headline()` at call time**, not written by hand, so it
 cannot come to disagree with the study it describes — the sugar null result and its *p*-value are
 read from the same function the site's own summary card uses. The rules are mostly prohibitions:
 no causal verbs, no medical advice, no facts that are not in the message.
@@ -552,7 +558,7 @@ the language model — a captive portal on the venue wifi takes down the whole t
 `offline/index.html` is one self-contained file with no server, no API, no fonts, no CDN and no
 JavaScript library. Put it on a laptop or a USB stick and open it with a double click.
 
-It cannot run the model, so six adolescents are run through the real engine at build time and their
+It cannot run the model, so six adolescents are run through the real predictor at build time and their
 predictions, SHAP breakdowns and fallback explanations are baked in. The page says so, in those
 words, at the top.
 
@@ -594,8 +600,8 @@ npm --prefix frontend test           # 49 frontend unit tests (vitest)
 uv run python scripts/smoke_test.py  # 300 live HTTP checks
 uv run ruff check Backend/ tests/ scripts/
 uv run ruff format Backend/ tests/ scripts/
-python Backend/engine.py build-cohort --check   # data/code drift guard
-python Backend/engine.py train-model --check    # model/code drift guard
+python Backend/cli.py build-cohort --check   # data/code drift guard
+python Backend/cli.py train-model --check    # model/code drift guard
 python scripts/build_offline_demo.py --check    # offline page staleness guard
 ```
 

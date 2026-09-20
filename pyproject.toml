@@ -30,8 +30,9 @@ dev = [
 ]
 
 [tool.pytest.ini_options]
-# Tests import the stats engine directly (`from engine import ...`); Backend/ isn't
-# an installed package, so put it on the path rather than sprinkling sys.path hacks.
+# Tests import the analysis modules directly (`from engine import ...`, `import study`);
+# Backend/ isn't an installed package, so put it on the path rather than sprinkling
+# sys.path hacks.
 pythonpath = ["Backend"]
 testpaths = ["tests"]
 

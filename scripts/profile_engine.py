@@ -110,7 +110,16 @@ from typing import NamedTuple
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "Backend"))
 
+import cohort  # noqa: E402
 import engine  # noqa: E402
+import predictor  # noqa: E402
+import study  # noqa: E402
+
+# The four analysis modules, in dependency order. Several things below have to
+# sweep all of them rather than one -- clearing every memo, adding up what the
+# caches hold -- and a module missing from this tuple is silently skipped, which
+# looks like a suspiciously fast benchmark rather than an error.
+MODULES = (engine, cohort, study, predictor)
 
 
 # ----------------------------------------------------------------------
@@ -146,7 +155,7 @@ def _import_cost(module: str):
 
 def _tier_cases():
     """The five DataAnalyzer tiers on the cohort, ALT grouped by sex."""
-    frame = engine.df_cleanup(engine.pd.read_csv(engine.COHORT_CSV))
+    frame = engine.df_cleanup(engine.pd.read_csv(cohort.COHORT_CSV))
     analyzer = engine.DataAnalyzer(frame)
     return [
         ("basic", lambda: analyzer.basic_analysis("ALT")),
@@ -159,7 +168,7 @@ def _tier_cases():
 
 
 def _figure_case():
-    frame = engine.df_cleanup(engine.pd.read_csv(engine.COHORT_CSV))
+    frame = engine.df_cleanup(engine.pd.read_csv(cohort.COHORT_CSV))
     analyzer = engine.DataAnalyzer(frame)
     out = tempfile.mkdtemp(prefix="engine-figures-")
     return [("figure-production", lambda: analyzer.figure_production(out))]
@@ -178,6 +187,8 @@ def build_suites(wanted: set[str]) -> dict[str, list]:
         # process the second caller onwards imports nothing and looks fast.
         suites["boot"] = [
             ("import-engine (cold start)", lambda: _import_cost("engine")),
+            ("import-cohort (cold start)", lambda: _import_cost("cohort")),
+            ("import-study (cold start)", lambda: _import_cost("study")),
             ("import-pandas", lambda: _import_cost("pandas"), PART),
             ("import-scipy-stats", lambda: _import_cost("scipy.stats"), PART),
             ("first-use-statsmodels", lambda: _import_cost("statsmodels.api")),
@@ -187,30 +198,30 @@ def build_suites(wanted: set[str]) -> dict[str, list]:
     if "data" in wanted:
         # df_cleanup gets a fresh copy each run so the read is not timed twice
         # and so a mutating pass cannot make later repeats look cheap.
-        raw_cohort = engine.pd.read_csv(engine.COHORT_CSV)
+        raw_cohort = engine.pd.read_csv(cohort.COHORT_CSV)
         cases = [
             ("load-cohort", _cold_load_cohort),
-            ("read-cohort-csv", lambda: engine.pd.read_csv(engine.COHORT_CSV), PART),
+            ("read-cohort-csv", lambda: engine.pd.read_csv(cohort.COHORT_CSV), PART),
             ("df-cleanup", lambda: engine.df_cleanup(raw_cohort.copy())),
             (
                 "analysis-frame",
-                lambda: engine.analysis_frame(
+                lambda: study.analysis_frame(
                     ["ALT", "TotalSugars", "Age", "Sex", "BMI"]
                 ),
             ),
         ]
-        if engine.raw_merge_available():  # a stub in production (Git LFS)
+        if cohort.raw_merge_available():  # a stub in production (Git LFS)
             cases += [
-                ("build-cohort", engine.build_cohort),
-                ("read-raw-csv", lambda: engine.pd.read_csv(engine.RAW_CSV), PART),
+                ("build-cohort", cohort.build_cohort),
+                ("read-raw-csv", lambda: engine.pd.read_csv(cohort.RAW_CSV), PART),
             ]
         suites["data"] = cases
 
     if "study" in wanted:
         suites["study"] = [
-            (name, (lambda n: lambda: engine.run_step(n))(name))
-            for name in engine.STEP_NAMES
-        ] + [("run_study() end to end", engine.run_study, PART)]
+            (name, (lambda n: lambda: study.run_step(n))(name))
+            for name in study.STEP_NAMES
+        ] + [("run_study() end to end", study.run_study, PART)]
 
     if "tiers" in wanted:
         suites["tiers"] = _tier_cases()
@@ -223,8 +234,8 @@ def build_suites(wanted: set[str]) -> dict[str, list]:
 
 def _cold_load_cohort():
     """load_cohort() with its own cache dropped -- the real first-call cost."""
-    engine.load_cohort.cache_clear()
-    return engine.load_cohort()
+    cohort.load_cohort.cache_clear()
+    return cohort.load_cohort()
 
 
 def warm_lazy_imports() -> None:
@@ -244,12 +255,13 @@ def warm_lazy_imports() -> None:
 
 
 def reset():
-    """Drop every memo in the module except the cohort itself."""
-    for value in vars(engine).values():
-        clear = getattr(value, "cache_clear", None)
-        if clear is not None and value is not engine.load_cohort:
-            clear()
-    engine.load_cohort()  # keep the cohort warm; `data` already priced it
+    """Drop every memo in the analysis modules except the cohort itself."""
+    for module in MODULES:
+        for value in vars(module).values():
+            clear = getattr(value, "cache_clear", None)
+            if clear is not None and value is not cohort.load_cohort:
+                clear()
+    cohort.load_cohort()  # keep the cohort warm; `data` already priced it
 
 
 # ----------------------------------------------------------------------
@@ -454,7 +466,7 @@ def report_memory(results: list[tuple[str, Memory | str, bool]]) -> None:
             )
         print(f"\nprocess resident set size now: {human(rss_bytes())}")
         print(f"process all-time high-water mark: {human(rss_high_water())}")
-        print(f"of which the engine's caches hold: {human(cache_footprint())}")
+        print(f"of which the analysis caches hold: {human(cache_footprint())}")
         print(
             "\npy-peak and retained are Python-allocator figures and undercount\n"
             "pandas and numpy data buffers; rss-new is what catches those -- but\n"
@@ -466,10 +478,16 @@ def report_memory(results: list[tuple[str, Memory | str, bool]]) -> None:
         print(f"FAILED  {name}: {error}")
 
 
-def cache_footprint() -> int:
-    """How much the engine's memoization is actually holding.
+def _memoized():
+    """Every lru_cache-wrapped object across the four analysis modules."""
+    for module in MODULES:
+        yield from vars(module).values()
 
-    Measured rather than inferred: drop every lru_cache in the module, including
+
+def cache_footprint() -> int:
+    """How much the analysis modules' memoization is actually holding.
+
+    Measured rather than inferred: drop every lru_cache in them, including
     the cohort, and see how much traced memory goes away. Read through
     tracemalloc rather than RSS for the reason given in the module docstring --
     RSS would report zero here, because freeing an object does not hand the page
@@ -477,7 +495,7 @@ def cache_footprint() -> int:
     """
     gc.collect()
     before = tracemalloc.get_traced_memory()[0]
-    for value in vars(engine).values():
+    for value in _memoized():
         clear = getattr(value, "cache_clear", None)
         if clear is not None:
             clear()
@@ -561,9 +579,9 @@ def main(argv=None) -> int:
     # /api/study for as long as it was hidden.
     if args.no_raw:
         stub = Path(tempfile.mkdtemp(prefix="engine-lfs-")) / "nhanes_analytic.csv"
-        stub.write_text(engine.LFS_POINTER_HEAD.decode() + "\noid sha256:0\nsize 0\n")
-        engine.RAW_CSV = stub
-        engine.cohort_attrition.cache_clear()
+        stub.write_text(cohort.LFS_POINTER_HEAD.decode() + "\noid sha256:0\nsize 0\n")
+        cohort.RAW_CSV = stub
+        cohort.cohort_attrition.cache_clear()
 
     # Started before the suites are built, because building `data` and `tiers`
     # reads CSVs whose frames must be accounted for like everything else.
@@ -590,7 +608,7 @@ def main(argv=None) -> int:
             else profile_one(suites, args.profile)
         )
 
-    if engine.raw_merge_available():
+    if cohort.raw_merge_available():
         print("note: the raw merge is present, so build_cohort() reads 17 MB here.")
         print("      Production has only the LFS stub; --no-raw measures that.")
 

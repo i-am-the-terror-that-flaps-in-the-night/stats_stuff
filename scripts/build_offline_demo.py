@@ -16,7 +16,7 @@ WHY THIS EXISTS
 WHAT IT CAN AND CANNOT DO
     It cannot run the model -- LightGBM is a compiled library and this is one
     HTML file -- so the predictions are PRE-COMPUTED here, at build time, by the
-    real engine. Each example is a genuine call to engine.predict_alt(), with
+    real model. Each example is a genuine call to predictor.predict_alt(), with
     its real SHAP contributions and the same fallback explanation the live
     service generates when the language model does not answer. Nothing is typed
     by hand and nothing is approximated; what changes is that the reader picks
@@ -268,16 +268,17 @@ def card(example: dict, prediction: dict, explanation: str, first: bool) -> str:
 
 
 def build() -> str:
-    import engine
     import predict_api
+    import predictor
+    import study
 
-    headline = engine.headline()
-    model_card = engine.predictor_card()
+    headline = study.headline()
+    model_card = predictor.predictor_card()
     scores = model_card["validation"]
 
     tabs, cards = [], []
     for index, example in enumerate(EXAMPLES):
-        prediction = engine.predict_alt(example["inputs"])
+        prediction = predictor.predict_alt(example["inputs"])
         explanation = predict_api._canned_explanation(prediction)
         tabs.append(
             f'<button class="tab" role="tab" data-card="{esc(example["id"])}" '
@@ -295,7 +296,7 @@ def build() -> str:
 <!--
   GENERATED FILE. Do not edit by hand.
   Rebuild with: python scripts/build_offline_demo.py
-  Every number below was produced by Backend/engine.py at build time.
+  Every number below was produced by Backend/predictor.py at build time.
 -->
 <style>{STYLE}</style>
 </head>
@@ -345,7 +346,7 @@ def build() -> str:
 
 <footer>
   <p>{esc(model_card["caveat"])}</p>
-  <p>Generated from Backend/engine.py — the same code that serves the live site.
+  <p>Generated from Backend/predictor.py — the same code that serves the live site.
      Elevated-ALT thresholds: {esc(model_card["elevated_alt_source"])}.</p>
   <p>© 2026 Anirudh Gupta</p>
 </footer>

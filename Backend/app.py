@@ -11,8 +11,8 @@ WHY THIS EXISTS
       * exposes a JSON API (backed by engine.py) that the frontend calls to
         compute statistics on Data/nhanes_adolescent.csv -- the study's analytic
         cohort of U.S. adolescents aged 12-17, derived from the raw NHANES
-        2017-2018 merge by engine.py's cohort builder, and
-      * serves the project's actual research at /api/study/* (engine.py, part three):
+        2017-2018 merge by cohort.py's build_cohort(), and
+      * serves the project's actual research at /api/study/* (study.py):
         the pre-specified ten-step analysis of dietary sugar, metabolic markers
         and liver stress, with its cohort, its models and its caveats.
 
@@ -92,16 +92,16 @@ SPEED AND MEMORY ON RENDER
         + the trained booster and its card              1 MB
 
     lightgbm is listed below the line because it is genuinely optional at run
-    time: it is imported inside engine.py's predictor functions, so a visitor
+    time: it is imported inside predictor.py's functions, so a visitor
     who never opens the Predict page never loads it. That 10 MB is also the
     entire cost of the SHAP explanations -- the `shap` package would have added
     scikit-learn, numba and llvmlite on top, which this budget cannot absorb.
-    See engine.py's PART FOUR.
+    See predictor.py.
 
     So the cohort is a rounding error and the libraries are the whole bill. What
     follows from that:
 
-      * pandas, scipy and engine.py are imported *lazily* -- inside the functions
+      * pandas, scipy and the analysis modules are imported *lazily* -- inside the functions
         that use them, never at module load. uvicorn binds the port and /healthz
         answers in 135 ms against a 49 MB process, and the SPA shell and its
         assets serve from there while the rest loads behind them.
@@ -116,7 +116,7 @@ SPEED AND MEMORY ON RENDER
     The one thing that ever threatened the 512 MB was reading the 17 MB raw
     NHANES merge at request time to rebuild the attrition table: 109 MB of peak
     RSS, more than pandas and scipy together, to recompute five fixed rows. That
-    is now a committed artifact -- see cohort_attrition() in engine.py.
+    is now a committed artifact -- see cohort_attrition() in cohort.py.
 
 CACHING, IN FOUR LAYERS
     Nothing in this app can change while it runs -- the CSV is read once and is
@@ -167,7 +167,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 # Vite build output under frontend/dist (see frontend/vite.config.ts).
 ROOT = Path(__file__).resolve().parent.parent
 # The analytic cohort -- U.S. adolescents aged 12-17, derived from the raw
-# NHANES 2017-2018 merge by engine.py's build_cohort(), which is where every inclusion
+# NHANES 2017-2018 merge by cohort.py's build_cohort(), which is where every inclusion
 # rule and variable definition is written down. This is the dataset the whole
 # site runs on: the study's cohort, not a general demo slice, so the columns the
 # Studio explores are the columns the research analyzes.
@@ -175,7 +175,7 @@ ROOT = Path(__file__).resolve().parent.parent
 # It is committed (~100 KB) while the 17 MB raw merge it comes from lives in Git
 # LFS. That split is what keeps the deploy honest AND fast: production reads a
 # small tracked file and never needs an LFS object, and a cold start loads the
-# cohort in milliseconds. Rebuild it with `python Backend/engine.py build-cohort`.
+# cohort in milliseconds. Rebuild it with `python Backend/cli.py build-cohort`.
 DATA_CSV = ROOT / "Data" / "nhanes_adolescent.csv"
 DIST_DIR = ROOT / "frontend" / "dist"
 ASSETS_DIR = DIST_DIR / "assets"
@@ -235,12 +235,15 @@ def deploy_version() -> str:
     sources = (
         DATA_CSV,
         here,
-        # engine.py carries the tiers, the cohort derivation, the study
-        # protocol and the predictor, so its mtime covers all four. A change to
-        # a model specification changes what /api returns just as surely as a
-        # new CSV does, and every cached copy has to be invalidated when it
-        # happens.
+        # The four analysis modules: the tiers, the cohort derivation, the
+        # study protocol and the predictor. A change to a model specification
+        # changes what /api returns just as surely as a new CSV does, and every
+        # cached copy has to be invalidated when it happens -- so all four are
+        # in the token, not just the one this file imports directly.
         here.with_name("engine.py"),
+        here.with_name("cohort.py"),
+        here.with_name("study.py"),
+        here.with_name("predictor.py"),
         # The trained booster and its card. A retrain changes /api/predict/model
         # -- the ranges the UI's sliders offer and the scores it prints -- while
         # leaving every source file untouched, so without this a redeploy of a
@@ -292,9 +295,9 @@ def get_dataframe():
     import pandas as pd
 
     try:
-        from engine import NON_ANALYTIC_COLUMNS
+        from cohort import NON_ANALYTIC_COLUMNS
     except ModuleNotFoundError:
-        from Backend.engine import NON_ANALYTIC_COLUMNS
+        from Backend.cohort import NON_ANALYTIC_COLUMNS
 
     _, df_cleanup = _load_engine()
     frame = df_cleanup(pd.read_csv(DATA_CSV))
@@ -524,9 +527,9 @@ def _warm_caches() -> None:
     #    place a cold start would still be visible.
     def warm_study():
         try:
-            from engine import headline, run_study
+            from study import headline, run_study
         except ModuleNotFoundError:
-            from Backend.engine import headline, run_study
+            from Backend.study import headline, run_study
         headline()
         run_study()
 
@@ -544,9 +547,9 @@ def _warm_caches() -> None:
     #    with instructions instead of the process failing to boot.
     def warm_predictor():
         try:
-            from engine import predict_alt, predictor_card
+            from predictor import predict_alt, predictor_card
         except ModuleNotFoundError:
-            from Backend.engine import predict_alt, predictor_card
+            from Backend.predictor import predict_alt, predictor_card
         card = predictor_card()
         # One real prediction at the cohort medians. Parses the booster, runs
         # TreeSHAP once and builds the system prompt's inputs -- everything the

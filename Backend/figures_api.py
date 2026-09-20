@@ -100,19 +100,19 @@ def _app():
     return app_module
 
 
-def _engine():
-    """Import the stats engine lazily, by whichever name resolves.
+def _study():
+    """Import the study module lazily, by whichever name resolves.
 
     Same two-path dance as _app() above and study_api's _study(). Deferred to
-    call time for the usual reason: the engine's diagnostics pull in
-    statsmodels, and a visitor who never opens a diagnostic plot should not pay
-    that import on the cold start.
+    call time for the usual reason: the model diagnostics pull in statsmodels,
+    and a visitor who never opens a diagnostic plot should not pay that import
+    on the cold start.
     """
     try:
-        import engine
+        import study
     except ModuleNotFoundError:
-        from Backend import engine
-    return engine
+        from Backend import study
+    return study
 
 
 def _numeric_series(column: str):
@@ -472,18 +472,18 @@ def density_route(column: str, response: Response, group: str | None = None):
 def diagnostics_route(model: str, response: Response):
     """Residual geometry for one of the study's three model specifications.
 
-    The computation is engine.py's, not this module's, and deliberately so: it
+    The computation is study.py's, not this module's, and deliberately so: it
     fits a regression, and this file's rule is that anything which fits a model
     or carries an inferential claim lives in the engine. What is added here is
     only the URL and the cache header.
     """
-    engine = _engine()
-    result = engine.model_diagnostics(model)
+    study = _study()
+    result = study.model_diagnostics(model)
     if "error" in result:
         raise HTTPException(
             status_code=404,
             detail=(
-                f"{result['error']} Valid models: {', '.join(engine.DIAGNOSTIC_MODELS)}"
+                f"{result['error']} Valid models: {', '.join(study.DIAGNOSTIC_MODELS)}"
             ),
         )
     _cached(response)

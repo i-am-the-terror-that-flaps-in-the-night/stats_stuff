@@ -1,5 +1,5 @@
 """
-Tests for the ten-step analysis in Backend/engine.py (part three).
+Tests for the ten-step analysis in Backend/study.py.
 
 A statistics bug does not raise. It returns a number, and the number is wrong in
 a way no reader can see. So these tests do not check that the coefficients equal
@@ -23,8 +23,8 @@ import numpy as np
 import pandas as pd
 import pytest
 
-import engine as study
-from engine import COHORT_CSV
+import study
+from cohort import COHORT_CSV
 
 pytestmark = pytest.mark.skipif(not COHORT_CSV.is_file(), reason="cohort CSV not built")
 
