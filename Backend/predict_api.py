@@ -235,6 +235,12 @@ def _predict(body: PredictIn) -> dict:
         return _predictor().predict_alt(body.model_dump(exclude_none=True))
     except FileNotFoundError as missing:
         raise HTTPException(status_code=503, detail=str(missing)) from None
+    except (ImportError, OSError) as broken:
+        # lightgbm itself would not load (typically a missing shared library
+        # on a slim host). Same reading as a missing artifact: say so.
+        raise HTTPException(
+            status_code=503, detail=f"The prediction model cannot load here: {broken}"
+        ) from None
     except ValueError as bad:
         raise HTTPException(status_code=422, detail=str(bad)) from None
 
@@ -251,6 +257,12 @@ def model_card(response: Response):
         card = _predictor().predictor_card()
     except FileNotFoundError as missing:
         raise HTTPException(status_code=503, detail=str(missing)) from None
+    except (ImportError, OSError) as broken:
+        # lightgbm itself would not load (typically a missing shared library
+        # on a slim host). Same reading as a missing artifact: say so.
+        raise HTTPException(
+            status_code=503, detail=f"The prediction model cannot load here: {broken}"
+        ) from None
     response.headers["Cache-Control"] = _cache_control()
     return card
 

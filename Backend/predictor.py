@@ -156,6 +156,28 @@ MODEL_DIR = Path(__file__).resolve().parent / "model"
 PREDICTOR_TXT = MODEL_DIR / "alt_lgbm.txt"
 PREDICTOR_CARD = MODEL_DIR / "alt_lgbm.json"
 
+# LightGBM's Linux wheel links libgomp.so.1 (GNU OpenMP) but does not ship it,
+# and Vercel's Python runtime does not install it, so the bare import raises
+# OSError and every predict route 500s. A copy of the library is vendored in
+# Backend/vendor/ (see its README); it is preloaded ONLY when the plain import
+# fails for that reason, so macOS, Render and any box with gcc's runtime never
+# touch it.
+VENDORED_LIBGOMP = Path(__file__).resolve().parent / "vendor" / "libgomp.so.1"
+
+
+def _import_lightgbm():
+    """`import lightgbm`, preloading the vendored libgomp if the runtime lacks it."""
+    try:
+        import lightgbm as lgb
+    except OSError as err:
+        if "libgomp" not in str(err) or not VENDORED_LIBGOMP.is_file():
+            raise
+        import ctypes
+
+        ctypes.CDLL(str(VENDORED_LIBGOMP), mode=ctypes.RTLD_GLOBAL)
+        import lightgbm as lgb
+    return lgb
+
 # The features, in the order the booster was trained on. This IS
 # MODEL_B_WITH_BMI -- written as its own name because the booster's column order
 # is part of the committed artifact and must not silently follow a change to the
@@ -316,7 +338,7 @@ def _weighted_r2(actual, predicted, weights) -> float:
 
 def _fit_booster(features, outcome, weights, rounds: int) -> "lgb.Booster":
     """One booster on one sample. The single place lightgbm.train is called."""
-    import lightgbm as lgb
+    lgb = _import_lightgbm()
 
     dataset = lgb.Dataset(
         features,
@@ -570,7 +592,7 @@ def _predictor_drift(fresh_booster, fresh_card: dict) -> list[str]:
     if not PREDICTOR_TXT.is_file() or not PREDICTOR_CARD.is_file():
         return ["Backend/model/ is missing or incomplete -- run train-model"]
 
-    import lightgbm as lgb
+    lgb = _import_lightgbm()
 
     committed_card = json.loads(PREDICTOR_CARD.read_text())
     committed_booster = lgb.Booster(model_str=PREDICTOR_TXT.read_text())
@@ -683,7 +705,7 @@ def load_predictor() -> tuple["lgb.Booster", dict]:
     of a vCPU inside somebody's request and would then be thrown away on the
     next restart. predict_api.py turns the error into a clean 503.
     """
-    import lightgbm as lgb
+    lgb = _import_lightgbm()
 
     if not PREDICTOR_TXT.is_file() or not PREDICTOR_CARD.is_file():
         raise FileNotFoundError(
