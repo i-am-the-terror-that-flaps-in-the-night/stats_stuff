@@ -49,7 +49,29 @@ from pydantic import BaseModel, Field
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent
 DATA_DIR = ROOT / "Data"
-RUNS_DB = HERE / "studio_runs.db"  # local lab-notebook; gitignored, not deployed
+
+
+def _runs_db_path() -> Path:
+    """Where the run log lives: beside this file when that is writable, else in
+    the OS temp dir.
+
+    Serverless hosts (Vercel) mount the deployment read-only and offer only
+    /tmp; on those the log is per-instance and evaporates, which is fine -- it
+    is a local lab-notebook, and nothing on the live site depends on it (see
+    render.yaml). STUDIO_RUNS_DB overrides both for anyone who wants it
+    somewhere specific."""
+    import os
+    import tempfile
+
+    override = os.environ.get("STUDIO_RUNS_DB")
+    if override:
+        return Path(override)
+    if os.access(HERE, os.W_OK):
+        return HERE / "studio_runs.db"
+    return Path(tempfile.gettempdir()) / "stats_and_more_studio_runs.db"
+
+
+RUNS_DB = _runs_db_path()  # local lab-notebook; gitignored, not deployed
 
 router = APIRouter()
 

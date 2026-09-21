@@ -1,6 +1,6 @@
 [project]
 name = "stats-and-more"
-version = "3.2.0"
+version = "4.0.0"
 description = "Descriptive statistics with a minimal FastAPI web service"
 readme = "README.md"
 requires-python = ">=3.14.6"
@@ -8,7 +8,6 @@ dependencies = [
     "fastapi==0.139.0",
     "jinja2>=3.1.6",
     "lightgbm>=4.7.0",
-    "matplotlib>=3.11.0",
     "numpy==2.5.1",
     "pandas>=3.0.3",
     "scipy>=1.18.0",
@@ -17,12 +16,21 @@ dependencies = [
     "websockets==16.1",
 ]
 
+# Vercel's FastAPI builder scans main.py for a literal top-level `app = ...`
+# and does not follow the import there, so the entrypoint is declared here.
+# Same app object as `uvicorn main:app` (Render) -- see main.py.
+[tool.vercel]
+entrypoint = "Backend.app:app"
+
 [dependency-groups]
 # Tooling and type stubs: needed to develop and test the project, never to run
 # it. Keeping them out of [project.dependencies] means `uv sync --no-dev` (and
 # anything else installing only runtime deps) gets the lean set the server needs.
 dev = [
     "ipykernel>=7.3.0",
+    # Only engine.figure_production() (a local CLI helper, no route) draws
+    # with it, so it stays out of the runtime set every deploy installs.
+    "matplotlib>=3.11.0",
     "pandas-stubs>=3.0.3.260530",
     "pytest>=8.0.0",
     "ruff==0.15.21",

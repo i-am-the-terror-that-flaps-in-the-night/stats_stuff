@@ -639,6 +639,24 @@ line with no error anywhere in the stack.
 
 ## Deploying
 
+Two hosts are configured; either works from the same repo.
+
+### Vercel (`vercel.json` + `pyproject.toml`)
+
+Vercel's FastAPI preset runs the app as one function. `[tool.vercel] entrypoint = "Backend.app:app"`
+in `pyproject.toml` names the app (Vercel's scanner cannot see through the import in `main.py`),
+and `vercel.json` sets the build command (`cd frontend && npm ci && npm run build` — Node is in the
+Python build image), a 60 s / 1 GB function, and an `excludeFiles` glob that keeps `node_modules`,
+the frontend source, tests and the 17 MB LFS merge out of the bundle. Python is pinned to 3.14 by
+`.python-version`; dependencies come from `pyproject.toml` + `uv.lock`, which is why matplotlib
+(only used by the local `figure_production` helper) lives in the dev group. The `/assets` mount is
+promoted to Vercel's CDN at build time. The deployment filesystem is read-only, so the Studio's
+SQLite run log falls back to `/tmp` (see `studio._runs_db_path`) — per-instance and ephemeral, as
+on Render's free tier. Set the same `OPENROUTER_*` environment variables as below in the Vercel
+project settings; leaving the key unset is safe.
+
+### Render (`render.yaml`)
+
 `render.yaml` is a Render Blueprint. The build runs `npm ci && npm run build` first — if the
 frontend fails, the deploy fails before touching Python and the previous version stays live — then
 `pip install -r requirements.txt`. The start command is `uvicorn main:app`.
