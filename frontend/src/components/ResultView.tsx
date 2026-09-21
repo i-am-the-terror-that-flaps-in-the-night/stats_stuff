@@ -11,6 +11,7 @@
 import type { JSX } from "react";
 import type { EngineObject, EngineValue } from "../types/engine";
 import { BarChart } from "./BarChart";
+import { Term } from "./Term";
 import {
   isFiniteNumber,
   isPlainObject,
@@ -49,7 +50,9 @@ function Value({ value }: { value: EngineValue }): JSX.Element {
 function Stat({ statKey, value }: { statKey: string; value: EngineValue }): JSX.Element {
   return (
     <div className={isWidePair(statKey, value) ? "stat is-wide" : "stat"}>
-      <span className="stat-k">{prettify(statKey)}</span>
+      <span className="stat-k">
+        <Term k={statKey}>{prettify(statKey)}</Term>
+      </span>
       <span className="stat-v">
         <Value value={value} />
       </span>
@@ -65,7 +68,9 @@ function Stat({ statKey, value }: { statKey: string; value: EngineValue }): JSX.
 function Note({ noteKey, text }: { noteKey: string; text: string }): JSX.Element {
   return (
     <p className="result-note">
-      <span className="result-note-k">{prettify(noteKey)}</span>
+      <span className="result-note-k">
+        <Term k={noteKey}>{prettify(noteKey)}</Term>
+      </span>
       <span className="result-note-v">{text}</span>
     </p>
   );
@@ -133,7 +138,9 @@ function Records({
                 if (prose) classes.push("is-prose");
                 return (
                   <div className="record-row" key={col}>
-                    <dt>{prettify(col)}</dt>
+                    <dt>
+                      <Term k={col}>{prettify(col)}</Term>
+                    </dt>
                     <dd
                       className={classes.join(" ")}
                       {...(heat === null
@@ -202,7 +209,9 @@ function Matrix({ entries }: { entries: [string, EngineObject][] }): JSX.Element
           <tr>
             <th className="matrix-corner" />
             {cols.map((col) => (
-              <th key={col}>{prettify(col)}</th>
+              <th key={col}>
+                <Term k={col}>{prettify(col)}</Term>
+              </th>
             ))}
           </tr>
         </thead>
@@ -210,7 +219,7 @@ function Matrix({ entries }: { entries: [string, EngineObject][] }): JSX.Element
           {entries.map(([name, rec]) => (
             <tr key={name}>
               <th className="matrix-row-label" scope="row">
-                {prettify(name)}
+                <Term k={name}>{prettify(name)}</Term>
               </th>
               {cols.map((col) => {
                 const raw = col in rec ? (rec[col] ?? null) : null;
@@ -282,7 +291,9 @@ function Nodes({ obj, label }: { obj: EngineObject; label?: string }): JSX.Eleme
       ) : (
         groups.map(([key, value]) => (
           <div className="result-group" key={key}>
-            <p className="result-group-title">{prettify(key)}</p>
+            <p className="result-group-title">
+              <Term k={key}>{prettify(key)}</Term>
+            </p>
             {Array.isArray(value)
               ? value.map((item, i) =>
                   isPlainObject(item) ? (

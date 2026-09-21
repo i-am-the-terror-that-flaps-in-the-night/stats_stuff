@@ -172,7 +172,7 @@ export function BootLoader({ children }: { children: React.ReactNode }): JSX.Ele
                 <BrandMark />
               </span>
               <p className="loader-brand">Data Analysis Engine</p>
-              <p className="loader-sub">Statistical Engine · v4.0</p>
+              <p className="loader-sub">Statistical Engine · v4.1</p>
               <p className="loader-build">Build 2026.09.20 · FastAPI Core · Observatory UI</p>
             </header>
 

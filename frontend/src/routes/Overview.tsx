@@ -8,6 +8,9 @@ import { useEffect, useMemo, useState } from "react";
 import { Masthead, Module, Ribbon, StatGrid, Status } from "../components/Page";
 import type { RibbonCell, SpecRow } from "../components/Page";
 import { ResultView } from "../components/ResultView";
+import { Hint, Term } from "../components/Term";
+import { lookup, TIER_HELP } from "../lib/glossary";
+import { labelOf } from "../lib/scales";
 import { useAnalysis, useDataset } from "../lib/hooks";
 import { setMode } from "../lib/mode";
 import type { Tier } from "../types/engine";
@@ -157,6 +160,39 @@ export function Overview(): JSX.Element {
             />
           )}
         </div>
+
+        {/* What you just picked, in plain words: the tier's job, and what the
+            column measures. This is the line to glance at when a question
+            about "what is HbA1c" or "what does expert do" lands. */}
+        <Hint title="What you picked">
+          <p>
+            <b>{tier}</b> — {TIER_HELP[tier]}
+          </p>
+          {column && (() => {
+            const entry = lookup(column);
+            return entry ? (
+              <p>
+                <b>{labelOf(column)}</b>
+                {entry.unit && <span className="hint-unit">{entry.unit}</span>} — {entry.def}
+              </p>
+            ) : null;
+          })()}
+          {effectiveGroup && (() => {
+            const entry = lookup(effectiveGroup);
+            return (
+              <p>
+                <b>by {labelOf(effectiveGroup)}</b> — the statistics are computed separately for
+                each {labelOf(effectiveGroup).toLowerCase()} category and then compared.
+                {entry ? ` ${entry.def}` : ""}
+              </p>
+            );
+          })()}
+          <p className="hint-tip">
+            Any label with a dotted underline — like <Term>median</Term> or{" "}
+            <Term>p-value</Term> — shows its meaning when you hover or tap it. The full list is
+            on the Docs page.
+          </p>
+        </Hint>
 
         <Status message={status} isError={Boolean(datasetError ?? analysisError)} />
 

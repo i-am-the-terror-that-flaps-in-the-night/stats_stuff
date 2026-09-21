@@ -1216,6 +1216,167 @@
     color: var(--ink-3);
     border-style: dashed;
   }
+
+  /* --- term: a label with its definition on hover -------------------------
+     Dotted underline marks the words the glossary knows. The card is
+     position:fixed and placed by Term.tsx, so the overflow:hidden on stat
+     grids, result panels and scrolling tables cannot clip it. ------------ */
+  .term {
+    position: relative;
+    display: inline;
+    cursor: help;
+    outline: none;
+  }
+
+  .term-label {
+    text-decoration: underline dotted;
+    text-decoration-color: var(--accent-line);
+    text-underline-offset: 0.18em;
+    text-decoration-thickness: 1px;
+  }
+
+  .term:hover .term-label,
+  .term:focus-within .term-label {
+    text-decoration-style: solid;
+    text-decoration-color: var(--accent);
+  }
+
+  .term-tip {
+    position: fixed;
+    z-index: 70;
+    width: max-content;
+    max-width: min(320px, 82vw);
+    padding: 10px 12px 11px;
+    background: var(--surface-2);
+    border: 1px solid var(--line-strong);
+    border-top: 2px solid var(--accent);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-lift);
+    font-family: var(--font-body);
+    font-size: 0.82rem;
+    font-weight: 400;
+    line-height: 1.55;
+    letter-spacing: 0;
+    text-transform: none;
+    text-align: left;
+    white-space: normal;
+    color: var(--ink-2);
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(-4px);
+    pointer-events: none;
+  }
+
+  .term:hover .term-tip,
+  .term:focus-within .term-tip {
+    opacity: 1;
+    visibility: visible;
+    transform: none;
+    transition: opacity 120ms ease, transform 120ms ease;
+  }
+
+  .term-tip-head {
+    display: block;
+    margin-bottom: 4px;
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--accent);
+  }
+
+  .term-tip-unit {
+    margin-left: 8px;
+    font-style: normal;
+    font-weight: 400;
+    color: var(--ink-faint);
+    text-transform: none;
+    letter-spacing: 0;
+  }
+
+  /* --- hint: the plain-words box --------------------------------------- */
+  .hint {
+    display: grid;
+    grid-template-columns: minmax(96px, 128px) 1fr;
+    gap: 18px;
+    max-width: var(--text-max);
+    margin: 0 0 1.2rem;
+    padding: 14px 16px;
+    background: var(--accent-soft);
+    border-left: 2px solid var(--accent);
+    border-radius: 0 var(--radius) var(--radius) 0;
+  }
+
+  .hint-k {
+    font-family: var(--font-mono);
+    font-size: 0.66rem;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    color: var(--accent);
+    padding-top: 3px;
+  }
+
+  .hint-v {
+    font-size: 0.92rem;
+    line-height: 1.6;
+    color: var(--ink-2);
+  }
+
+  .hint-v p {
+    margin: 0;
+  }
+
+  .hint-v p + p {
+    margin-top: 8px;
+  }
+
+  .hint-v b {
+    font-weight: 600;
+    color: var(--ink);
+  }
+
+  .hint-unit {
+    margin-left: 6px;
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    color: var(--ink-faint);
+  }
+
+  .hint-tip {
+    font-size: 0.82rem;
+    color: var(--ink-3);
+  }
+
+  /* --- qa: quick answers ledger ---------------------------------------- */
+  .qa {
+    margin: 0;
+    max-width: 62rem;
+    border-top: 1px solid var(--line);
+  }
+
+  .qa-row {
+    display: grid;
+    grid-template-columns: minmax(180px, 260px) 1fr;
+    gap: 28px;
+    padding: 18px 0;
+    border-bottom: 1px solid var(--line-hair);
+  }
+
+  .qa-q {
+    font-family: var(--font-display);
+    font-size: 1.08rem;
+    line-height: 1.35;
+    color: var(--ink);
+  }
+
+  .qa-a {
+    margin: 0;
+    font-size: 0.98rem;
+    line-height: 1.65;
+    color: var(--ink-2);
+    max-width: 66ch;
+  }
 }
 
 /* ==========================================================================
@@ -3607,6 +3768,20 @@
 /* ==========================================================================
    14. PRINT — paper is light; the sky, the chrome and the canvas go
    ========================================================================== */
+@layer responsive {
+  @media (max-width: 560px) {
+    .hint,
+    .qa-row {
+      grid-template-columns: 1fr;
+      gap: 6px;
+    }
+
+    .term-tip {
+      max-width: 82vw;
+    }
+  }
+}
+
 @layer print {
   @media print {
     :root,
@@ -3635,6 +3810,14 @@
       --fig-missing: #dfe5ef;
       --shadow-lift: none;
       --glow: none;
+    }
+
+    .term-tip {
+      display: none;
+    }
+
+    .term-label {
+      text-decoration: none;
     }
 
     html,

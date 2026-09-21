@@ -8,7 +8,7 @@ import { Crumbs, Masthead, Module, Table } from "../components/Page";
 import type { SpecRow } from "../components/Page";
 
 const SPEC: SpecRow[] = [
-  { k: "Current", v: "v4.0.0" },
+  { k: "Current", v: "v4.1.0" },
   { k: "Released", v: "2026·08·30" },
   { k: "Cadence", v: "Iterative" },
   { k: "Status", v: "Stable" },
@@ -24,9 +24,28 @@ interface Release {
 
 const RELEASES: Release[] = [
   {
-    ver: "v4.0.0",
+    ver: "v4.1.0",
     date: "20 Sep 2026",
     current: true,
+    items: [
+      <>
+        <b>Glossary</b> — every statistic label, column name and study term the site prints now
+        has a plain-language definition. Labels the glossary knows carry a dotted underline and
+        show their meaning on hover, focus or tap; the full list lives on the Docs page.
+      </>,
+      <>
+        <b>Plain-words hints</b> — the Overview describes the tier and column you picked in one
+        paragraph; the Study explains how to read a coefficient table once per step.
+      </>,
+      <>
+        <b>Quick Answers</b> — a module on the Study page with the thirteen questions most likely
+        to be asked, each answered in one breath with the numbers the engine reports.
+      </>,
+    ],
+  },
+  {
+    ver: "v4.0.0",
+    date: "20 Sep 2026",
     major: true,
     items: [
       <>

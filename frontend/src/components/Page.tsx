@@ -10,6 +10,7 @@
 import type { JSX, ReactNode } from "react";
 import { Link } from "react-router";
 import { HeroPlot } from "./HeroPlot";
+import { Term } from "./Term";
 
 /** One key/value row in the masthead's right-hand nameplate. */
 export interface SpecRow {
@@ -100,7 +101,9 @@ export function Ribbon({
       {cells.map((cell) => (
         <div className="ribbon-cell" key={cell.k}>
           <p className="ribbon-v">{cell.v}</p>
-          <p className="ribbon-k">{cell.k}</p>
+          <p className="ribbon-k">
+            <Term>{cell.k}</Term>
+          </p>
         </div>
       ))}
     </div>
@@ -139,7 +142,9 @@ export function StatGrid({ cells }: { cells: StatCell[] }): JSX.Element {
     <div className="stat-grid">
       {cells.map((cell) => (
         <div className="stat-cell" key={cell.k}>
-          <p className="stat-k">{cell.k}</p>
+          <p className="stat-k">
+            <Term>{cell.k}</Term>
+          </p>
           <p className="stat-v">{cell.v}</p>
           {cell.note && <p className="stat-note">{cell.note}</p>}
         </div>
@@ -194,10 +199,14 @@ export function Table({
         {caption && <caption>{caption}</caption>}
         <thead>
           <tr>
-            {corner !== undefined && <th>{corner}</th>}
+            {corner !== undefined && (
+              <th>
+                <Term>{corner}</Term>
+              </th>
+            )}
             {head.map((h, i) => (
               <th className={isNum(i + (corner === undefined ? 0 : 1)) ? "num" : undefined} key={h}>
-                {h}
+                <Term>{h}</Term>
               </th>
             ))}
           </tr>
@@ -214,7 +223,9 @@ export function Table({
                   {...(j === 0 ? {} : { "data-label": head[j - (corner === undefined ? 0 : 1)] })}
                   key={j}
                 >
-                  {cell}
+                  {/* Row keys are usually variable or predictor names, which
+                      the glossary knows; anything else passes through. */}
+                  {j === 0 && typeof cell === "string" ? <Term>{cell}</Term> : cell}
                 </td>
               ))}
             </tr>
@@ -228,15 +239,18 @@ export function Table({
 /** A definition list of term/description pairs. */
 export function Legend({
   rows,
+  plain = false,
 }: {
   rows: { term: string; tag?: string; def: ReactNode }[];
+  /** The rows ARE the definitions (the Docs glossary): skip the hover card. */
+  plain?: boolean;
 }): JSX.Element {
   return (
     <dl className="legend">
       {rows.map((row) => (
         <div className="legend-row" key={row.term}>
           <dt className="legend-term">
-            {row.term}
+            {plain ? row.term : <Term>{row.term}</Term>}
             {row.tag && <span className="legend-tag">{row.tag}</span>}
           </dt>
           <dd className="legend-def">{row.def}</dd>

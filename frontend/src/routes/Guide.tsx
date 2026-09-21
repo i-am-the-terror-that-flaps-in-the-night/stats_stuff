@@ -3,6 +3,8 @@
 import type { JSX } from "react";
 import { Crumbs, Legend, Masthead, Module, Table } from "../components/Page";
 import { useDatasets } from "../lib/hooks";
+import { GLOSSARY } from "../lib/glossary";
+import type { GlossaryEntry } from "../lib/glossary";
 
 const LAYERS = [
   {
@@ -24,6 +26,16 @@ const LAYERS = [
   },
 ];
 
+const GROUPS: { key: GlossaryEntry["group"]; title: string; meta: string }[] = [
+  { key: "variables", title: "The Variables", meta: "What each column measures" },
+  { key: "study", title: "The Study's Terms", meta: "Models, grades, cohort" },
+  { key: "statistics", title: "Statistics", meta: "Every term the engine prints" },
+];
+
+function byTerm(a: GlossaryEntry, b: GlossaryEntry): number {
+  return a.term.localeCompare(b.term, "en", { sensitivity: "base" });
+}
+
 export function Guide(): JSX.Element {
   const datasets = useDatasets();
 
@@ -37,6 +49,7 @@ export function Guide(): JSX.Element {
         tagline="How the engine is wired, and what it will and won't claim."
         byline="By Anirudh Gupta"
         spec={[
+          { k: "Glossary", v: String(GLOSSARY.length) },
           { k: "Layers", v: "03" },
           { k: "Causal", v: "Never" },
           { k: "Effect sizes", v: "Always" },
@@ -66,7 +79,29 @@ export function Guide(): JSX.Element {
         </p>
       </Module>
 
-      <Module index="03" title="Datasets" meta="Availability is live">
+      {GROUPS.map((group, i) => (
+        <Module
+          key={group.key}
+          index={String(i + 3).padStart(2, "0")}
+          title={group.title}
+          meta={group.meta}
+        >
+          {i === 0 && (
+            <p className="text">
+              Every dotted-underlined label on the site opens one of these definitions in place.
+              This is the same list, in full, for reading through before a presentation.
+            </p>
+          )}
+          <Legend
+            plain
+            rows={GLOSSARY.filter((e) => e.group === group.key)
+              .sort(byTerm)
+              .map((e) => ({ term: e.term, ...(e.unit ? { tag: e.unit } : {}), def: e.def }))}
+          />
+        </Module>
+      ))}
+
+      <Module index="06" title="Datasets" meta="Availability is live">
         <Table
           corner="File"
           head={["Status", "What it is"]}

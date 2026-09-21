@@ -91,7 +91,7 @@ export function Shell(): JSX.Element {
               <BrandMark />
             </span>
             <span className="brand-name">Data Analysis Engine</span>
-            <span className="brand-ver">v4.0</span>
+            <span className="brand-ver">v4.1</span>
           </NavLink>
 
           <div className="strip-meta">

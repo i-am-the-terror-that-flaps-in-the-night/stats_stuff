@@ -14,6 +14,7 @@ import type { JSX, ReactNode } from "react";
 import { useState } from "react";
 import { Crumbs, Masthead, Module, Ribbon, Status, Table } from "../components/Page";
 import type { RibbonCell, SpecRow } from "../components/Page";
+import { Hint, Term } from "../components/Term";
 import { useStudyIndex, useStudyStep } from "../lib/hooks";
 import type { ClaimGrade, Coefficient, StudyModel, StudyStep } from "../types/engine";
 
@@ -67,7 +68,7 @@ function ModelTable({ model }: { model: StudyModel }): JSX.Element {
     <>
       <Table
         corner="Predictor"
-        head={["Estimate", "95% CI", "β", "p"]}
+        head={["Estimate", "95% CI", "Beta", "p"]}
         rows={rows}
         numeric={[1, 2, 3, 4]}
         caption={`${model.label || model.outcome} · n = ${model.n} · R² = ${num(model.r_squared, 4)} · ${model.clusters} clusters`}
@@ -178,6 +179,20 @@ function StepBody({ step }: { step: StudyStep }): JSX.Element {
         />
       )}
 
+      {models.length > 0 && (
+        <Hint title="Reading the tables">
+          <p>
+            Each row is one predictor. <b>Estimate</b> is how much ln(ALT) changes per one unit
+            of that predictor with everything else held fixed — multiply by 100 for roughly the
+            % change in ALT. <b>95% CI</b> is the range of estimates the data allow; if it spans
+            zero, that predictor cannot be told apart from no effect. <b>Beta</b> (standardized
+            β) puts every predictor on the same scale so you can see which matters most.{" "}
+            <b>p</b> below 0.05 counts as significant. R² under each table is the share of ALT
+            variation the whole model explains.
+          </p>
+        </Hint>
+      )}
+
       {models.map(([key, model]) => (
         <ModelTable key={key} model={model} />
       ))}
@@ -194,6 +209,96 @@ function StepBody({ step }: { step: StudyStep }): JSX.Element {
     </div>
   );
 }
+
+
+/**
+ * The answers most likely to be needed under questioning, written to be said
+ * aloud. Every number here is one the engine computes -- they are restated
+ * rather than fetched so this list still reads when the backend is asleep.
+ * Keep in step with Backend/study.py and the Revised Results 6.1.26 doc.
+ */
+const QUICK_ANSWERS: { q: string; a: ReactNode }[] = [
+  {
+    q: "What was the question?",
+    a: "Does the sugar an adolescent eats predict their liver-enzyme level (ALT), once you account for body mass and the metabolic markers that sit between diet and the liver?",
+  },
+  {
+    q: "What is ALT and why does it matter?",
+    a: (
+      <>
+        <Term>ALT</Term> is an enzyme that leaks from stressed liver cells into the blood. It is
+        the standard early marker of fatty-liver disease, which is now the commonest liver
+        disease in children. About 10.5% of U.S. adolescents are above the pediatric cutoff
+        (&gt; 26 U/L boys, &gt; 22 U/L girls).
+      </>
+    ),
+  },
+  {
+    q: "Where did the data come from?",
+    a: (
+      <>
+        <Term>NHANES</Term> 2017–2018, the CDC survey that examines and draws blood from a
+        representative sample of Americans. I did not collect data; this is a secondary analysis.
+        Starting from 9,254 participants: 907 were aged 12–17, 804 had a reliable diet recall,
+        802 had no hepatitis B or C, and 695 had every lifestyle variable. Triglycerides need
+        fasting blood, so the full model has 314 (147 boys, 167 girls).
+      </>
+    ),
+  },
+  {
+    q: "What did you find?",
+    a: (
+      <>
+        Sugar does <em>not</em> independently predict ALT: in the pre-specified model with BMI,
+        its p-value is 0.30 and its β is 0.05. What does predict ALT is <Term>BMI</Term> (β 0.42,
+        p &lt; 0.001), being male (β 0.31, p &lt; 0.001) and the <Term>Trig/HDL ratio</Term> (β
+        0.13, p = 0.016). The model explains about 30% of the variation in ALT (R² = 0.30).
+      </>
+    ),
+  },
+  {
+    q: "Why is a null result worth presenting?",
+    a: "Because it was the pre-registered primary test, and because it changes the message: telling adolescents to cut sugar, on its own, is unlikely to move liver stress. Weight and lipid dysregulation are where the signal is. A well-run null is a result; a subgroup fished out after the fact is not.",
+  },
+  {
+    q: "What does the dose-response step show?",
+    a: "Splitting the 695 by sugar quartile, mean ALT is 15.9, 15.9, 15.7 and 16.7 U/L — flat. The trend test gives p = 0.11, ANOVA p = 0.86, and the share with elevated ALT does not differ across quartiles (p = 0.28). A real sugar effect would leave a gradient; there is none.",
+  },
+  {
+    q: "What is Model A versus Model B?",
+    a: (
+      <>
+        <Term>Model A</Term> is lifestyle only: sugar, screen time, age, sex. <Term>Model B</Term>{" "}
+        adds the Trig/HDL ratio and HbA1c, then BMI. R² goes 0.09 → 0.16 → 0.30 on the same 314
+        people, so the metabolic markers and body mass carry most of the explanatory power.
+      </>
+    ),
+  },
+  {
+    q: "What is a p-value, in one sentence?",
+    a: "How surprising the result would be if there were truly no effect — small means hard to explain by chance, and 0.05 is the conventional line. It is not the probability the finding is true, and it says nothing about how big the effect is; that is what β is for.",
+  },
+  {
+    q: "Why log ALT? Why weights?",
+    a: "ALT is heavily right-skewed (skewness 4.4) — most adolescents are low with a long tail of high values — so I model its natural log, which brings skewness to 1.0 and makes coefficients read as percent changes. NHANES weights (WTDRD1) make every estimate describe U.S. adolescents rather than the people who happened to be sampled.",
+  },
+  {
+    q: "What about boys versus girls?",
+    a: "Boys average 18.9 U/L, girls 13.6. Fitting the model separately, the Trig/HDL slope is stronger in boys (interaction p = 0.04) while the sugar slope does not differ (p = 0.39). This is exploratory — two tests, uncorrected — so it is a lead, not a finding.",
+  },
+  {
+    q: "What is the risk score?",
+    a: "0–6 points: one for each of sugar, screen time, Trig/HDL, HbA1c and BMI above the cohort median, plus one for male sex. Mean ALT rises about 13.7% (≈ 2.5 U/L) per point and the share with elevated ALT climbs with it (Cochran–Armitage p < 0.001). It is relative — cut at this sample's medians — so it would need validating in a new sample before anyone screened with it.",
+  },
+  {
+    q: "What are the limitations?",
+    a: "Cross-sectional, so association not causation. Diet is one self-reported day. Standard errors are the classical WLS ones the protocol specifies, not cluster-adjusted for NHANES' design, so p-values near 0.05 are approximate. Triglycerides exist for only 314 of 695. And the risk score is exploratory.",
+  },
+  {
+    q: "Is this causal?",
+    a: "No. Everything was measured at one visit. The study shows what goes together in U.S. adolescents; it cannot show that changing sugar, or BMI, would change ALT.",
+  },
+];
 
 export function Study(): JSX.Element {
   const { index, headline, error, loading } = useStudyIndex();
@@ -291,7 +396,22 @@ export function Study(): JSX.Element {
         )}
       </Module>
 
-      <Module index="03" title="How To Read This" meta="Claims & limits">
+      <Module index="03" title="Quick Answers" meta="If you blank">
+        <p className="text">
+          The facts a question is most likely to be about, each in one breath. Numbers come from
+          the engine above, so they match the written results.
+        </p>
+        <dl className="qa">
+          {QUICK_ANSWERS.map((row) => (
+            <div className="qa-row" key={row.q}>
+              <dt className="qa-q">{row.q}</dt>
+              <dd className="qa-a">{row.a}</dd>
+            </div>
+          ))}
+        </dl>
+      </Module>
+
+      <Module index="04" title="How To Read This" meta="Claims & limits">
         <p className="prose">
           Every estimate is weighted by the NHANES day-1 dietary weight, so it describes U.S.
           adolescents rather than the people who happened to be recruited. Standard errors are the
