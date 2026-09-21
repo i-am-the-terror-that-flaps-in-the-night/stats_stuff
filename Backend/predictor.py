@@ -170,8 +170,10 @@ def _import_lightgbm():
     try:
         import lightgbm as lgb
     except OSError as err:
-        if "libgomp" not in str(err) or not VENDORED_LIBGOMP.is_file():
+        if "libgomp" not in str(err):
             raise
+        if not VENDORED_LIBGOMP.is_file():
+            raise OSError(f"{err} (vendored copy absent at {VENDORED_LIBGOMP})") from err
         import ctypes
 
         ctypes.CDLL(str(VENDORED_LIBGOMP), mode=ctypes.RTLD_GLOBAL)

@@ -5,7 +5,8 @@
     "Backend/app.py": {
       "maxDuration": 60,
       "memory": 1024,
-      "excludeFiles": "{frontend/node_modules/**,frontend/src/**,frontend/public/**,frontend/*.ts,frontend/*.json,frontend/*.html,tests/**,scripts/**,.venv/**,.github/**,Data/nhanes_analytic.csv,offline/**,**/*.md,**/*.ipynb,**/__pycache__/**,**/.pytest_cache/**}"
+      "excludeFiles": "{frontend/node_modules/**,frontend/src/**,frontend/public/**,frontend/*.ts,frontend/*.json,frontend/*.html,tests/**,scripts/**,.venv/**,.github/**,Data/nhanes_analytic.csv,offline/**,**/*.md,**/*.ipynb,**/__pycache__/**,**/.pytest_cache/**}",
+      "includeFiles": "{Backend/vendor/**,Backend/model/**,Data/*.csv,frontend/dist/**}"
     }
   }
 }
