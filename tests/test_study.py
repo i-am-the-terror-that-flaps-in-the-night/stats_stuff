@@ -102,7 +102,7 @@ def test_every_coefficient_reports_an_interval_and_a_p_value():
         assert info["ci_low"] <= info["estimate"] <= info["ci_high"], name
         assert "p_value_means" in info["significance"], name
     assert model["clusters"] == 30
-    assert "cluster-robust" in model["estimator"]
+    assert "classical" in model["estimator"]
 
 
 def test_standardized_betas_are_unitless_and_comparable():

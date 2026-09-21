@@ -21,7 +21,7 @@ import numpy as np
 import pandas as pd
 
 from engine import (
-    ANALYTIC_MISSING_SENTINEL,
+    XPORT_ZERO,
     DataAnalyzer,
     _coerce_numeric,
     _num,
@@ -124,15 +124,16 @@ def test_num_returns_none_for_unusable_values():
     assert _num(float("inf")) is None
 
 
-def test_missing_sentinel_never_reaches_a_statistic():
-    """The analytic file's missing sentinel is a blank, not a measurement near 0."""
-    df = pd.DataFrame({"x": [1.0, 2.0, 3.0, ANALYTIC_MISSING_SENTINEL]})
+def test_xport_zero_artifact_is_read_as_a_zero():
+    """The analytic file writes every zero as ~5e-79 (an XPT reader artifact).
+    It is a zero: counted, and worth exactly 0 -- not blanked, and not 5e-79."""
+    df = pd.DataFrame({"x": [1.0, 2.0, 3.0, XPORT_ZERO]})
 
     result = DataAnalyzer(df_cleanup(df)).basic_analysis("x")
 
-    assert result["n"] == 3  # the sentinel row was dropped, not counted
-    assert result["mean"] == 2.0
-    assert result["min"] == 1.0  # would be ~0 if the sentinel had survived
+    assert result["n"] == 4  # the zero row is a real observation
+    assert result["mean"] == 1.5
+    assert result["min"] == 0.0
 
 
 def test_outliers_report_both_rules_and_prefer_iqr_when_skewed():

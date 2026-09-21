@@ -19,7 +19,7 @@ import type { ClaimGrade, Coefficient, StudyModel, StudyStep } from "../types/en
 
 const SPEC: SpecRow[] = [
   { k: "Cohort", v: "NHANES 17–18" },
-  { k: "Estimator", v: "WLS · robust" },
+  { k: "Estimator", v: "WLS · classical" },
   { k: "Steps", v: "10" },
   { k: "Imputation", v: "None" },
 ];
@@ -48,7 +48,7 @@ function num(value: number | null | undefined, digits = 3): string {
   return value === null || value === undefined ? "—" : value.toFixed(digits);
 }
 
-/** One model's coefficient table: estimate, robust interval, beta, p. */
+/** One model's coefficient table: estimate, interval, beta, p. */
 function ModelTable({ model }: { model: StudyModel }): JSX.Element {
   const rows: ReactNode[][] = Object.entries(model.coefficients)
     // The intercept is a fitted number, not a finding -- it is the predicted
@@ -67,7 +67,7 @@ function ModelTable({ model }: { model: StudyModel }): JSX.Element {
     <>
       <Table
         corner="Predictor"
-        head={["Estimate", "95% CI (robust)", "β", "p"]}
+        head={["Estimate", "95% CI", "β", "p"]}
         rows={rows}
         numeric={[1, 2, 3, 4]}
         caption={`${model.label || model.outcome} · n = ${model.n} · R² = ${num(model.r_squared, 4)} · ${model.clusters} clusters`}
@@ -294,11 +294,11 @@ export function Study(): JSX.Element {
       <Module index="03" title="How To Read This" meta="Claims & limits">
         <p className="prose">
           Every estimate is weighted by the NHANES day-1 dietary weight, so it describes U.S.
-          adolescents rather than the people who happened to be recruited, and every standard error
-          is cluster-robust by primary sampling unit within stratum, so the clustered design does
-          not make the results look more precise than they are. There are 30 such clusters, which is
-          enough for the correction to be worth making and few enough that the p-values are
-          approximate.
+          adolescents rather than the people who happened to be recruited. Standard errors are the
+          classical weighted-least-squares ones the protocol specifies, which is how the written
+          results were computed. They do not correct for the clustered sampling design (30 primary
+          sampling units within strata here, counted beside each model), so p-values near the 0.05
+          line are suggestive rather than exact.
         </p>
         <p className="prose">
           Nothing here is causal. The data are cross-sectional — diet, blood and body measurements

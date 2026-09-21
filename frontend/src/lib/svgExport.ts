@@ -71,12 +71,101 @@ function boxOf(svg: SVGSVGElement): Box {
 /** `rgb(31, 79, 255)` / `rgba(…)` / `none` → [r, g, b, a] in 0–1, or null. */
 function parseColor(value: string): [number, number, number, number] | null {
   if (!value || value === "none" || value === "transparent") return null;
-  const parts = value.match(/[\d.]+/g);
-  if (!parts || parts.length < 3) return null;
-  const [r, g, b] = parts.map(Number);
-  const a = parts.length > 3 ? Number(parts[3]) : 1;
-  if (r === undefined || g === undefined || b === undefined) return null;
-  return [r / 255, g / 255, b / 255, a];
+  const v = value.trim();
+
+  // #rgb / #rrggbb / #rrggbbaa -- what a theme token resolves to.
+  const hex = v.match(/^#([0-9a-f]{3,8})$/i);
+  if (hex && hex[1]) {
+    let h = hex[1];
+    if (h.length === 3 || h.length === 4) h = [...h].map((c) => c + c).join("");
+    const r = parseInt(h.slice(0, 2), 16), g = parseInt(h.slice(2, 4), 16), b = parseInt(h.slice(4, 6), 16);
+    const a = h.length === 8 ? parseInt(h.slice(6, 8), 16) / 255 : 1;
+    return [r / 255, g / 255, b / 255, a];
+  }
+
+  // color(srgb r g b / a) -- what Chrome reports for a color-mix() fill. The
+  // channels are 0..1 floats, not 0..255.
+  const srgb = v.match(/^color\(srgb\s+([\d.]+)\s+([\d.]+)\s+([\d.]+)(?:\s*\/\s*([\d.]+))?\)$/i);
+  if (srgb) {
+    return [Number(srgb[1]), Number(srgb[2]), Number(srgb[3]), srgb[4] === undefined ? 1 : Number(srgb[4])];
+  }
+
+  // rgb() / rgba(), comma or space separated.
+  if (/^rgba?\(/i.test(v)) {
+    const parts = v.match(/[\d.]+%?/g);
+    if (!parts || parts.length < 3) return null;
+    const [r, g, b] = parts.slice(0, 3).map((x) => (x.endsWith("%") ? (Number(x.slice(0, -1)) / 100) * 255 : Number(x)));
+    const rawA = parts[3];
+    const a = rawA === undefined ? 1 : rawA.endsWith("%") ? Number(rawA.slice(0, -1)) / 100 : Number(rawA);
+    if (r === undefined || g === undefined || b === undefined) return null;
+    return [r / 255, g / 255, b / 255, a];
+  }
+
+  // oklab() / oklch() -- what Chrome reports for a `color-mix(in oklab, ...)`
+  // fill (the heatmap). Canvas serialises these back unchanged, so convert.
+  const ok = v.match(/^okl(ab|ch)\(\s*([\d.]+%?)\s+(-?[\d.]+%?)\s+(-?[\d.]+%?)(?:\s*\/\s*([\d.]+%?))?\)$/i);
+  if (ok && ok[1] && ok[2] && ok[3] && ok[4]) {
+    const pct = (x: string, scale: number) => (x.endsWith("%") ? (Number(x.slice(0, -1)) / 100) * scale : Number(x));
+    const L = pct(ok[2], 1);
+    let a: number, b: number;
+    if (ok[1].toLowerCase() === "ab") {
+      a = pct(ok[3], 0.4);
+      b = pct(ok[4], 0.4);
+    } else {
+      const C = pct(ok[3], 0.4);
+      const h = (Number(ok[4]) * Math.PI) / 180;
+      a = C * Math.cos(h);
+      b = C * Math.sin(h);
+    }
+    const alpha = ok[5] === undefined ? 1 : pct(ok[5], 1);
+    return [...oklabToSrgb(L, a, b), alpha];
+  }
+
+  // Anything else (lab(), a named colour): let a canvas normalise it.
+  const normalised = canvasColor(v);
+  return normalised && normalised !== v ? parseColor(normalised) : null;
+}
+
+/** OKLab -> gamma-encoded sRGB, each channel clamped to 0..1. Björn Ottosson's
+ *  reference matrices; the same conversion every browser applies on paint. */
+function oklabToSrgb(L: number, a: number, b: number): [number, number, number] {
+  const l_ = L + 0.3963377774 * a + 0.2158037573 * b;
+  const m_ = L - 0.1055613458 * a - 0.0638541728 * b;
+  const s_ = L - 0.0894841775 * a - 1.291485548 * b;
+  const l = l_ * l_ * l_, m = m_ * m_ * m_, sc = s_ * s_ * s_;
+  const lin: [number, number, number] = [
+    4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * sc,
+    -1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * sc,
+    -0.0041960863 * l - 0.7034186147 * m + 1.707614701 * sc,
+  ];
+  const gamma = (c: number): number => {
+    const x = Math.min(1, Math.max(0, c));
+    return x <= 0.0031308 ? 12.92 * x : 1.055 * Math.pow(x, 1 / 2.4) - 0.055;
+  };
+  return [gamma(lin[0]), gamma(lin[1]), gamma(lin[2])];
+}
+
+/** Normalise any CSS colour to the form a 2D canvas serialises (#rrggbb or
+ *  rgba(...)). Returns null when the browser cannot parse it. */
+function canvasColor(value: string): string | null {
+  const context = document.createElement("canvas").getContext("2d");
+  if (!context) return null;
+  context.fillStyle = "#010203";
+  context.fillStyle = value;
+  const out = context.fillStyle;
+  return out === "#010203" && value !== "#010203" ? null : out;
+}
+
+/** The rgb()/rgba() form of a paint, for the exported SVG. Chrome's computed
+ *  colour for a color-mix() is `color(srgb …)`, which browsers read but many
+ *  vector editors do not; plain rgb() is understood everywhere. */
+function plainPaint(value: string): string {
+  if (!value || value === "none" || value === "transparent" || value.startsWith("url(")) return value;
+  const rgba = parseColor(value);
+  if (!rgba) return value;
+  const [r, g, b, a] = rgba;
+  const c = (x: number) => Math.round(Math.min(1, Math.max(0, x)) * 255);
+  return a >= 1 ? `rgb(${c(r)}, ${c(g)}, ${c(b)})` : `rgba(${c(r)}, ${c(g)}, ${c(b)}, ${Math.round(a * 1000) / 1000})`;
 }
 
 /** Trim a number for a file format that will be read by a machine. */
@@ -148,7 +237,10 @@ function styledClone(svg: SVGSVGElement): SVGSVGElement {
     for (const property of PAINT_PROPS) {
       const value = style.getPropertyValue(property);
       if (value && value !== "normal" && value !== "none") {
-        copy.setAttribute(property, value);
+        copy.setAttribute(
+          property,
+          property === "fill" || property === "stroke" ? plainPaint(value) : value,
+        );
       }
     }
     // `fill: none` is meaningful — it is what keeps a line chart's path hollow —
@@ -173,17 +265,26 @@ function styledClone(svg: SVGSVGElement): SVGSVGElement {
   background.setAttribute("y", "0");
   background.setAttribute("width", String(box.width));
   background.setAttribute("height", String(box.height));
-  background.setAttribute("fill", surfaceColor());
+  background.setAttribute("fill", surfaceColor(svg));
   clone.insertBefore(background, clone.firstChild);
   return clone;
 }
 
-/** The console's surface token, resolved to a real colour. */
-function surfaceColor(): string {
-  const value = window
-    .getComputedStyle(document.documentElement)
-    .getPropertyValue("--surface")
-    .trim();
+/** The figure's own ground, resolved to a real colour.
+ *
+ *  Read from the <svg> itself, not from the document root: `--fig-bg` is
+ *  declared per theme on :root and inherits down, so reading it here is the
+ *  same value -- except when a future rule scopes it tighter (an inverted
+ *  figure, say), in which case only the element knows. The tokens are opaque
+ *  hexes by contract (see the FIGURES section of styles.css), because a
+ *  translucent page reads as black in most PDF viewers. */
+function surfaceColor(svg?: SVGSVGElement): string {
+  const from = (el: Element, name: string): string =>
+    window.getComputedStyle(el).getPropertyValue(name).trim();
+  const value =
+    (svg && from(svg, "--fig-bg")) ||
+    from(document.documentElement, "--fig-bg") ||
+    from(document.documentElement, "--surface");
   return value || "#ffffff";
 }
 
@@ -226,7 +327,7 @@ export async function toPngBlob(svg: SVGSVGElement, scale = 3): Promise<Blob> {
   canvas.height = Math.round(box.height * scale);
   const context = canvas.getContext("2d");
   if (!context) throw new Error("Canvas is unavailable in this browser.");
-  context.fillStyle = surfaceColor();
+  context.fillStyle = surfaceColor(svg);
   context.fillRect(0, 0, canvas.width, canvas.height);
   context.drawImage(image, 0, 0, canvas.width, canvas.height);
 
@@ -671,7 +772,7 @@ export function toPdfBlob(svg: SVGSVGElement, title: string): Blob {
 
   // Paint the page, then flip into SVG's y-down space for everything after.
   content.ops.push("q");
-  const surface = parseColor(surfaceColor()) ?? [1, 1, 1, 1];
+  const surface = parseColor(surfaceColor(svg)) ?? [1, 1, 1, 1];
   content.ops.push(`${n(surface[0])} ${n(surface[1])} ${n(surface[2])} rg`);
   content.ops.push(`0 0 ${n(box.width)} ${n(box.height)} re f`);
   content.ops.push("Q");

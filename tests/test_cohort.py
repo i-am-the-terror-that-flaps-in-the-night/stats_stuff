@@ -9,7 +9,8 @@ So the things tested here are the ones a reader of the output could never catch:
   * the NHANES answer codes are decoded, not averaged (77 is "refused", not 77
     hours of television; 8 is "none", not 8 hours);
   * the exclusions run on the variables that mean what the protocol needs them
-    to mean -- surface ANTIGEN, not the vaccination marker;
+    to mean -- core antibody and surface ANTIGEN, not the vaccination marker;
+  * the XPT reader's zero artifact is read as a zero, not blanked;
   * nothing is imputed, and an incomplete composite scores nothing rather than
     scoring low; and
   * the committed CSV still matches what this code produces.
@@ -40,7 +41,7 @@ from cohort import (
     raw_merge_available,
     risk_score,
 )
-from engine import ANALYTIC_MISSING_SENTINEL
+from engine import XPORT_ZERO
 
 # What Git LFS leaves at Data/nhanes_analytic.csv on a checkout that never
 # fetched the object -- which is every Render deploy and every CI job here
@@ -57,6 +58,8 @@ RAW_DEFAULTS = {
     "RIDAGEYR": 15,
     "RIAGENDR": 1,
     "RIDRETH3": 3,
+    "DR1DRSTZ": 1,  # reliable day-1 dietary recall
+    "LBXHBC": 2,  # hepatitis B core antibody negative
     "LBDHBG": 2,  # hepatitis B surface antigen negative
     "LBDHCI": 3,  # hepatitis C antibody: negative screen
     "LBXHCR": 3,  # hepatitis C RNA: negative screen
@@ -68,10 +71,9 @@ RAW_DEFAULTS = {
     "SDMVPSU": 1,
     "SDMVSTRA": 145,
     "BMXBMI": 22.0,
-    "LBXSTR": 90.0,  # triglycerides, biochemistry panel
+    "LBXTR": 90.0,  # triglycerides, fasting subsample
     "LBDHDD": 50.0,  # HDL
     "LBXGH": 5.2,  # HbA1c
-    "INDFMPIR": 2.0,
     "SEQN": 100000,
     "PAQ710": 2,
     "PAQ715": 2,
@@ -92,8 +94,9 @@ def raw_frame(n=6, **overrides):
 # ----------------------------------------------------------------------
 
 
-def test_screen_time_codes_are_decoded_not_averaged():
-    """The banded answers become hours, and the non-answers become blanks.
+def test_screen_time_codes_are_decoded_as_the_protocol_states():
+    """The banded answers are hours (0-5, and 8 for "8+"), and the non-answers
+    become blanks.
 
     This is the bug that would never look like one: 77 ("refused") and 99
     ("don't know") are real numbers in the file, and left alone they enter the
@@ -103,29 +106,33 @@ def test_screen_time_codes_are_decoded_not_averaged():
 
     hours = decode_screen_hours(codes)
 
-    assert hours[0] == 0.5  # "less than 1 hour" -> band midpoint
-    assert list(hours[1:6]) == [1, 2, 3, 4, 5]
-    assert hours[6] == 0.0  # code 8 is "does not watch" -- a real zero
+    assert list(hours[0:6]) == [0, 1, 2, 3, 4, 5]
+    assert hours[6] == 8.0  # the protocol's "8 = 8+ hrs"
     assert hours[7:].isna().all()  # refused / don't know are missing, not 77 and 99
 
 
 def test_screen_time_needs_both_parts():
-    """Answering about TV but not computers gives no total, not a partial one."""
-    frame, _ = build_cohort(raw_frame(n=2, PAQ710=[2, 2], PAQ715=[3, 77]))
+    """Answering about TV but not computers gives no total, not a partial one --
+    and, screen time being a Model A variable, no place in the cohort."""
+    frame, log = build_cohort(raw_frame(n=2, PAQ710=[2, 2], PAQ715=[3, 77]))
 
-    assert frame["ScreenTime"].tolist()[0] == 5.0
-    assert pd.isna(frame["ScreenTime"].tolist()[1])
+    assert frame["ScreenTime"].tolist() == [5.0]
+    assert [r["removed"] for r in log if r["step"].startswith("Complete")] == [1]
 
 
-def test_sentinel_is_treated_as_missing():
-    """The analytic file's missing sentinel must not survive as a measurement."""
+def test_xport_zero_artifact_is_read_as_zero():
+    """pandas' XPT reader writes 5.4e-79 where the file holds 0. That value is
+    a "less than 1 hour" screen-time answer and a zero dietary weight, not a
+    missing cell -- blanking it once cost the cohort 16% of its sample."""
     frame, log = build_cohort(
-        raw_frame(n=2, LBXSATSI=[15.0, ANALYTIC_MISSING_SENTINEL])
+        raw_frame(n=2, PAQ710=[XPORT_ZERO, 2], WTDRD1=[1000.0, XPORT_ZERO])
     )
 
-    # The sentinel row has no ALT, so it fails the complete-core rule.
+    # First participant: 0 h TV + 2 h computer. Second: weight of zero, so not
+    # in the dietary estimation sample.
     assert len(frame) == 1
-    assert frame["ALT"].tolist() == [15.0]
+    assert frame["ScreenTime"].tolist() == [2.0]
+    assert log[-1]["removed"] == 1
 
 
 # ----------------------------------------------------------------------
@@ -139,24 +146,33 @@ def test_only_adolescents_are_included():
     assert sorted(frame["Age"].tolist()) == [12, 17]
 
 
+def test_unreliable_dietary_recall_is_excluded():
+    """The exposure comes from the day-1 recall; an unusable recall has none."""
+    frame, log = build_cohort(raw_frame(n=3, DR1DRSTZ=[1, 2, 5]))
+
+    assert len(frame) == 1
+    assert [row["removed"] for row in log if row["step"].startswith("Reliable")] == [2]
+
+
 def test_hepatitis_positive_participants_are_excluded():
     """Each viral marker excludes on its own, on its own positive codes."""
     frame, _ = build_cohort(
         raw_frame(
-            n=4,
-            LBDHBG=[1, 2, 2, 2],  # 1 = surface antigen positive
-            LBDHCI=[3, 1, 3, 3],  # 1 = HCV antibody positive
-            LBXHCR=[3, 3, 1, 3],  # 1 = HCV RNA positive
+            n=5,
+            LBXHBC=[1, 2, 2, 2, 2],  # 1 = core antibody positive
+            LBDHBG=[2, 1, 2, 2, 2],  # 1 = surface antigen positive
+            LBDHCI=[3, 3, 1, 3, 3],  # 1 = HCV antibody positive
+            LBXHCR=[3, 3, 3, 1, 3],  # 1 = HCV RNA positive
         )
     )
 
-    assert len(frame) == 1  # only the fourth participant survives
+    assert len(frame) == 1  # only the fifth participant survives
 
 
 def test_hepatitis_b_vaccination_does_not_exclude_anyone():
     """The protocol names the surface ANTIBODY file; excluding on it would drop
     the vaccinated, who are most of this age group. build_cohort() excludes on the
-    surface ANTIGEN (LBDHBG) instead, and LBXHBS is not consulted at all."""
+    infection markers (LBXHBC, LBDHBG) instead, and LBXHBS is not consulted at all."""
     vaccinated = raw_frame(n=3)
     vaccinated["LBXHBS"] = [1, 1, 1]  # anti-HBs positive: vaccinated
 
@@ -177,20 +193,28 @@ def test_attrition_log_accounts_for_every_dropped_participant():
         assert later["removed"] == earlier["n"] - later["n"]
 
 
-def test_incomplete_core_variables_are_dropped_not_imputed():
-    """A missing biomarker removes the participant; it is never filled in."""
-    frame, _ = build_cohort(raw_frame(n=3, LBXGH=[5.2, np.nan, 5.4]))
+def test_incomplete_lifestyle_variables_are_dropped_not_imputed():
+    """A missing Model A variable removes the participant; it is never filled in."""
+    frame, _ = build_cohort(raw_frame(n=3, LBXSATSI=[15.0, np.nan, 14.0]))
 
     assert len(frame) == 2
-    assert frame["HbA1c"].notna().all()
+    assert frame["ALT"].notna().all()
 
 
-def test_screen_time_is_not_an_entry_criterion():
-    """Missing screen time keeps the participant, with a blank in that column."""
+def test_screen_time_is_an_entry_criterion():
+    """Model A needs screen time, so a blank there removes the participant."""
     frame, _ = build_cohort(raw_frame(n=3, PAQ710=[2, 77, 2]))
 
-    assert len(frame) == 3  # nobody dropped
-    assert frame["ScreenTime"].isna().sum() == 1
+    assert len(frame) == 2
+
+
+def test_metabolic_markers_are_not_entry_criteria():
+    """Triglycerides exist only for the fasting subsample. Lacking them keeps
+    the participant in the cohort (and in Model A) with a blank ratio."""
+    frame, _ = build_cohort(raw_frame(n=3, LBXTR=[90.0, np.nan, 90.0]))
+
+    assert len(frame) == 3
+    assert frame["TrigHDLRatio"].isna().sum() == 1
 
 
 # ----------------------------------------------------------------------
@@ -200,7 +224,7 @@ def test_screen_time_is_not_an_entry_criterion():
 
 def test_trig_hdl_ratio_is_computed_and_guards_against_a_zero_hdl():
     """A zero HDL yields no ratio rather than an infinity that poisons a mean."""
-    frame, _ = build_cohort(raw_frame(n=2, LBXSTR=[90.0, 90.0], LBDHDD=[45.0, 0.0]))
+    frame, _ = build_cohort(raw_frame(n=2, LBXTR=[90.0, 90.0], LBDHDD=[45.0, 0.0]))
 
     ratios = frame["TrigHDLRatio"].tolist()
     assert ratios[0] == pytest.approx(2.0)
@@ -220,15 +244,19 @@ def test_two_day_sugar_requires_both_days():
     assert pd.isna(values[1])
 
 
-def test_elevated_alt_uses_the_sex_specific_threshold():
-    """24 U/L is elevated for a girl and not for a boy. One number cannot do both."""
+def test_elevated_alt_uses_the_sex_specific_threshold_strictly():
+    """24 U/L is elevated for a girl and not for a boy. One number cannot do both.
+    And the guideline reads "> 22" / "> 26": sitting exactly on the line is normal."""
     frame = pd.DataFrame(
-        {"ALT": [24.0, 24.0, 21.0, 27.0], "Sex": ["Female", "Male", "Female", "Male"]}
+        {
+            "ALT": [24.0, 24.0, 21.0, 27.0, 22.0, 26.0],
+            "Sex": ["Female", "Male", "Female", "Male", "Female", "Male"],
+        }
     )
 
     flags = elevated_alt(frame)
 
-    assert flags.tolist() == [True, False, False, True]
+    assert flags.tolist() == [True, False, False, True, False, False]
     assert ALT_ELEVATED["Female"] < ALT_ELEVATED["Male"]
 
 
@@ -284,12 +312,15 @@ def test_risk_score_spans_zero_to_six_and_needs_every_component():
 def test_committed_cohort_has_the_expected_shape_and_no_gaps_in_core_variables():
     frame = pd.read_csv(COHORT_CSV)
 
-    assert len(frame) == 699
-    for column in ("ALT", "TotalSugars", "BMI", "HbA1c", "Triglycerides", "Sex"):
+    # The Revised Results' counts: 695 in the lifestyle sample, 314 of them
+    # (147 males, 167 females) in the fasting subsample Model B needs.
+    assert len(frame) == 695
+    for column in ("ALT", "TotalSugars", "ScreenTime", "Age", "Sex", "DietWeight"):
         assert frame[column].notna().all(), f"{column} has gaps in the committed cohort"
     assert set(frame["Sex"]) == {"Male", "Female"}
-    # Screen time is the deliberate exception -- present for most, not required.
-    assert 0 < frame["ScreenTime"].isna().sum() < len(frame)
+    fasting = frame.dropna(subset=["Triglycerides", "HDLCholesterol", "HbA1c", "BMI"])
+    assert len(fasting) == 314
+    assert fasting["Sex"].value_counts().to_dict() == {"Female": 167, "Male": 147}
 
 
 @pytest.mark.skipif(not COHORT_CSV.is_file(), reason="cohort CSV not built")

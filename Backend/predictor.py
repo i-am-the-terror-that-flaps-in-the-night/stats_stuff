@@ -80,7 +80,7 @@ THE MODEL IS A COMMITTED ARTIFACT, NEVER TRAINED AT RUNTIME
 
 WHAT A PREDICTION IS ALLOWED TO MEAN
     Nothing here is a diagnosis and nothing here is causal. The model is
-    fitted on 586 adolescents from one survey cycle; it reports where NHANES
+    fitted on 314 adolescents from one survey cycle; it reports where NHANES
     adolescents with a given set of numbers tended to sit, and it explains its
     own arithmetic. Moving a slider changes the model's guess, not anyone's
     liver. Every response carries PREDICTION_CAVEAT saying so, and the
@@ -102,7 +102,7 @@ if TYPE_CHECKING:
     import lightgbm as lgb
 
 # Two import paths because these modules are reached two ways: with Backend/ on
-# sys.path (pytest, the `python Backend/engine.py` CLI) and with the repo root on
+# sys.path (pytest, the `python Backend/cli.py` CLI) and with the repo root on
 # it (`uvicorn main:app`, which imports Backend.app). Same idiom as app.py's
 # _load_engine(). The dependency runs one way -- engine, cohort, study,
 # predictor -- so none of these can close a cycle.
@@ -237,7 +237,7 @@ PREDICTOR_INPUTS = {
 
 # Fixed and pre-specified, not tuned against the score. Shallow trees
 # (num_leaves = 7), a floor of 25 observations per leaf and L2 shrinkage are
-# what a 586-row sample can support; a deeper forest memorizes it. Determinism
+# what a 314-row sample can support; a deeper forest memorizes it. Determinism
 # is not decoration either -- the committed booster is diffed byte for byte by
 # `train-model --check`, so anything that varies run to run (bagging, thread
 # scheduling, an unseeded RNG) would make that guard fire at random.
@@ -266,7 +266,7 @@ PREDICTOR_MAX_ROUNDS = 300
 PREDICTION_CAVEAT = (
     "This is a prediction, not a diagnosis and not a causal statement. The "
     "model reports where NHANES adolescents with these numbers tended to sit, "
-    "from one survey cycle and 586 participants. Moving an input changes the "
+    "from one survey cycle and 314 participants. Moving an input changes the "
     "model's guess; it does not tell you what would happen to a real person if "
     "that number changed."
 )
@@ -562,7 +562,7 @@ def _predictor_drift(fresh_booster, fresh_card: dict) -> list[str]:
           them is a float that platform noise can nudge.
 
           BEHAVIOUR, to a tolerance far tighter than any real drift. The two
-          boosters must predict the same ALT for all 586 adolescents to within
+          boosters must predict the same ALT for all 314 adolescents to within
           1e-6 on the log scale. A model that agrees to six decimals on every
           row of its own training set IS the committed model; a model refitted
           on a cohort that moved does not come close.

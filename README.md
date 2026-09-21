@@ -13,7 +13,7 @@ do. See [The study](#the-study).
 | Component | Entry point | What it does |
 |---|---|---|
 | **Stats engine** | `Backend/engine.py` | General-purpose basic/medium/advanced/expert/categorical tiers on any dataframe |
-| **Cohort derivation** | `Backend/cohort.py` | Turns the raw 412-column NHANES merge into the 699-adolescent analytic cohort, with a logged attrition table |
+| **Cohort derivation** | `Backend/cohort.py` | Turns the raw 412-column NHANES merge into the 695-adolescent analytic cohort, with a logged attrition table |
 | **The study** | `Backend/study.py` | The pre-specified ten-step analysis: weighted regressions, mediation, dose-response, risk score |
 | **ALT predictor** | `Backend/predictor.py` | The LightGBM model behind the interactive demo, plus its committed model card |
 | **Web service** | `Backend/app.py` | FastAPI: `/healthz`, the JSON API, and the built frontend; deploys to Render |
@@ -37,23 +37,27 @@ which is what keeps the arrows above pointing one way.
 ## The study
 
 **Sex and metabolic factors, not dietary sugar, predict early-stage liver stress in U.S.
-adolescents.** A secondary analysis of NHANES 2017–2018, *n* = 699 adolescents aged 12–17.
+adolescents.** A secondary analysis of NHANES 2017–2018, *n* = 695 adolescents aged 12–17, with the
+metabolic models on the *n* = 314 morning-fasting subsample.
 
 Alanine aminotransferase (ALT) leaks from stressed liver cells, so it is an early marker of the
 metabolic liver disease that used to be an adult diagnosis and increasingly is not. The common
 assumption is that dietary sugar drives it directly. This analysis tests that, and finds:
 
-- **Dietary sugar does not independently predict ALT once BMI is in the model** (*p* = 0.58). The
-  association is not significant before adjustment either (*p* = 0.15).
-- **No dose-response.** Mean ALT does not climb across sugar quartiles (trend *p* = 0.15) — 16.3,
-  15.5, 17.1, 15.4 U/L from lowest to highest. A gradient is one of the stronger observational
+- **Dietary sugar does not independently predict ALT once BMI is in the model** (β = 0.00034 per
+  g/day, *p* = 0.30). The association is not significant before adjustment either (*p* = 0.79).
+- **No dose-response.** Mean ALT does not climb across sugar quartiles (ANOVA *p* = 0.86) — 15.9,
+  15.9, 15.7, 16.7 U/L from lowest to highest. A gradient is one of the stronger observational
   arguments for a real effect, and there isn't one.
-- **The triglyceride/HDL ratio does predict ALT** (standardized β = 0.14, *p* = 0.005), and adding
-  it and HbA1c to a lifestyle-only model raises R² from 0.106 to 0.154 (joint *p* = 0.008).
-- **Sex matters more than diet.** Weighted mean ALT is 19.1 U/L in boys against 12.9 U/L in girls.
-- **The composite 0–6 risk score separates cleanly**: mean ALT rises 11.4 → 30.3 U/L across the
-  bands and elevated-ALT prevalence 1.1% → 40%, beating every single factor on R². This one is
-  exploratory — see the caveats below.
+- **The triglyceride/HDL ratio does predict ALT** (β = 0.055, *p* = 0.016), and adding it and
+  HbA1c to a lifestyle-only model raises R² from 0.086 to 0.163 (joint *p* < 0.001), and to 0.300
+  once BMI is in.
+- **Sex matters more than diet.** Weighted mean ALT is 18.9 U/L in boys against 13.6 U/L in girls.
+  In the sex-stratified models sugar reaches *p* = 0.045 in boys and not in girls — an exploratory
+  result, labelled as such.
+- **The composite 0–6 risk score separates cleanly**: mean ALT rises 12 → 38 U/L across the bands
+  and elevated-ALT prevalence 0% → 50% (2.5 U/L per point, Cochran–Armitage *z* = 4.2). This one
+  is exploratory — see the caveats below.
 - **The null survives every sensitivity check**: two-day averaged sugar, unweighted, raw ALT
   instead of log, and energy-adjusted.
 
@@ -63,10 +67,11 @@ weight and lipid dysregulation, are unlikely to move adolescent liver stress.
 ### How the numbers are computed
 
 Every estimate is **weighted** by the day-1 dietary weight (`WTDRD1`), so it describes U.S.
-adolescents rather than whoever NHANES recruited. Every standard error is **cluster-robust** by
-PSU within stratum, so the clustered sample design doesn't make results look more precise than
-they are. There are 30 clusters (15 strata × 2 PSUs) — enough for the correction to be worth
-making, few enough that the robust *p*-values are approximate.
+adolescents rather than whoever NHANES recruited. Standard errors are the **classical
+weighted-least-squares** ones the protocol specifies — the Revised Results were computed that way,
+and the code reproduces them to the last digit. They do not correct for NHANES' clustered sampling
+(30 PSU-within-stratum clusters here, counted and reported beside each model), so *p*-values near
+the 0.05 line should be read as suggestive rather than exact.
 
 ALT is modelled as `ln(ALT)`; the raw values are strongly right-skewed and would otherwise dominate
 a least-squares fit. Sugar coefficients are reported per 10 g/day, because a per-gram coefficient
@@ -89,37 +94,39 @@ flatters it. It needs validation in a separate sample before it means anything a
 
 The sex and subgroup analyses are exploratory and uncorrected for multiplicity, and say so.
 
-### Three departures from the written protocol
+### The cohort reproduces the protocol's numbers
 
-Each is a case where the protocol names a variable that doesn't mean what its name suggests, or
-doesn't exist at the stated sample size. All three are documented at their definitions in
-`Backend/cohort.py`.
+The Revised Methods (6.1.26) Step 1 states four rules: ages 12–17, a reliable day-1 dietary recall
+(`DR1DRSTZ = 1`), no viral hepatitis B or C, and complete data on the model's variables.
+`Backend/cohort.py` applies them as written and lands exactly on the Revised Results' counts:
+907 → 804 → 802 → **695** for the lifestyle model, and **314** (147 males, 167 females) in the
+morning-fasting subsample that carries triglycerides and so the Model B analyses.
 
-| # | Protocol says | What the data says | Resolution |
-|---|---|---|---|
-| 1 | Exclude on Hepatitis B surface antigen, `HEPB_S_J` | `HEPB_S_J` is the surface **antibody** file — a marker of *vaccination*, positive in 179 of these adolescents | Exclude on `LBDHBG` (`HEPBD_J`), the actual surface antigen. Excluding on antibody would have thrown out the vaccinated |
-| 2 | Triglycerides from `TRIGLY_J` (`LBXTR`) | Fasting-subsample only — present for 341 adolescents, which cannot support *n* = 695 | Use `LBXSTR`, the same analyte on the MEC biochemistry panel (749 present). The two correlate at *r* = 0.997 where both exist; `LBXSTR` runs ~14 mg/dL higher because it isn't fasting, so it's sound for ranking and regression and its cut point is a cohort median rather than an absolute clinical line |
-| 3 | Screen time as a model variable | Missing for 113 otherwise-eligible adolescents | Kept as a variable with its own reduced *n* (586) rather than an entry criterion. Requiring it would cost 16% of the sample to serve the two analyses that use it |
+One variable name is corrected rather than followed. The original proposal names `HEPB_S_J` for the
+hepatitis B exclusion; that file carries the surface **antibody** — a marker of *vaccination*,
+positive in 179 of these adolescents. The project's own *Excluding HBV* note names the infection
+markers instead, the core antibody `LBXHBC` and surface antigen `LBDHBG` in `HEPBD_J`, and those are
+what is used. They remove two adolescents, which is the count the Revised Results report.
 
-**On the sample size:** the protocol states *n* = 695; applying the rules it states yields **699**.
-Every additional exclusion the protocol mentions — pregnancy, an unreliable dietary recall, a
-non-positive survey weight, a non-positive ALT — is already true of all 699, so none of them closes
-the gap. The difference is reported rather than engineered away.
+**A bug worth knowing about.** The raw merge writes every genuine zero as `5.397605346934028e-79`
+— an artifact of pandas' SAS-transport reader (see `engine.XPORT_ZERO`). An earlier version of this
+code read that value as *missing* and blanked it, which deleted every "less than 1 hour" screen-time
+answer and left the cohort 16% short of the protocol's *n*. Zeros are now read as zeros.
 
 ### The ten steps
 
 | # | Step | Grade | *n* |
 |---|---|---|---|
-| 1 | Cohort derivation and attrition | supporting | 699 |
-| 2 | Weighted descriptive profile | supporting | 699 |
-| 3 | Outcome distribution and log transformation | supporting | 699 |
-| 4 | **Primary A** — total association of sugar with ALT | **primary** | 699 |
-| 5 | **Primary B** — sugar adjusted for BMI, and the mediation comparison | **primary** | 699 |
-| 6 | Dose-response across sugar quartiles | supporting | 699 |
-| 7 | Mechanism — triglyceride/HDL versus dietary sugar | supporting | 699 |
-| 8 | Incremental value of the metabolic blood markers | supporting | 586 |
-| 9 | Sex differences | exploratory | 699 |
-| 10 | Composite 0–6 risk score | exploratory | 586 |
+| 1 | Cohort derivation and attrition | supporting | 695 |
+| 2 | Weighted descriptive profile | supporting | 695 |
+| 3 | Outcome distribution and log transformation | supporting | 695 |
+| 4 | **Model B without BMI** — sugar's total association with ALT | **primary** | 314 |
+| 5 | **Model B with BMI** — the pre-specified primary test, and the mediation comparison | **primary** | 314 |
+| 6 | Dose-response across sugar quartiles | supporting | 695 |
+| 7 | Mechanism — triglyceride/HDL versus dietary sugar (with VIF check) | supporting | 314 |
+| 8 | Model A versus Model B — incremental value of the metabolic markers | supporting | 314 (Model A also on 695) |
+| 9 | Sex differences | exploratory | 314 |
+| 10 | Composite 0–6 risk score | exploratory | 314 |
 | — | Sensitivity checks on the primary result | supporting | varies |
 
 The grades are pre-specified and they matter: they are what stops a null primary result being
@@ -205,10 +212,11 @@ extra_data/csv_data/*.csv    16 NHANES component files, joined on SEQN
         ▼
 Data/nhanes_analytic.csv     9,254 participants × 412 raw-coded columns   [Git LFS]
         │
-        │  cohort.py          ── age 12–17, viral hepatitis excluded,
-        │                        answer codes decoded, complete core variables
+        │  cohort.py          ── age 12–17, reliable recall, viral hepatitis
+        │                        excluded, answer codes decoded, complete on
+        │                        the lifestyle model's variables
         ▼
-Data/nhanes_adolescent.csv   699 adolescents × 21 named columns           [tracked, ~100 KB]
+Data/nhanes_adolescent.csv   695 adolescents × 20 named columns           [tracked, ~100 KB]
         │
         ├──►  engine.py           the five generic tiers
         └──►  study.py            the ten-step study
@@ -228,16 +236,17 @@ without this check a change to the derivation could ship while the files kept th
 The attrition table it prints is the real one:
 
 ```
-step                          n  removed
-NHANES 2017-2018 merge     9254        0
-Adolescents                 907     8347
-No viral hepatitis          907        0
-Complete core variables     699      208
-Positive dietary weight     699        0
+step                                              n  removed
+NHANES 2017-2018 merge                         9254        0
+Adolescents                                     907     8347
+Reliable day-1 dietary recall                   804      103
+No viral hepatitis B or C                       802        2
+Complete on the lifestyle model's variables     695      107
+Positive dietary weight                         695        0
 ```
 
-The two zero-removal rules are applied and logged rather than skipped, because *"we checked and it
-was zero"* and *"we never checked"* are different claims and only one of them is defensible.
+The zero-removal rule is applied and logged rather than skipped, because *"we checked and it was
+zero"* and *"we never checked"* are different claims and only one of them is defensible.
 
 ### Why the cohort is committed and the raw merge is in LFS
 
@@ -263,25 +272,26 @@ instance — to recompute five rows that had not changed since the last deploy.
 | `TotalSugars`, `TotalSugarsDay2` | `DR1TSUGR`, `DR2TSUGR` | `DR1TOT_J`, `DR2TOT_J` | Primary exposure (+ sensitivity) |
 | `ScreenTime` | `PAQ710` + `PAQ715` | `PAQY_J` | Lifestyle — decoded from bands, see below |
 | `BMI` | `BMXBMI` | `BMX_J` | Confounder / mediator |
-| `Triglycerides`, `HDLCholesterol`, `TrigHDLRatio` | `LBXSTR`, `LBDHDD` | `BIOPRO_J`, `HDL_J` | Mechanism |
+| `Triglycerides`, `HDLCholesterol`, `TrigHDLRatio` | `LBXTR`, `LBDHDD` | `TRIGLY_J`, `HDL_J` | Mechanism — fasting subsample only |
 | `HbA1c` | `LBXGH` | `GHB_J` | Mechanism |
-| `Age`, `Sex`, `RaceEthnicity`, `IncomeRatio` | `RIDAGEYR`, `RIAGENDR`, `RIDRETH3`, `INDFMPIR` | `DEMO_J` | Controls / descriptive |
+| `Age`, `Sex`, `RaceEthnicity` | `RIDAGEYR`, `RIAGENDR`, `RIDRETH3` | `DEMO_J` | Controls / descriptive |
 | `Energy` | `DR1TKCAL` | `DR1TOT_J` | Sensitivity |
 | `DietWeight`, `SurveyPSU`, `SurveyStratum` | `WTDRD1`, `SDMVPSU`, `SDMVSTRA` | `DEMO_J` | Survey design |
 | `ALTElevated`, `RiskScore` | constructed | — | Derived |
 
-**Screen time is decoded, not averaged.** `PAQ710`/`PAQ715` are banded answers where two of the
-bands aren't numbers: `8` means "does not watch TV / use a computer" — a real zero — and `77`/`99`
-are "refused"/"don't know". Left alone, those enter a mean as the two heaviest screen users in the
-study. `0` ("less than 1 hour") maps to the band midpoint 0.5, and `5` ("5 hours or more") is
-right-censored at 5.0, which compresses the top of the distribution and biases any screen-time
-association toward zero.
+**Screen time is decoded as the protocol states.** `PAQ710`/`PAQ715` are banded answers, read as
+the project's Variable Reference specifies — `0`–`5` hours as-is, `8` as "8+ hours", and `77`/`99`
+("refused"/"don't know") as missing rather than as the two heaviest screen users in the study. Two
+caveats: `5` ("5 hours or more") is right-censored, which compresses the top of the distribution;
+and the NHANES codebook labels `8` as "does not watch", i.e. a zero, where the protocol reads it as
+8+ hours (28 adolescents give that answer on each question). The protocol's coding is what the
+Revised Results were computed with, and it is what is used.
 
 **Bookkeeping columns are excluded from the explorer.** `SEQN` and the survey design codes parse
 perfectly as numbers and mean nothing when averaged, so `cohort.NON_ANALYTIC_COLUMNS` keeps them
 out of the column list the website offers while leaving them in the dataframe the study needs.
 
-**Elevated ALT uses sex-specific pediatric thresholds** — 26 U/L for boys, 22 for girls (Schwimmer
+**Elevated ALT uses sex-specific pediatric thresholds** — strictly above 26 U/L for boys, 22 for girls (Schwimmer
 et al. 2010, adopted by NASPGHAN 2017). These sit far below the ~40 U/L adult reference ceiling a
 hospital lab prints, which is the point: an adult ceiling misses most pediatric liver disease.
 They live in the cohort section rather than in `CLINICAL_THRESHOLDS` because that table
@@ -398,7 +408,7 @@ The study answers a hypothesis. This answers a different question — *given the
 what ALT would you guess, and which of the seven moved the guess?* — and it is the part of the
 site a judge can touch.
 
-**Model.** LightGBM gradient-boosted trees on the same 586 adolescents and the *same
+**Model.** LightGBM gradient-boosted trees on the same 314 adolescents and the *same
 specification* as the study's primary test (Model B with BMI: sugar, screen time, age, sex,
 Trig/HDL, HbA1c, BMI), predicting `ln(ALT)`, weighted by the survey weight. Nothing was added
 because it helped and nothing was dropped because it did not, so the two are two estimators of one
@@ -565,7 +575,7 @@ words, at the top.
 ### What a prediction is allowed to mean
 
 Nothing here is a diagnosis and nothing here is causal. The model reports where NHANES adolescents
-with a given set of numbers tended to sit, from one survey cycle and 586 participants. Moving an
+with a given set of numbers tended to sit, from one survey cycle and 314 participants. Moving an
 input changes the model's guess; it does not tell you what would happen to a real person. Every
 response carries that sentence, and the language model is handed it too.
 

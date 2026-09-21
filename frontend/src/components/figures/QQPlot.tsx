@@ -52,7 +52,7 @@ export function QQPlot({ data }: { data: DiagnosticsResponse }): JSX.Element {
 
         {/* The line first, so the points sit on top of the thing they are being
             compared against rather than under it. */}
-        <line className="fig-qq-line" x1={x(xLo)} x2={x(xHi)} y1={y(lineAt(xLo))} y2={y(lineAt(xHi))} />
+        <line className="fig-qq-line" pathLength={1} x1={x(xLo)} x2={x(xHi)} y1={y(lineAt(xLo))} y2={y(lineAt(xHi))} />
 
         {theory.map((t, index) => {
           const value = observed[index];

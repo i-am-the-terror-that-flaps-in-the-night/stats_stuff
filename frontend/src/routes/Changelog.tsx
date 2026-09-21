@@ -8,7 +8,7 @@ import { Crumbs, Masthead, Module, Table } from "../components/Page";
 import type { SpecRow } from "../components/Page";
 
 const SPEC: SpecRow[] = [
-  { k: "Current", v: "v3.2.0" },
+  { k: "Current", v: "v4.0.0" },
   { k: "Released", v: "2026·08·30" },
   { k: "Cadence", v: "Iterative" },
   { k: "Status", v: "Stable" },
@@ -24,9 +24,86 @@ interface Release {
 
 const RELEASES: Release[] = [
   {
+    ver: "v4.0.0",
+    date: "20 Sep 2026",
+    current: true,
+    major: true,
+    items: [
+      <>
+        <b>Observatory</b> — the interface rebuilt from scratch. Dark is native: a deep ink-blue
+        ground under a faint star field, cool off-white text, one ice-cyan accent that means
+        &ldquo;live&rdquo; or &ldquo;selected&rdquo; and nothing else. Warm colour is reserved for
+        data that needs a second pole. A day theme is the alternate, switched from the strip and
+        remembered.
+      </>,
+      <>
+        <b>Type</b> — Young Serif for display, Sora for reading, Martian Mono for every number, all
+        self-hosted and bundled (about 85 KB of latin woff2; no CDN).
+      </>,
+      <>
+        <b>Layout</b> — one sticky instrument strip carries the brand, the numbered routes, the
+        live readouts and the theme switch; the masthead is a full-bleed observatory panel with a
+        seeded star-scatter; modules open with oversized serif numerals; tables are ruled ledgers;
+        the tier picker is a segmented control; the boot splash is an aperture opening.
+      </>,
+      <>
+        <b>Motion</b> — one staggered page-load reveal, line charts that draw themselves in, a sky
+        that drifts once every ninety seconds; all CSS, all off under reduced motion.
+      </>,
+      <>
+        <b>Exports</b> — the figure exporter now resolves hex, <span className="expr">color(srgb)</span>{" "}
+        and <span className="expr">oklab()</span> paints, so dark-theme SVG/PNG/PDF downloads carry
+        their real ground and the heatmap&rsquo;s mixed cells survive into PDF.
+      </>,
+    ],
+  },
+  {
+    ver: "v3.3.0",
+    date: "20 Sep 2026",
+    major: true,
+    items: [
+      <>
+        <b>The cohort now reproduces the revised protocol exactly</b> — 907 → 804 → 802 →{" "}
+        <b>695</b>, with <b>314</b> (147 males, 167 females) in the fasting subsample. Three
+        things changed: the day-1 recall reliability rule (<span className="expr">DR1DRSTZ = 1</span>)
+        and the hepatitis B core antibody (<span className="expr">LBXHBC</span>) are applied as the
+        protocol states; triglycerides come from the fasting file the protocol names (
+        <span className="expr">LBXTR</span>), not the non-fasting panel; and elevated ALT is
+        strictly <em>above</em> the NASPGHAN line, as the guideline reads.
+      </>,
+      <>
+        <b>A zero is a zero</b> — the raw merge writes every 0 as{" "}
+        <span className="expr">5.397605346934028e-79</span>, an artifact of pandas&rsquo;
+        SAS-transport reader. The engine had been reading that as <em>missing</em> and blanking it,
+        which deleted every &ldquo;less than 1 hour&rdquo; screen-time answer and left the cohort
+        16% short of the protocol&rsquo;s n. Renamed <span className="expr">XPORT_ZERO</span> and
+        mapped to 0.0 on the way in.
+      </>,
+      <>
+        <b>Study</b> — Model A is also fitted on its full sample (n = 695) beside the shared-sample
+        comparison; ΔR² reported for Model B both without and with BMI; a VIF check on the primary
+        specification, against the pre-registered threshold of 5; sugar quartiles are the sample
+        quartiles the protocol&rsquo;s &ldquo;four equal-sized groups&rdquo; describe, with the plain
+        mean ± SE the protocol&rsquo;s figure plots.
+      </>,
+      <>
+        <b>Figures</b> — two new: the sex-stratified coefficient plot and the composite risk-score
+        bands. Both are in the Downloads bundle.
+      </>,
+      <>
+        <b>Estimator and coding as written</b> — classical weighted-least-squares standard errors
+        (the earlier cluster-robust ones widened intervals the protocol never asked for), and
+        screen-time bands read exactly as the Variable Reference states. Every coefficient, R² and
+        p-value in the Revised Results now falls out of the code to the last digit.
+      </>,
+      <>
+        <b>Predict</b> — the LightGBM model retrained on the 314-adolescent primary sample.
+      </>,
+    ],
+  },
+  {
     ver: "v3.2.0",
     date: "30 Aug 2026",
-    current: true,
     items: [
       <>
         <b>Predict</b> — a new page and API (<span className="expr">/api/predict/*</span>) built on

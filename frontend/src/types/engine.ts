@@ -463,6 +463,40 @@ export interface DirectEffectStep extends StudyStep {
   direct_model: StudyModel;
 }
 
+/** One band of the composite risk score, as step 10 reports it. */
+export interface RiskScoreBand {
+  score: number;
+  n: number;
+  mean_alt: number | null;
+  percent_elevated_alt_unweighted: number | null;
+  weighted_mean_alt: number | null;
+  percent_elevated_alt: number | null;
+  count_elevated: number;
+}
+
+/** The shape of the risk-score step the figure needs. */
+export interface RiskScoreStep extends StudyStep {
+  bands: RiskScoreBand[];
+  trend_in_mean_alt: {
+    u_per_litre_per_point: number | null;
+    percent_change_per_point: number | null;
+    significance: Significance;
+  };
+  trend_in_prevalence: {
+    applicable: boolean;
+    z: number | null;
+    significance: Significance;
+  };
+  sparse_bands: string[];
+}
+
+/** The shape of the sex-differences step the stratified forest plot needs. */
+export interface SexDifferencesStep extends StudyStep {
+  stratified_models: { Male: StudyModel; Female: StudyModel };
+  interaction_tests: Record<string, Significance>;
+  slopes_differ_by_sex: boolean;
+}
+
 /** GET /api/study/steps — the table of contents, without the results. */
 export interface StudyIndexEntry {
   name: string;

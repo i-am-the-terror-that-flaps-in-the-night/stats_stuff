@@ -9,6 +9,7 @@
 // Under the router this is even simpler than before: it mounts once at the app
 // root, so route changes can't retrigger it and there is no initInPlace() dance.
 
+import type React from "react";
 import type { JSX } from "react";
 import { useEffect, useRef, useState } from "react";
 import { BrandMark } from "./Shell";
@@ -160,14 +161,19 @@ export function BootLoader({ children }: { children: React.ReactNode }): JSX.Ele
           role="status"
           aria-label="Loading, please wait"
         >
-          <div className="loader-card" aria-hidden="true">
+          <div
+            className="loader-card"
+            aria-hidden="true"
+            // The aperture ring is drawn in CSS from this one number.
+            style={{ "--boot": progress / 100 } as React.CSSProperties}
+          >
             <header className="loader-head">
               <span className="loader-mark">
                 <BrandMark />
               </span>
               <p className="loader-brand">Data Analysis Engine</p>
-              <p className="loader-sub">Statistical Engine · v1.3.1</p>
-              <p className="loader-build">Build 2026.08.29 · FastAPI Core · Statistics Module</p>
+              <p className="loader-sub">Statistical Engine · v4.0</p>
+              <p className="loader-build">Build 2026.09.20 · FastAPI Core · Observatory UI</p>
             </header>
 
             <ul className="boot-channels" id="boot-channels">

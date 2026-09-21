@@ -99,7 +99,7 @@ export function CorrelationHeatmap({
               return (
                 <rect
                   key={colCol}
-                  className={`fig-cell${isDiagonal ? " is-diagonal" : ""}${isSelected ? " is-selected" : ""}`}
+                  className={`fig-cell${isDiagonal ? " is-diagonal" : ""}${isSelected ? " is-selected" : ""}${r === null ? " is-missing" : ""}`}
                   x={GUTTER_LEFT + col * CELL}
                   y={GUTTER_TOP + row * CELL}
                   // 1px inset on each side: adjacent fills need a surface gap or

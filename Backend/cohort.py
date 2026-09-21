@@ -48,30 +48,29 @@ EVERY DECISION THAT SHRINKS THE SAMPLE IS RECORDED
     else. See ANALYSIS_CORE below for what "needs it" means, and note that screen
     time is deliberately NOT in that set.
 
-THREE PLACES THIS DEPARTS FROM THE WRITTEN PROTOCOL
-    Each is a case where the protocol names a variable that does not mean what
-    the name suggests, or does not exist at the stated sample size. They are
-    corrections, not preferences, and each is spelled out at its definition:
+THE COHORT IS THE REVISED PROTOCOL'S, AND IT REPRODUCES ITS NUMBERS
+    The Revised Methods (6.1.26) Step 1 states four rules -- ages 12-17, a
+    reliable day-1 dietary recall, no viral hepatitis B or C, and complete data
+    on the model's variables -- and the Revised Results report what they
+    produce: 907 -> 804 -> 802 -> 695 for the lifestyle model, and 314 in the
+    fasting subsample the metabolic model needs (147 males, 167 females).
+    Applied here, exactly as written, they produce exactly those counts. The
+    attrition log below is that derivation, one row per rule.
 
-      1. Hepatitis B. The protocol excludes on "Hepatitis B Surface Antigen
-         (HEPB_S_J)". HEPB_S_J is the surface *antibody* file -- a marker of
-         VACCINATION, positive in 179 of these adolescents. Excluding on it
-         would have thrown out the vaccinated. The surface *antigen* (the actual
-         infection marker) is LBDHBG, in HEPBD_J. See VIRAL_EXCLUSIONS.
-      2. Triglycerides. The protocol names TRIGLY_J (LBXTR), which is drawn only
-         from the fasting subsample and exists for 341 of these adolescents --
-         it cannot support the stated n. LBXSTR, the same analyte on the MEC
-         biochemistry panel, exists for 749. See TRIGLYCERIDE_SOURCE.
-      3. Screen time. Present as specified, but missing for 113 adolescents who
-         otherwise qualify, so requiring it would cost 16% of the sample. It is
-         a variable with its own reduced n rather than an entry criterion.
+    ONE PLACE THE PROTOCOL'S VARIABLE NAME IS CORRECTED, NOT ITS RULE
+    The original proposal names "Hepatitis B (HEPB_S_J)" as the exclusion file.
+    HEPB_S_J carries the surface *antibody* (LBXHBS) -- a marker of VACCINATION,
+    positive in 179 of these adolescents -- and the project's own "Excluding
+    HBV" note corrects this: the infection markers are the core antibody
+    (LBXHBC) and surface antigen (LBDHBG) in HEPBD_J. Those are what is used.
+    See VIRAL_EXCLUSIONS.
 
-    The resulting cohort is n = 699. The protocol says 695. The four-participant
-    gap is not explained by any rule stated in the protocol -- pregnancy status,
-    recall reliability, a positive dietary weight and a positive ALT are all
-    already true of every one of the 699 -- so this code reports what the stated
-    rules actually produce rather than reverse-engineering a filter to land on
-    695. See COHORT_N_NOTE.
+    ONE HISTORICAL BUG WORTH KNOWING ABOUT
+    The raw merge writes every genuine zero as 5.397605346934028e-79 (an
+    artifact of pandas' SAS-transport reader; see engine.XPORT_ZERO). An
+    earlier version of this file read that value as "missing" and blanked it,
+    which deleted every "less than 1 hour" screen-time answer and left the
+    cohort 16% short of the protocol's n. Zeros are now read as zeros.
 """
 
 from __future__ import annotations
@@ -90,9 +89,9 @@ import pandas as pd
 # root on it (`uvicorn main:app`, which imports Backend.app). Same idiom as
 # app.py's _load_engine(). engine.py never imports back, so there is no cycle.
 try:
-    from engine import ANALYTIC_MISSING_SENTINEL
+    from engine import XPORT_ZERO
 except ImportError:
-    from Backend.engine import ANALYTIC_MISSING_SENTINEL
+    from Backend.engine import XPORT_ZERO
 
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -138,40 +137,40 @@ def raw_merge_available(path: Path | None = None) -> bool:
 AGE_MIN, AGE_MAX = 12, 17
 
 COHORT_N_NOTE = (
-    "The protocol states n = 695; applying the rules it states yields n = 699. "
-    "Every additional exclusion the protocol mentions -- pregnancy, an "
-    "unreliable dietary recall, a non-positive survey weight, a non-positive "
-    "ALT -- is already true of all 699, so none of them closes the gap. The "
-    "difference is reported rather than engineered away."
+    "Applying the Revised Methods Step 1 rules as written reproduces the "
+    "Revised Results exactly: 907 adolescents, 804 with a reliable day-1 "
+    "recall, 802 without viral hepatitis, 695 complete on the lifestyle "
+    "model's variables, and 314 of those in the fasting subsample the "
+    "metabolic model requires."
 )
+
+# Day-1 dietary recall status. 1 = reliable and met the minimum criteria; every
+# other code (2 = not reliable, 4 = reported consuming breast milk, 5 = not
+# done) means the sugar figure cannot be used. The protocol's Step 2 names this
+# as the reason day 1 is the exposure, and its Step 1 applies it as a filter.
+RECALL_RELIABLE = 1
 
 # ----------------------------------------------------------------------
 # VARIABLE MAP -- NHANES code -> the name this project uses.
 #
 # Names deliberately match the conventions of the curated extract this cohort
-# replaces (BMI, Triglycerides, HDLCholesterol, HbA1c, IncomeRatio), so the
+# replaces (BMI, Triglycerides, HDLCholesterol, HbA1c), so the
 # Studio, the figures and the clinical-threshold table in engine.py keep working
 # against the same identifiers.
 # ----------------------------------------------------------------------
 
-# The MEC biochemistry-profile triglyceride, NOT the fasting-subsample one the
-# protocol names. LBXTR (TRIGLY_J) is measured only on the morning fasting
-# subsample and exists for 341 of these adolescents; LBXSTR is the same analyte
-# on the standard biochemistry panel, drawn from everyone who gave the MEC blood
-# sample, and exists for 749 -- the same 749 who have ALT, because it is the
-# same tube.
+# The fasting-subsample triglyceride from TRIGLY_J, as the protocol names it.
+# NHANES measures it only on the morning fasting subsample, so it -- and the
+# Trig/HDL ratio built from it -- exists for 314 of the 695 adolescents in the
+# lifestyle sample. That is the "fasting subsample" the Revised Results report
+# Model B on, and the reason Model B runs on fewer people than Model A.
 #
-# The two agree closely where both exist. Among the 339 adolescents measured
-# both ways, r = 0.997: they rank people near-identically, which is what matters
-# for a variable used as a PREDICTOR. What differs is level, not order -- LBXSTR
-# averages ~14 mg/dL higher, because it is not fasting and triglycerides rise
-# after a meal. So the ratio built from it is sound for regression and for
-# ranking, and any ABSOLUTE cutoff applied to it (see the risk score in study.py)
-# reads slightly high. That trade -- a known, bounded upward bias on levels, in
-# exchange for doubling the sample -- is the reason for the substitution, and it
-# is why the ratio's cut point is defined as a cohort quantile rather than a
-# published clinical line.
-TRIGLYCERIDE_SOURCE = "LBXSTR"
+# LBXSTR, the same analyte on the non-fasting biochemistry panel, exists for
+# nearly everyone and was used by an earlier version of this file to double the
+# metabolic sample. It was reverted: a non-fasting triglyceride sits ~14 mg/dL
+# high after a meal, it is not what the protocol specifies, and the study's
+# written results were derived from the fasting value.
+TRIGLYCERIDE_SOURCE = "LBXTR"
 
 VARIABLES = {
     # Identity and survey design
@@ -181,9 +180,9 @@ VARIABLES = {
     "WTDRD1": "DietWeight",
     "SDMVPSU": "SurveyPSU",
     "SDMVSTRA": "SurveyStratum",
-    # Demographics
+    # Demographics. The poverty-income ratio is deliberately absent: the
+    # revised protocol removed it from the analysis.
     "RIDAGEYR": "Age",
-    "INDFMPIR": "IncomeRatio",
     # Outcome
     "LBXSATSI": "ALT",
     # Primary exposure
@@ -208,41 +207,56 @@ REFUSED, DONT_KNOW = 77, 99
 SCREEN_TIME_PARTS = ("PAQ710", "PAQ715")  # TV/videos, computer/games
 
 # Viral hepatitis exclusions: the variable, the codes that mean "infected", and
-# why this variable and not the one the protocol names.
+# why these variables and not the file the original proposal names.
 #
-# LBDHBG is the surface ANTIGEN, from HEPBD_J -- the marker of current hepatitis
-# B infection (1 = Positive, 2 = Negative, 3 = Indeterminate). The protocol names
-# HEPB_S_J, which is the surface ANTIBODY file (LBXHBS): antibody positivity
-# means the immune system has seen the virus or, far more commonly in this age
-# group, a vaccine. 179 of these 907 adolescents are anti-HBs positive, and
-# excluding them would have removed the vaccinated from a study about sugar.
+# Both hepatitis B markers come from HEPBD_J. LBXHBC is the core antibody --
+# positive after any past or current infection -- and LBDHBG the surface
+# ANTIGEN, the marker of current infection (1 = Positive, 2 = Negative, 3 =
+# Indeterminate). Either positive excludes, per the project's "Excluding HBV"
+# note. The original proposal named HEPB_S_J, which is the surface ANTIBODY
+# file (LBXHBS): antibody positivity means the immune system has seen the virus
+# or, far more commonly in this age group, a vaccine. 179 of these 907
+# adolescents are anti-HBs positive, and excluding them would have removed the
+# vaccinated from a study about sugar. It is not used.
 #
 # LBDHCI is the confirmed hepatitis C antibody and LBXHCR the viral RNA. Their
 # code 3 ("Negative Screening HCV Antibody") and code 2 are both negative
 # results; only 1 (Positive) and, for the antibody, 4 (Positive HCV RNA) mean
 # infection.
+#
+# In this age band the rule removes two adolescents, both core-antibody
+# positive, which is the count the Revised Results report (804 -> 802).
 VIRAL_EXCLUSIONS = {
-    "LBDHBG": (1,),  # hepatitis B surface antigen positive
+    "LBXHBC": (1,),  # hepatitis B core antibody positive (past or current)
+    "LBDHBG": (1,),  # hepatitis B surface antigen positive (current)
     "LBDHCI": (1, 4),  # hepatitis C antibody confirmed positive / RNA positive
     "LBXHCR": (1,),  # hepatitis C RNA positive
 }
 
-# The variables an analysis must have to count a participant at all. Screen time
-# is pointedly absent: it is missing for 113 otherwise-eligible adolescents, and
-# making it an entry criterion would shrink every analysis in the study -- most
-# of which never use it -- by 16% to serve the two that do. Models that use
-# screen time therefore run on their own smaller sample and report it.
+# The variables a participant must have to be in the cohort at all: the
+# outcome, the exposure, the survey weight, and everything Model A (the
+# lifestyle model: sugar, screen time, age, sex) uses. This is the protocol's
+# "missing any variable in the analysis" rule applied to the model every
+# participant is eligible for, and it yields the Revised Results' n = 695.
+#
+# The metabolic markers are NOT here. Triglycerides (and so the Trig/HDL ratio)
+# exist only for the fasting subsample, so Model B runs on the 314 who have
+# them -- the protocol's "fasting subsample" -- and study.py takes that
+# subsample from this cohort at analysis time rather than shrinking the whole
+# cohort to it. HbA1c and BMI are kept in the cohort with whatever coverage
+# they have; the analyses that need them drop the few who lack them.
 ANALYSIS_CORE = [
     "ALT",
     "TotalSugars",
     "DietWeight",
-    "BMI",
-    "HbA1c",
-    "Triglycerides",
-    "HDLCholesterol",
+    "ScreenTime",
     "Age",
     "Sex",
 ]
+
+# What Model B additionally requires. Exposed here beside ANALYSIS_CORE so the
+# two sample definitions the study reports live in one place.
+METABOLIC_VARIABLES = ["Triglycerides", "HDLCholesterol", "HbA1c", "BMI"]
 
 # Columns that are in the file for bookkeeping, not for analysis. They are real
 # numbers, so anything that decides "is this column numeric?" by trying to parse
@@ -281,25 +295,27 @@ SEX_LABELS = {1: "Male", 2: "Female"}
 def decode_screen_hours(series: pd.Series) -> pd.Series:
     """Turn a PAQY_J screen-time band into hours per day.
 
-    PAQ710 and PAQ715 are not hour counts, they are banded choices, and two of
-    the bands are not numbers at all:
+    PAQ710 and PAQ715 are banded choices, decoded exactly as the project's
+    Variable Reference and Supplementary Report state ("0-5 hrs; 8 = 8+ hrs;
+    99 = DK excluded"):
 
-        0  "Less than 1 hour"          -> 0.5   (band midpoint)
-        1-4 "1/2/3/4 hours"            -> as-is
-        5  "5 hours or more"           -> 5.0   (censored -- see below)
-        8  "does not watch TV / use a computer" -> 0.0
-        77 Refused, 99 Don't know      -> missing
+        0-5 "0 / 1 / 2 / 3 / 4 / 5+ hours" -> as-is (5 is "5 hours or more")
+        8   -> 8.0
+        77 Refused, 99 Don't know         -> missing
 
-    Two of those deserve flagging. Code 8 is a real, informative zero, not a
-    missing value -- reading it as 8 hours would invent the heaviest screen users
-    in the dataset out of the people who reported none. And code 5 is
-    right-censored: "5 hours or more" becomes 5.0, so anyone at 9 hours is
-    recorded at 5. That compresses the top of the distribution toward the mean
-    and, if anything, biases an association with screen time toward zero. It is
-    a limitation of the instrument, not something a decoding choice can fix.
+    This is the coding the Revised Results were computed with, and it is what
+    lets this code reproduce them to the last digit. Two caveats belong next to
+    it. Code 5 is right-censored -- "5 hours or more" becomes 5.0 -- which
+    compresses the top of the distribution and, if anything, biases a
+    screen-time association toward zero. And the NHANES codebook labels code 8
+    as "does not watch TV / use a computer", i.e. a zero; the protocol reads it
+    as 8+ hours. 28 of the 907 adolescents give that answer on each question.
+    An earlier version of this file decoded 8 as 0.0 and 0 as 0.5; the numbers
+    it produced differed from the Revised Results in the second decimal of
+    every p-value, and the protocol's coding is the one reported.
     """
     hours = pd.to_numeric(series, errors="coerce")
-    return hours.replace({REFUSED: np.nan, DONT_KNOW: np.nan, 8: 0.0, 0: 0.5})
+    return hours.replace({REFUSED: np.nan, DONT_KNOW: np.nan})
 
 
 def build_cohort(raw: pd.DataFrame | None = None, raw_path: Path | None = None):
@@ -317,9 +333,10 @@ def build_cohort(raw: pd.DataFrame | None = None, raw_path: Path | None = None):
         # 17 MB file here.
         raw = pd.read_csv(RAW_CSV if raw_path is None else raw_path, low_memory=False)
 
-    # The sentinel first, before any comparison or count: left in place it would
-    # read as a real (if absurdly small) measurement everywhere below.
-    raw = raw.replace(ANALYTIC_MISSING_SENTINEL, np.nan)
+    # The XPT zero artifact first, before any comparison or count: left in
+    # place, "less than 1 hour of TV" reads as 5e-79 hours and a dietary weight
+    # of zero passes a "> 0" check.
+    raw = raw.replace(XPORT_ZERO, 0.0)
 
     log: list[dict] = []
     n = len(raw)
@@ -347,22 +364,27 @@ def build_cohort(raw: pd.DataFrame | None = None, raw_path: Path | None = None):
         raw[raw["RIDAGEYR"].between(AGE_MIN, AGE_MAX)].copy(),
     )
 
-    # 2. Viral hepatitis. Isolates metabolic liver stress from viral hepatitis,
-    #    which raises ALT through an entirely different mechanism. In this age
-    #    band it removes nobody -- all three markers are negative for every
-    #    adolescent tested -- but the rule is applied and logged rather than
-    #    skipped, because "we checked and it was zero" and "we never checked"
-    #    are different claims and only one of them is defensible.
+    # 2. A reliable day-1 dietary recall. The exposure comes from this recall,
+    #    so a participant whose recall NHANES flags as unusable has no exposure.
+    d = record(
+        "Reliable day-1 dietary recall",
+        f"DR1DRSTZ = {RECALL_RELIABLE}",
+        d[d["DR1DRSTZ"] == RECALL_RELIABLE],
+    )
+
+    # 3. Viral hepatitis. Isolates metabolic liver stress from viral hepatitis,
+    #    which raises ALT through an entirely different mechanism.
     infected = pd.Series(False, index=d.index)
     for code, positive in VIRAL_EXCLUSIONS.items():
         infected |= d[code].isin(positive)
     d = record(
-        "No viral hepatitis",
-        "HBsAg-, HCV antibody- and HCV RNA-negative (LBDHBG/LBDHCI/LBXHCR)",
+        "No viral hepatitis B or C",
+        "anti-HBc-, HBsAg-, HCV antibody- and HCV RNA-negative "
+        "(LBXHBC/LBDHBG/LBDHCI/LBXHCR)",
         d[~infected],
     )
 
-    # 3. Rename and decode into study variables.
+    # 4. Rename and decode into study variables.
     out = pd.DataFrame(index=d.index)
     for code, name in VARIABLES.items():
         out[name] = pd.to_numeric(d[code], errors="coerce")
@@ -377,7 +399,7 @@ def build_cohort(raw: pd.DataFrame | None = None, raw_path: Path | None = None):
     parts = [decode_screen_hours(d[code]) for code in SCREEN_TIME_PARTS]
     out["ScreenTime"] = parts[0] + parts[1]
 
-    # 4. Constructed measures.
+    # 5. Constructed measures.
     #
     # Trig/HDL: the protocol's mechanistic marker, a clinical proxy for insulin
     # resistance and hepatic steatosis. Guarded against a non-positive HDL --
@@ -392,17 +414,17 @@ def build_cohort(raw: pd.DataFrame | None = None, raw_path: Path | None = None):
     # which is exactly the subsample the sensitivity check is about.
     out["TotalSugars2Day"] = (out["TotalSugars"] + out["TotalSugarsDay2"]) / 2
 
-    # 5. Complete cases on the core analysis set.
+    # 6. Complete cases on the lifestyle model's variables. This is the
+    #    protocol's n = 695.
     out = record(
-        "Complete core variables",
-        "ALT, sugar, weight, BMI, HbA1c, triglycerides, HDL, age, sex all present",
+        "Complete on the lifestyle model's variables",
+        "ALT, sugar, dietary weight, screen time, age and sex all present",
         out.dropna(subset=ANALYSIS_CORE),
     )
 
-    # 6. A usable survey weight. A zero or negative dietary weight means the
-    #    participant is not part of the day-1 dietary estimation sample, so
-    #    weighting them contributes nothing and dividing by them is undefined.
-    #    Removes nobody here; logged for the same reason as the hepatitis rule.
+    # 7. A usable survey weight. A zero dietary weight means the participant is
+    #    not part of the day-1 dietary estimation sample. Every reliable recall
+    #    has one, so this removes nobody; it is logged rather than assumed.
     out = record("Positive dietary weight", "WTDRD1 > 0", out[out["DietWeight"] > 0])
 
     out = out.sort_values("SEQN").reset_index(drop=True)
@@ -440,14 +462,16 @@ ALT_THRESHOLD_SOURCE = (
 
 
 def elevated_alt(df: pd.DataFrame) -> pd.Series:
-    """Flag ALT above the sex-specific pediatric screening threshold.
+    """Flag ALT strictly above the sex-specific pediatric screening threshold.
 
     Returns a nullable boolean: a participant with no ALT or no sex has no flag
     rather than a False, because "not elevated" and "not measured" must not
     collapse into the same value in a prevalence count.
     """
     cutoff = df["Sex"].map(ALT_ELEVATED)
-    flag = df["ALT"] >= cutoff
+    # Strictly above: the guideline reads "> 26 U/L", and ALT is reported in
+    # whole units, so 22 in a girl is normal and 23 is not.
+    flag = df["ALT"] > cutoff
     return flag.where(df["ALT"].notna() & cutoff.notna()).astype("boolean")
 
 
@@ -474,10 +498,8 @@ def elevated_alt(df: pd.DataFrame) -> pd.Series:
 # That makes the score a RELATIVE instrument: it ranks this cohort against
 # itself and cannot be carried to another population unchanged, because the cut
 # points would move. It is labeled exploratory in the protocol and it is
-# reported that way. Splitting at the cohort's own median is also why the
-# Trig/HDL component is unaffected by the non-fasting triglyceride's upward
-# level shift (see TRIGLYCERIDE_SOURCE) -- a shift that moves every value moves
-# the median with it, and the same people land above it either way.
+# reported that way. The score exists only for the fasting subsample, because
+# its Trig/HDL component does; see risk_score for where each median is taken.
 RISK_MEDIAN_COMPONENTS = (
     "TotalSugars",
     "ScreenTime",
@@ -506,6 +528,11 @@ def risk_score(df: pd.DataFrame) -> dict:
     cutpoints: dict[str, float] = {}
     points = []
 
+    # Each cut point is the median over everyone in the frame who has that
+    # component -- the protocol's "sample median". Hand this the whole cohort:
+    # sugar, screen time, BMI and HbA1c are then cut at the full sample's
+    # midpoint and only the Trig/HDL ratio at the fasting subsample's, which is
+    # the convention the Revised Results' score bands were built on.
     for column in RISK_MEDIAN_COMPONENTS:
         cut = float(df[column].median())
         cutpoints[column] = cut
@@ -604,7 +631,7 @@ def _read_attrition():
     """The committed attrition log, or None if it cannot be read as one."""
     try:
         return json.loads(ATTRITION_JSON.read_text())
-    except OSError, ValueError:
+    except (OSError, ValueError):
         return None
 
 

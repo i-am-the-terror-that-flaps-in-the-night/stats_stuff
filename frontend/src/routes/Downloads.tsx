@@ -28,7 +28,7 @@ import { DensityPlot } from "../components/figures/DensityPlot";
 import { QQPlot } from "../components/figures/QQPlot";
 import { ResidualPlot } from "../components/figures/ResidualPlot";
 import { ForestPlot } from "../components/figures/ForestPlot";
-import { DoseResponseChart } from "../components/figures/DoseResponseChart";
+import { DoseResponseChart, RiskScoreChart } from "../components/figures/DoseResponseChart";
 import {
   useBox,
   useCorrelation,
@@ -45,10 +45,15 @@ import { zipBlob } from "../lib/zip";
 import type { ZipEntry } from "../lib/zip";
 import { labelOf } from "../lib/scales";
 import { DIAGNOSTIC_MODELS } from "../types/engine";
-import type { DirectEffectStep, DoseResponseStep } from "../types/engine";
+import type {
+  DirectEffectStep,
+  DoseResponseStep,
+  RiskScoreStep,
+  SexDifferencesStep,
+} from "../types/engine";
 
 const SPEC: SpecRow[] = [
-  { k: "Figures", v: "10" },
+  { k: "Figures", v: "12" },
   { k: "Formats", v: "PDF · PNG · SVG" },
   { k: "Vector", v: "PDF and SVG" },
   { k: "Bundle", v: "One .zip" },
@@ -79,7 +84,7 @@ export function Downloads(): JSX.Element {
   const [against, setAgainst] = useState<string | null>(null);
   const [model, setModel] = useState<string>("direct-effect");
 
-  // Four controls drive ten figures, so the defaults have to produce something
+  // Four controls drive twelve figures, so the defaults have to produce something
   // worth looking at rather than merely something valid: BMI against ALT is the
   // study's own exposure-adjacent pair, and a group split is chosen rather than
   // left empty because half these figures are comparisons and a box plot of one
@@ -109,8 +114,12 @@ export function Downloads(): JSX.Element {
   const diagnostics = useDiagnostics(model);
   const doseStep = useStudyStep("dose-response");
   const primaryStep = useStudyStep("direct-effect");
+  const sexStep = useStudyStep("sex-differences");
+  const riskStep = useStudyStep("risk-score");
   const dose = doseStep.step as DoseResponseStep | null;
   const primary = primaryStep.step as DirectEffectStep | null;
+  const sexes = sexStep.step as SexDifferencesStep | null;
+  const risk = riskStep.step as RiskScoreStep | null;
 
   const named = column ? labelOf(column) : "Column";
   // The slug, tidied — NOT the label the response carries. That label is a full
@@ -185,6 +194,27 @@ export function Downloads(): JSX.Element {
         />
       ) : null,
       status: primaryStep.error ?? (primary ? null : "Loading…"),
+    },
+    {
+      key: "strata",
+      title: "Model coefficients — by sex",
+      note: "The primary model fitted separately for males and females; exploratory.",
+      chart: sexes ? (
+        <ForestPlot
+          models={[
+            { label: "Males", model: sexes.stratified_models.Male },
+            { label: "Females", model: sexes.stratified_models.Female },
+          ]}
+        />
+      ) : null,
+      status: sexStep.error ?? (sexes ? null : "Loading…"),
+    },
+    {
+      key: "risk",
+      title: "Composite risk score — mean ALT by band",
+      note: "Mean ALT and the share above the threshold across the 0–6 count; exploratory.",
+      chart: risk ? <RiskScoreChart bands={risk.bands} /> : null,
+      status: riskStep.error ?? (risk ? null : "Loading…"),
     },
     {
       key: "qq",

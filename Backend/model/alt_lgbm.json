@@ -12,10 +12,10 @@
     "BMI"
   ],
   "specification": "Model B with BMI -- the study's pre-specified primary specification, fitted here by gradient boosting instead of weighted least squares.",
-  "n": 586,
+  "n": 314,
   "clusters": 30,
   "weighted": "the day-1 dietary weight (WTDRD1), applied as a per-row training weight",
-  "rounds": 45,
+  "rounds": 43,
   "params": {
     "objective": "regression",
     "metric": "l2",
@@ -31,7 +31,7 @@
     "force_row_wise": true,
     "num_threads": 1
   },
-  "base_value": 2.64567,
+  "base_value": 2.64744,
   "elevated_alt_thresholds": {
     "Male": 26.0,
     "Female": 22.0
@@ -42,19 +42,19 @@
     "folds": 5,
     "clusters": 30,
     "rounds_per_fold": [
-      47,
-      42,
-      44,
-      46,
-      36
+      50,
+      40,
+      48,
+      128,
+      51
     ],
     "gradient_boosting": {
-      "r_squared_log_alt": 0.2786,
-      "mean_absolute_error_u_per_l": 5.43
+      "r_squared_log_alt": 0.3316,
+      "mean_absolute_error_u_per_l": 4.85
     },
     "linear_model_b_with_bmi": {
-      "r_squared_log_alt": 0.24,
-      "mean_absolute_error_u_per_l": 5.58
+      "r_squared_log_alt": 0.233,
+      "mean_absolute_error_u_per_l": 5.1
     },
     "note": "Scores are out-of-fold, with the folds split by SAMPLING CLUSTER rather than by participant: two adolescents from the same sampled location are more alike than two strangers, so splitting them across the train/test line would let the model see its own answer and report a score it cannot reproduce. The number of boosting rounds is chosen INSIDE each training fold, by a second cross-validation that never touches the held-out cluster, so the reported score pays for that choice instead of hiding it. The linear figure beside it is the study's own primary specification (Model B with BMI) scored on exactly the same folds, which is what makes the two comparable."
   },
@@ -62,44 +62,44 @@
     {
       "feature": "BMI",
       "label": "BMI",
-      "gain_percent": 41.59,
-      "mean_abs_shap": 0.14234
+      "gain_percent": 44.35,
+      "mean_abs_shap": 0.12184
     },
     {
       "feature": "Male",
       "label": "Sex",
-      "gain_percent": 22.61,
-      "mean_abs_shap": 0.10922
+      "gain_percent": 24.14,
+      "mean_abs_shap": 0.0863
     },
     {
       "feature": "TrigHDLRatio",
       "label": "Triglyceride / HDL ratio",
-      "gain_percent": 11.0,
-      "mean_abs_shap": 0.05084
-    },
-    {
-      "feature": "HbA1c",
-      "label": "HbA1c",
-      "gain_percent": 9.86,
-      "mean_abs_shap": 0.0253
+      "gain_percent": 17.88,
+      "mean_abs_shap": 0.05168
     },
     {
       "feature": "ScreenTime",
       "label": "Screen time",
-      "gain_percent": 9.21,
-      "mean_abs_shap": 0.02468
+      "gain_percent": 4.79,
+      "mean_abs_shap": 0.02987
     },
     {
       "feature": "Sugar10g",
       "label": "Dietary sugar",
-      "gain_percent": 5.5,
-      "mean_abs_shap": 0.01599
+      "gain_percent": 4.81,
+      "mean_abs_shap": 0.01338
     },
     {
       "feature": "Age",
       "label": "Age",
-      "gain_percent": 0.23,
-      "mean_abs_shap": 0.00074
+      "gain_percent": 2.87,
+      "mean_abs_shap": 0.01312
+    },
+    {
+      "feature": "HbA1c",
+      "label": "HbA1c",
+      "gain_percent": 1.16,
+      "mean_abs_shap": 0.00451
     }
   ],
   "inputs": {
@@ -108,11 +108,11 @@
       "label": "Dietary sugar",
       "unit": "10 g/day",
       "about": "Total sugars from the day-1 24-hour dietary recall. The model works in tens of grams, because that is the contrast the study reports; the control shows plain grams.",
-      "min": 1.0,
-      "max": 36.0,
+      "min": 0.5,
+      "max": 32.5,
       "step": 0.5,
-      "default": 10.0,
-      "cohort_median": 9.967,
+      "default": 9.5,
+      "cohort_median": 9.52,
       "display_factor": 10,
       "display_unit": "g/day"
     },
@@ -122,7 +122,7 @@
       "unit": "hours/day",
       "about": "Self-reported recreational screen time on a typical day.",
       "min": 1.0,
-      "max": 10.0,
+      "max": 13.0,
       "step": 0.5,
       "default": 6.0,
       "cohort_median": 6.0
@@ -146,8 +146,8 @@
       "min": 0.0,
       "max": 1.0,
       "step": 1,
-      "default": 1.0,
-      "cohort_median": 1.0,
+      "default": 0.0,
+      "cohort_median": 0.0,
       "choices": [
         {
           "value": 0,
@@ -164,11 +164,11 @@
       "label": "Triglyceride / HDL ratio",
       "unit": "ratio",
       "about": "Triglycerides divided by HDL cholesterol, both in mg/dL -- a standard marker of insulin resistance.",
-      "min": 0.4,
-      "max": 8.7,
+      "min": 0.2,
+      "max": 6.5,
       "step": 0.1,
-      "default": 1.7,
-      "cohort_median": 1.685
+      "default": 1.3,
+      "cohort_median": 1.286
     },
     "HbA1c": {
       "name": "HbA1c",
@@ -186,14 +186,14 @@
       "label": "BMI",
       "unit": "kg/m\u00b2",
       "about": "Body mass index. Not age- and sex-standardized here, because the protocol's models use raw BMI and this model must match them.",
-      "min": 16.0,
-      "max": 46.0,
+      "min": 15.5,
+      "max": 43.0,
       "step": 0.5,
-      "default": 22.5,
-      "cohort_median": 22.3
+      "default": 23.0,
+      "cohort_median": 22.8
     }
   },
   "trained_on": "NHANES 2017-2018, adolescents aged 12-17",
-  "caveat": "This is a prediction, not a diagnosis and not a causal statement. The model reports where NHANES adolescents with these numbers tended to sit, from one survey cycle and 586 participants. Moving an input changes the model's guess; it does not tell you what would happen to a real person if that number changed.",
+  "caveat": "This is a prediction, not a diagnosis and not a causal statement. The model reports where NHANES adolescents with these numbers tended to sit, from one survey cycle and 314 participants. Moving an input changes the model's guess; it does not tell you what would happen to a real person if that number changed.",
   "not_causal": "This is an association measured in observational data. It does not establish that changing one variable would change the other."
 }

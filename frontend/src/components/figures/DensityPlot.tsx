@@ -92,7 +92,7 @@ export function DensityPlot({ data }: { data: DensityResponse }): JSX.Element {
                 d={areaOf(curve)} />
         ))}
         {data.curves.map((curve, index) => (
-          <path key={`line-${curve.label}`} className={`fig-density-line ${seriesClass(index)}`}
+          <path key={`line-${curve.label}`} className={`fig-density-line ${seriesClass(index)}`} pathLength={1}
                 d={lineOf(curve)} fill="none" />
         ))}
 

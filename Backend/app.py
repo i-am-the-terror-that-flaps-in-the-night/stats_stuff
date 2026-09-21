@@ -19,7 +19,7 @@ WHY THIS EXISTS
     The dataset and the study are the same body of work seen two ways. The
     generic tiers let a reader explore the cohort column by column; the study
     routes answer the questions the protocol committed to before the data were
-    looked at. Both run on exactly the same 699 adolescents, which is what keeps
+    looked at. Both run on exactly the same 695 adolescents, which is what keeps
     a number quoted from one consistent with the other.
 
     The frontend is a Vite + React + TypeScript app under frontend/. It owns all

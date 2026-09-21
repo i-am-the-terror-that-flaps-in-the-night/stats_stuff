@@ -138,7 +138,7 @@ export function EcdfChart({ data }: { data: HistogramResponse }): JSX.Element {
         <path className="fig-band" d={area} />
         {/* fill="none" as an attribute, not CSS: .fig-line is a stroke class
             shared with SampleSizeChart's polyline, which does the same. */}
-        <path className="fig-line" d={path} fill="none" />
+        <path className="fig-line" pathLength={1} d={path} fill="none" />
 
         {/* Quartile drops. Fixed marks, so the chart still says something with no
             pointer on it. The median gets the solid ink rule every figure here

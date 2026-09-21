@@ -9,7 +9,15 @@
 // of the plot they belong to. Same technique, now legible as a scatter plot,
 // which is exactly what this site is about.
 //
-// It sits on the dark hero panel, so the points glow instead of soiling.
+// It sits on the dark observatory panel, so the points glow instead of
+// soiling -- and behind the plot box there is a second, fainter field of
+// seeded stars, which is the one place on the site where an unbounded scatter
+// is allowed: it is the sky the instrument is pointed at, and the ruled plot
+// in front of it is the frame that makes the difference legible.
+//
+// COLOURS COME FROM THE STYLESHEET. The canvas reads four custom properties
+// (--hero-grid, --hero-dot, --hero-line, --hero-line-end) off itself at paint
+// time, so the day theme repaints it without this file knowing a hex value.
 //
 // The data is synthetic but not arbitrary: a correlated cloud (r ~ 0.6) drawn
 // from a seeded generator, so the picture is identical on every load and every
@@ -20,6 +28,8 @@ import { useEffect, useRef } from "react";
 import type { JSX } from "react";
 
 const POINTS = 90;
+/** Background stars: sub-pixel, seeded, static. */
+const STARS = 170;
 /** Fixed seed -- see the note above on why this must not be Math.random(). */
 const SEED = 0x5eed1a;
 /** How tightly the cloud hugs the trend. Lower = more correlated. */
@@ -62,6 +72,18 @@ export function HeroPlot(): JSX.Element {
       const y = Math.min(0.98, Math.max(0.02, x + gauss(next) * NOISE * 0.5));
       return { x, y, r: 1.4 + next() * 2.2 };
     });
+    const stars = Array.from({ length: STARS }, () => ({
+      x: next(),
+      y: next(),
+      r: 0.4 + next() * 1.1,
+      a: 0.15 + next() * 0.4,
+    }));
+
+    /** A token off the canvas, resolved by the cascade -- theme-aware. */
+    const token = (name: string, fallback: string): string => {
+      const value = window.getComputedStyle(canvas!).getPropertyValue(name).trim();
+      return value || fallback;
+    };
 
     const still = window.matchMedia("(prefers-reduced-motion: reduce)");
     let frame = 0;
@@ -78,6 +100,22 @@ export function HeroPlot(): JSX.Element {
       ctx!.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx!.clearRect(0, 0, w, h);
 
+      const gridInk = token("--hero-grid", "rgba(140,190,255,0.1)");
+      const dotInk = token("--hero-dot", "rgba(160,230,255,0.7)");
+      const lineInk = token("--hero-line", "#5ee7ff");
+      const lineEndInk = token("--hero-line-end", "#9ef1ff");
+      const starInk = token("--hero-star", "rgba(200,225,255,0.5)");
+
+      // The sky: static stars over the whole panel, behind the plot box.
+      for (const st of stars) {
+        ctx!.globalAlpha = st.a;
+        ctx!.fillStyle = starInk;
+        ctx!.beginPath();
+        ctx!.arc(st.x * w, st.y * h, st.r, 0, Math.PI * 2);
+        ctx!.fill();
+      }
+      ctx!.globalAlpha = 1;
+
       // Plot box, inset from the panel edges so the cloud never collides with
       // the headline sitting on top of it.
       const padX = w * 0.06;
@@ -90,7 +128,7 @@ export function HeroPlot(): JSX.Element {
       // Grid: the plot's own reference frame. This is what stops the points
       // reading as noise -- specks in a ruled box are data.
       ctx!.lineWidth = 1;
-      ctx!.strokeStyle = "rgba(140, 190, 255, 0.1)";
+      ctx!.strokeStyle = gridInk;
       for (let i = 1; i < 5; i++) {
         ctx!.beginPath();
         ctx!.moveTo(px(i / 5), py(0));
@@ -104,25 +142,31 @@ export function HeroPlot(): JSX.Element {
       // load, the way a plot is actually rendered.
       const lineEnd = Math.min(1, progress * 1.15);
       const grad = ctx!.createLinearGradient(px(0), 0, px(1), 0);
-      grad.addColorStop(0, "rgba(67, 56, 202, 0.9)");
-      grad.addColorStop(0.55, "rgba(43, 92, 255, 0.95)");
-      grad.addColorStop(1, "rgba(34, 211, 238, 0.95)");
+      grad.addColorStop(0, lineInk);
+      grad.addColorStop(1, lineEndInk);
       ctx!.strokeStyle = grad;
       ctx!.lineWidth = 2;
+      // A canvas has no export path, so a glow is allowed here where it is
+      // forbidden inside the SVG figures.
+      ctx!.shadowColor = lineInk;
+      ctx!.shadowBlur = 10;
       ctx!.beginPath();
       ctx!.moveTo(px(0.02), py(0.06));
       ctx!.lineTo(px(0.02 + 0.96 * lineEnd), py(0.06 + 0.88 * lineEnd));
       ctx!.stroke();
+      ctx!.shadowBlur = 0;
 
       // Points fade up in x-order, trailing just behind the line.
+      ctx!.fillStyle = dotInk;
       for (const p of cloud) {
         const local = Math.min(1, Math.max(0, (progress - p.x * 0.55) * 3));
         if (local <= 0) continue;
-        ctx!.fillStyle = `rgba(125, 211, 252, ${0.62 * local})`;
+        ctx!.globalAlpha = local;
         ctx!.beginPath();
         ctx!.arc(px(p.x), py(p.y), p.r, 0, Math.PI * 2);
         ctx!.fill();
       }
+      ctx!.globalAlpha = 1;
     }
 
     function run(now: number) {
@@ -144,9 +188,13 @@ export function HeroPlot(): JSX.Element {
     // would look like a glitch.
     const onResize = () => paint(1);
     window.addEventListener("resize", onResize);
+    // The theme toggle rewrites html[data-theme]; repaint with the new tokens.
+    const themed = new MutationObserver(() => paint(1));
+    themed.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
     return () => {
       window.cancelAnimationFrame(frame);
       window.removeEventListener("resize", onResize);
+      themed.disconnect();
     };
   }, []);
 

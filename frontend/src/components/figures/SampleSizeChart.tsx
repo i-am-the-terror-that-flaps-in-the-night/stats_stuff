@@ -69,7 +69,7 @@ export function SampleSizeChart({ data }: { data: SampleSizeResponse }): JSX.Ele
               y1={y(data.population_mean)} y2={y(data.population_mean)} />
 
         <polygon className="fig-band" points={band} />
-        <polyline className="fig-line" points={centre} fill="none" />
+        <polyline className="fig-line" pathLength={1} points={centre} fill="none" />
 
         {rungs.map((rung) => (
           <g key={rung.n}>

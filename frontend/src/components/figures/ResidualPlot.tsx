@@ -20,7 +20,7 @@ const WIDE: Layout = { W: 720, H: 340, margin: { top: 18, right: 20, bottom: 48,
 const NARROW: Layout = { W: 360, H: 280, margin: { top: 14, right: 12, bottom: 44, left: 44 } };
 
 /** Vertical slices for the trend line. Eight keeps roughly 70 points a bin at
- *  n = 586, which is enough for a mean that is not itself mostly noise. */
+ *  n = 314, which is enough for a mean that is not itself mostly noise. */
 const BINS = 8;
 
 interface Bin {
@@ -107,7 +107,7 @@ export function ResidualPlot({ data }: { data: DiagnosticsResponse }): JSX.Eleme
 
         {/* Zero, then the binned trend. Distance between them is the bias. */}
         <line className="fig-zero" x1={plot.left} x2={plot.right} y1={y(0)} y2={y(0)} />
-        {trend && <path className="fig-trend" d={trend} fill="none" />}
+        {trend && <path className="fig-trend" pathLength={1} d={trend} fill="none" />}
         {bins.map((bin) => (
           <circle key={bin.center} className="fig-trend-dot" cx={x(bin.center)} cy={y(bin.mean)} r={3.5}
                   onMouseMove={(event) =>

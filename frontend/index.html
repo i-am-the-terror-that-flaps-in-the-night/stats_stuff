@@ -8,6 +8,26 @@
     <meta name="description"
           content="A descriptive-statistics engine — the companion demo to Anirudh Gupta's Medicine & Health science-fair project.">
     <link rel="icon" href="./favicon.ico" sizes="any">
+    <meta name="color-scheme" content="dark light">
+    <meta name="theme-color" content="#0a0f1c">
+    <!-- Paint the ground before any stylesheet or script lands, so a reload
+         never flashes the wrong theme. The script mirrors lib/mode.ts: the
+         theme lives on <html> (readable here, before <body> exists) and the
+         expert tier state is staged on html[data-boot-mode] until Shell's
+         restoreMode() moves it onto <body>. ?theme= and ?mode= exist for
+         headless screenshots. -->
+    <style>html{background:#0a0f1c}html[data-theme="light"]{background:#f4f7fb}</style>
+    <script>
+      (function () {
+        try {
+          var q = new URLSearchParams(location.search), h = document.documentElement;
+          var t = q.get("theme") || localStorage.getItem("dae:theme");
+          if (t === "light") h.dataset.theme = "light";
+          var m = q.get("mode") || localStorage.getItem("dae:mode");
+          if (m === "expert") h.dataset.bootMode = "expert";
+        } catch (e) {}
+      })();
+    </script>
 </head>
 <body>
 <div id="root"></div>

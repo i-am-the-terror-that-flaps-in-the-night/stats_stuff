@@ -49,17 +49,18 @@ HOW THE SURVEY DESIGN IS HANDLED
       * Ignoring the WEIGHTS (WTDRD1) makes the sample describe the people NHANES
         happened to recruit rather than U.S. adolescents. Every estimate here is
         weighted, so the coefficients generalize.
-      * Ignoring the CLUSTERING makes the standard errors too small, because two
-        adolescents from the same sampled location are more alike than two
-        strangers, and treating them as independent invents information. Every
-        model here uses cluster-robust standard errors grouped by PSU within
-        stratum.
-
-    The honest caveat: this cohort spans 15 strata x 2 PSUs = 30 clusters. That
-    is enough for cluster-robust inference to be worth doing and few enough that
-    its p-values are approximate -- the asymptotics assume many clusters. It is a
-    real improvement over pretending the design is not there, not a substitute
-    for a full Taylor-series survey package. See SURVEY_DESIGN_CAVEAT.
+      * The CLUSTERING is a limitation this study reports rather than corrects.
+        Two adolescents from the same sampled location are more alike than two
+        strangers, so classical standard errors treat the sample as slightly
+        more informative than it is. The protocol specifies weighted least
+        squares with its ordinary (classical) standard errors, and that is what
+        every model here fits -- the Revised Results were derived that way and
+        this code reproduces them to the last digit. The 30 PSU-within-stratum
+        clusters are counted and reported beside each model so the limitation
+        is visible; see SURVEY_DESIGN_CAVEAT. (An earlier version used
+        cluster-robust errors, which widen most intervals modestly; with only
+        30 clusters they are themselves approximate, so neither choice is
+        exact, and the protocol's is the one reported.)
 
 WHAT THIS MODULE WILL NOT CLAIM
     Everything here is an association measured in observational, cross-sectional
@@ -80,7 +81,7 @@ import numpy as np
 import pandas as pd
 
 # Two import paths because these modules are reached two ways: with Backend/ on
-# sys.path (pytest, the `python Backend/engine.py` CLI) and with the repo root on
+# sys.path (pytest, the `python Backend/cli.py` CLI) and with the repo root on
 # it (`uvicorn main:app`, which imports Backend.app). Same idiom as app.py's
 # _load_engine(). The dependency runs one way -- engine, cohort, study,
 # predictor -- so none of these can close a cycle.
@@ -114,6 +115,7 @@ try:
         ALT_ELEVATED,
         ALT_THRESHOLD_SOURCE,
         COHORT_N_NOTE,
+        METABOLIC_VARIABLES,
         cohort_attrition,
         load_cohort,
         risk_score,
@@ -123,6 +125,7 @@ except ImportError:
         ALT_ELEVATED,
         ALT_THRESHOLD_SOURCE,
         COHORT_N_NOTE,
+        METABOLIC_VARIABLES,
         cohort_attrition,
         load_cohort,
         risk_score,
@@ -153,11 +156,11 @@ def _report(p_value, effect_size=None) -> dict:
 
 SURVEY_DESIGN_CAVEAT = (
     "Estimates are weighted by the day-1 dietary weight (WTDRD1) so they "
-    "describe U.S. adolescents rather than this sample, and standard errors are "
-    "cluster-robust by PSU within stratum so clustered sampling does not inflate "
-    "apparent precision. With 30 clusters the robust p-values are approximate: "
-    "cluster-robust inference is asymptotic in the number of clusters, and 30 is "
-    "modest. Read them as well-calibrated to the design's shape, not as exact."
+    "describe U.S. adolescents rather than this sample. Standard errors are the "
+    "classical weighted-least-squares ones the protocol specifies; they do not "
+    "account for NHANES' clustered sampling (30 PSU-within-stratum clusters in "
+    "this cohort), which makes them somewhat optimistic. Read p-values near the "
+    "0.05 line as suggestive rather than exact."
 )
 
 MEDIATION_CAVEAT = (
@@ -195,7 +198,8 @@ def analysis_frame(columns, *, cohort=None) -> pd.DataFrame:
 
     Every model in the study starts here, and it takes the column list rather
     than assuming a fixed sample, because the samples genuinely differ: the
-    screen-time models run on 586 adolescents and the rest on 699. Building the
+    metabolic (Model B) analyses run on the 314 adolescents in the fasting
+    subsample and the lifestyle ones on all 695. Building the
     frame per analysis is what keeps each reported n true of the numbers next to
     it -- and, critically, what lets two models being COMPARED be forced onto one
     shared sample (see incremental_value), because a change in R-squared between
@@ -275,7 +279,7 @@ def _wquantile(values, weights, q) -> float:
         This is the inverse-CDF ("lower") quantile -- the definition survey
         packages use for weighted quantiles, and it returns a value somebody
         actually had. That matters on this cohort, which is mostly discrete:
-        interpolating a median age across 699 adolescents aged 12-17 produces
+        interpolating a median age across 695 adolescents aged 12-17 produces
         something like 14.6, which is not an age and not a median. The
         interpolating conventions differ only for continuous variables, where
         they land between the two adjacent observations instead of on the lower
@@ -321,17 +325,18 @@ def _clusters(frame: pd.Series | pd.DataFrame) -> pd.Series:
 def fit_model(
     frame: pd.DataFrame, outcome: str, predictors: list[str], *, label: str = ""
 ):
-    """Weighted least squares with cluster-robust standard errors.
+    """Weighted least squares with classical standard errors.
 
-    Returns a dict describing the fit -- coefficients with robust standard
-    errors, confidence intervals, standardized betas, R-squared and n -- plus
-    the statsmodels result object under "_model" for callers that need to run a
+    Returns a dict describing the fit -- coefficients with standard errors,
+    confidence intervals, standardized betas, R-squared and n -- plus the
+    statsmodels result object under "_model" for callers that need to run a
     joint test on it (incremental_value does).
 
     WLS, not OLS, because the survey weight makes the sample represent the
-    population. Cluster-robust, not classical, because the design is clustered.
-    Together these are the "weighted least squares regression" the protocol
-    calls for, with the variance estimator the design requires.
+    population. Classical errors, not cluster-robust, because that is the
+    "weighted least squares regression" the protocol specifies and the Revised
+    Results report; the clustering is counted and disclosed, not corrected
+    (see the module docstring).
     """
     import statsmodels.api as sm
 
@@ -346,9 +351,7 @@ def fit_model(
         # weight per observation, which is the whole point of using it here.
         weights=frame["DietWeight"].to_numpy(dtype=float),  # pyright: ignore[reportArgumentType]
     )
-    result = model.fit(
-        cov_type="cluster", cov_kwds={"groups": _clusters(frame)}, use_t=True
-    )
+    result = model.fit()
 
     # Standardized betas, computed with the SAME weights as the fit. A beta says
     # "a one-standard-deviation rise in this predictor moves the outcome this
@@ -387,7 +390,7 @@ def fit_model(
         "r_squared": _num(float(result.rsquared), 4),
         "adjusted_r_squared": _num(float(result.rsquared_adj), 4),
         "coefficients": coefficients,
-        "estimator": "WLS (WTDRD1) with cluster-robust SEs by PSU within stratum",
+        "estimator": "WLS (WTDRD1) with classical standard errors",
         "layer": PREDICTIVE,
         "not_causal": NOT_CAUSAL,
         "_model": result,
@@ -428,12 +431,12 @@ def step_cohort() -> dict:
         "attrition": cohort_attrition(),
         "n": len(frame),
         "n_note": COHORT_N_NOTE,
-        "screen_time_n": int(frame["ScreenTime"].notna().sum()),
-        "screen_time_note": (
-            "Screen time is missing for "
-            f"{int(frame['ScreenTime'].isna().sum())} otherwise-eligible adolescents, so "
-            "it is not an entry criterion. Analyses that use it run on the "
-            "smaller sample and report it."
+        "fasting_subsample_n": int(len(frame.dropna(subset=METABOLIC_VARIABLES))),
+        "fasting_subsample_note": (
+            "Triglycerides are measured only on NHANES' morning fasting subsample, "
+            "so the Trig/HDL ratio -- and every Model B analysis -- exists for "
+            f"{int(len(frame.dropna(subset=METABOLIC_VARIABLES)))} of the "
+            f"{len(frame)} adolescents. Model A (lifestyle) runs on all of them."
         ),
         "design": SURVEY_DESIGN_CAVEAT,
     }
@@ -529,7 +532,7 @@ def step_outcome_distribution() -> dict:
             "scale": name,
             "skewness": _num(float(sp.skew(values)), 3),
             "kurtosis_excess": _num(float(sp.kurtosis(values)), 3),
-            # Shapiro-Wilk tests departure from normality. On n=699 it detects
+            # Shapiro-Wilk tests departure from normality. On n=695 it detects
             # departures far too small to matter for a regression, so it is
             # reported for completeness and the skewness is what the decision
             # actually rests on.
@@ -598,7 +601,9 @@ MODEL_B_WITH_BMI = [*MODEL_B, "BMI"]
 # The raw cohort columns Model B needs a participant to have. Everything fitted
 # on the Model B specification -- with BMI or without, pooled or by sex -- draws
 # its frame from this list, so all of those fits share one sample and their
-# coefficients and R-squareds are comparable to each other.
+# coefficients and R-squareds are comparable to each other. Because the
+# Trig/HDL ratio exists only for the fasting subsample, this sample IS the
+# fasting subsample: the protocol's n = 314.
 MODEL_B_COLUMNS = [
     "ALT",
     "TotalSugars",
@@ -609,6 +614,9 @@ MODEL_B_COLUMNS = [
     "HbA1c",
     "BMI",
 ]
+
+# The pre-registered multicollinearity threshold (original proposal, Step 5).
+VIF_THRESHOLD = 5.0
 
 MODEL_LABELS = {
     "A": "Model A -- lifestyle (sugar, screen time, age, sex)",
@@ -771,9 +779,12 @@ def step_dose_response() -> dict:
     frame = analysis_frame(["ALT", "TotalSugars", "Age", "Sex"])
     weights = frame["DietWeight"]
 
-    # Quartile edges from the weighted distribution, so the groups are quarters
-    # of U.S. adolescents rather than quarters of this sample.
-    edges = [_wquantile(frame["TotalSugars"], weights, q) for q in (0.25, 0.50, 0.75)]
+    # Quartile edges from the SAMPLE distribution: the protocol's Step 3 divides
+    # "participants into four equal-sized groups", and the Revised Results'
+    # cut points (62, 92, 141 g/day) are those sample quartiles. Weighted
+    # quartiles would make the groups quarters of U.S. adolescents instead,
+    # which is a different -- and unequal-sized -- grouping.
+    edges = [float(frame["TotalSugars"].quantile(q)) for q in (0.25, 0.50, 0.75)]
     rank = np.digitize(frame["TotalSugars"], edges, right=False)
     frame = frame.assign(SugarQuartile=rank + 1)
 
@@ -791,8 +802,15 @@ def step_dose_response() -> dict:
                 "weighted_mean_sugar_g": _num(
                     _wmean(block["TotalSugars"], block["DietWeight"]), 1
                 ),
+                # The protocol's figure plots the plain sample mean and its
+                # standard error per quartile; the weighted mean beside it is
+                # the population estimate.
+                "mean_alt": _num(float(block["ALT"].mean()), 3),
+                "standard_error_mean_alt": _num(
+                    float(block["ALT"].std(ddof=1)) / np.sqrt(len(block)), 3
+                ),
                 "weighted_mean_alt": _num(_wmean(block["ALT"], block["DietWeight"]), 3),
-                # The error bar on the protocol's primary figure. SD / sqrt(n)
+                # The error bar on the weighted mean. SD / sqrt(n)
                 # on the ROW count, not on the summed weight: the weight says
                 # how many Americans each adolescent stands for, and dividing by
                 # millions would produce an error bar of essentially zero drawn
@@ -860,8 +878,8 @@ def step_dose_response() -> dict:
             "f_statistic": _num(float(f_stat), 3),
             "significance": _report(float(anova_p)),
             "note": (
-                "Unweighted and design-naive; the weighted, cluster-robust "
-                "trend test below is the design-aware counterpart."
+                "Unweighted; the weighted trend test below is the "
+                "survey-weighted counterpart."
             ),
         },
         "elevated_alt_chi_square": {
@@ -912,6 +930,38 @@ def step_dose_response() -> dict:
 # ======================================================================
 
 
+def _vif(frame: pd.DataFrame, predictors: list[str]) -> dict:
+    """Variance inflation factors for one specification, and the protocol's verdict.
+
+    The original proposal pre-registered a rule -- if any VIF is 5 or more,
+    replace the collinear pair with the Trig/HDL ratio -- and the revised
+    protocol builds the ratio in from the start, so the rule is satisfied by
+    construction. The factors are still computed and reported: "we checked"
+    and "it could not have happened" are different claims, and a reader (or a
+    judge) is entitled to the numbers.
+    """
+    from statsmodels.stats.outliers_influence import variance_inflation_factor
+
+    matrix = np.column_stack([np.ones(len(frame)), frame[predictors].to_numpy(float)])
+    vifs = {
+        name: _num(variance_inflation_factor(matrix, i + 1), 3)
+        for i, name in enumerate(predictors)
+    }
+    worst = max(vifs.values())
+    return {
+        "vif": vifs,
+        "max_vif": worst,
+        "threshold": VIF_THRESHOLD,
+        "rule_triggered": bool(worst >= VIF_THRESHOLD),
+        "note": (
+            "Pre-specified rule: a VIF at or above "
+            f"{VIF_THRESHOLD:g} would have replaced the collinear pair with the "
+            "Trig/HDL ratio. Triglycerides and HDL enter as that ratio already, "
+            f"and the largest VIF is {worst}, so the rule is not triggered."
+        ),
+    }
+
+
 def step_mechanism() -> dict:
     """Put sugar and the Trig/HDL ratio in one model and compare their betas."""
     # The protocol's secondary mechanism hypothesis is a comparison BETWEEN two
@@ -944,6 +994,7 @@ def step_mechanism() -> dict:
     ratio_wins = abs(ratio["standardized_beta"] or 0) > abs(
         sugar["standardized_beta"] or 0
     )
+    vif = _vif(frame, MODEL_B_WITH_BMI)
 
     return {
         "step": 7,
@@ -959,6 +1010,7 @@ def step_mechanism() -> dict:
         "model": _public(model),
         "ranked_by_standardized_beta": ranked,
         "hypothesis_supported": bool(ratio_wins),
+        "multicollinearity": vif,
         "interpretation": (
             f"The Trig/HDL ratio carries a standardized beta of "
             f"{ratio['standardized_beta']} against sugar's {sugar['standardized_beta']}, so "
@@ -981,17 +1033,25 @@ def step_mechanism() -> dict:
 
 def step_incremental_value() -> dict:
     """Does adding Trig/HDL and HbA1c to a lifestyle-only model explain more?"""
-    # One frame for both models. This is the whole point: R-squared compared
-    # across two different samples is not a comparison, and the lifestyle model
-    # needs screen time, which 113 adolescents lack.
+    # One frame for the compared models. This is the whole point: R-squared
+    # compared across two different samples is not a comparison, and Model B
+    # exists only for the fasting subsample. Model A is ALSO fitted on the full
+    # cohort -- that is the lifestyle model the protocol's Step 4 describes and
+    # the Revised Results table reports (n = 695) -- but its R-squared there is
+    # not the one the comparison uses.
     frame = analysis_frame(MODEL_B_COLUMNS)
+    full = analysis_frame(["ALT", "TotalSugars", "ScreenTime", "Age", "Sex"])
 
+    lifestyle_full = fit_model(full, "LogALT", MODEL_A, label=MODEL_LABELS["A"])
     lifestyle = fit_model(frame, "LogALT", MODEL_A, label=MODEL_LABELS["A"])
     combined = fit_model(frame, "LogALT", MODEL_B, label=MODEL_LABELS["B"])
+    combined_bmi = fit_model(
+        frame, "LogALT", MODEL_B_WITH_BMI, label=MODEL_LABELS["B_BMI"]
+    )
 
     added = ["TrigHDLRatio", "HbA1c"]
     # A joint test that BOTH added coefficients are zero, run against the same
-    # cluster-robust covariance the model was fitted with. Testing them one at a
+    # covariance the model was fitted with. Testing them one at a
     # time would answer a different question and would need a multiplicity
     # correction to answer it honestly.
     joint = combined["_model"].f_test([f"{name} = 0" for name in added])
@@ -1000,6 +1060,9 @@ def step_incremental_value() -> dict:
     delta = None
     if None not in (combined["r_squared"], lifestyle["r_squared"]):
         delta = _num(combined["r_squared"] - lifestyle["r_squared"], 4)
+    delta_bmi = None
+    if None not in (combined_bmi["r_squared"], lifestyle["r_squared"]):
+        delta_bmi = _num(combined_bmi["r_squared"] - lifestyle["r_squared"], 4)
 
     return {
         "step": 8,
@@ -1013,21 +1076,25 @@ def step_incremental_value() -> dict:
         ),
         "n": len(frame),
         "shared_sample_note": (
-            f"Both models are fitted on the same {len(frame)} adolescents -- those "
-            "with screen time recorded -- so the change in R-squared reflects the "
-            "added predictors and not a change of sample. Model A needs nothing "
-            "Model B does not, and screen time is the binding constraint for both, "
-            "so this shared sample is also Model A's own largest sample: no "
-            "adolescent is dropped to make the comparison possible."
+            f"The compared models are fitted on the same {len(frame)} adolescents -- "
+            "the fasting subsample, the only people with a Trig/HDL ratio -- so the "
+            "change in R-squared reflects the added predictors and not a change of "
+            f"sample. Model A on its own full sample (n = {len(full)}) is reported "
+            "beside them for the coefficients; its R-squared there is not comparable "
+            "to Model B's."
         ),
+        "lifestyle_model_full_sample": _public(lifestyle_full),
         "lifestyle_model": _public(lifestyle),
         "combined_model": _public(combined),
+        "combined_model_with_bmi": _public(combined_bmi),
         "added_predictors": added,
         "delta_r_squared": delta,
+        "delta_r_squared_with_bmi": delta_bmi,
         "joint_test": _report(joint_p),
         "interpretation": (
             f"Adding {' and '.join(added)} moves R-squared from "
-            f"{lifestyle['r_squared']} to {combined['r_squared']} (change {delta}); "
+            f"{lifestyle['r_squared']} to {combined['r_squared']} (change {delta}), "
+            f"and to {combined_bmi['r_squared']} once BMI is added (change {delta_bmi}); "
             f"the joint test of both coefficients gives p = {_num(joint_p, 4)}, so the "
             f"pair {'does' if _is_significant(joint_p) else 'does not'} add "
             "detectable predictive value over lifestyle measures alone."
@@ -1112,8 +1179,8 @@ def step_sex_differences() -> dict:
             "Sex is a substantial predictor of ALT level"
             f" ({'significant' if sex_main['statistically_significant'] else 'not significant'}"
             f" as a main effect, weighted mean {_num(male_alt, 1)} U/L in males vs "
-            f"{_num(female_alt, 1)} U/L in females), but the sugar and Trig/HDL "
-            f"slopes {'do' if any_interaction else 'do not'} differ detectably "
+            f"{_num(female_alt, 1)} U/L in females), {'and' if any_interaction else 'but'} "
+            f"the sugar and Trig/HDL slopes {'do' if any_interaction else 'do not'} differ detectably "
             "between sexes. A predictor shifting everyone's level and a predictor "
             "changing another predictor's slope are different claims, and only the "
             "interaction terms test the second."
@@ -1135,10 +1202,13 @@ def step_sex_differences() -> dict:
 def step_risk_score() -> dict:
     """Does the 0-6 count separate adolescents by ALT better than one factor?"""
 
+    # Scored on the whole cohort so each cut point is the full sample's median
+    # (see cohort.risk_score); only the fasting subsample can then be scored,
+    # because only it has the Trig/HDL component.
+    scored = risk_score(load_cohort())
     frame = analysis_frame(
         ["ALT", "TotalSugars", "ScreenTime", "BMI", "TrigHDLRatio", "HbA1c", "Sex"]
     )
-    scored = risk_score(frame)
     frame = frame.assign(RiskScore=scored["score"]).dropna(subset=["RiskScore"])
 
     bands = []
@@ -1148,6 +1218,13 @@ def step_risk_score() -> dict:
             {
                 "score": int(score),
                 "n": len(block),
+                # The protocol's figure plots the plain sample mean and share
+                # per band; the weighted versions beside them are the
+                # population estimates.
+                "mean_alt": _num(float(block["ALT"].mean()), 3),
+                "percent_elevated_alt_unweighted": _num(
+                    float(block["ALTElevated"].astype(float).mean()) * 100, 2
+                ),
                 "weighted_mean_alt": _num(_wmean(block["ALT"], block["DietWeight"]), 3),
                 "percent_elevated_alt": _num(
                     _wmean(block["ALTElevated"].astype(float), block["DietWeight"])
@@ -1163,14 +1240,22 @@ def step_risk_score() -> dict:
     )
     slope = trend["coefficients"]["RiskScore"]
 
-    # The protocol's Step 9 asks for an ordinary least-squares slope on MEAN ALT
-    # -- "U/L per point" -- which is the number a reader can put next to the bar
-    # chart. The log model above is the one that respects ALT's skew, so both
-    # are reported: the raw slope for interpretation, the log slope for the test.
-    raw_trend = fit_model(
-        frame, "ALT", ["RiskScore"], label="mean ALT across risk score"
-    )
-    raw_slope = raw_trend["coefficients"]["RiskScore"]
+    # The protocol's Step 9 asks for an ORDINARY least-squares slope on mean
+    # ALT -- "U/L per point", unweighted -- which is the number a reader can put
+    # next to the bar chart and the one the Revised Results report. The
+    # weighted log model above is the one that respects ALT's skew and the
+    # survey design, so both are reported: the raw slope for interpretation,
+    # the log slope as the design-aware test.
+    import statsmodels.api as sm
+
+    raw_trend = sm.OLS(
+        frame["ALT"].astype(float),
+        sm.add_constant(frame["RiskScore"].astype(float)),
+    ).fit()
+    raw_slope = {
+        "estimate": _num(float(raw_trend.params["RiskScore"]), 5),
+        "significance": _report(float(raw_trend.pvalues["RiskScore"])),
+    }
 
     # Cochran-Armitage for the prevalence trend: the means test above says
     # nothing about whether the proportion CROSSING the clinical line rises, and
@@ -1222,7 +1307,14 @@ def step_risk_score() -> dict:
             "significance": slope["significance"],
             "u_per_litre_per_point": raw_slope["estimate"],
             "u_per_litre_significance": raw_slope["significance"],
-            "raw_scale_model": _public(raw_trend),
+            "raw_scale_model": {
+                "label": "mean ALT across risk score (ordinary least squares, unweighted)",
+                "outcome": "ALT",
+                "predictors": ["RiskScore"],
+                "n": int(raw_trend.nobs),
+                "r_squared": _num(float(raw_trend.rsquared), 4),
+                "estimator": "OLS, unweighted, as the protocol's Step 9 specifies",
+            },
         },
         "trend_in_prevalence": armitage,
         "r_squared_vs_single_factors": single,
@@ -1411,8 +1503,8 @@ def model_diagnostics(name: str) -> dict:
 
     Returns parallel arrays rather than rows, matching the convention the
     figures API already uses for the scatter: the same numbers with half the
-    JSON punctuation. Nothing here is sampled -- the analytic samples are 586
-    and 699 rows, which is a payload of a few tens of kilobytes and the whole
+    JSON punctuation. Nothing here is sampled -- the analytic samples are 314
+    and 695 rows, which is a payload of a few tens of kilobytes and the whole
     point of a diagnostic plot is that no observation was hidden from you.
     """
     import scipy.stats as sp

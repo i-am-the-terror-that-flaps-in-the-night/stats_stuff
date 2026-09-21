@@ -13,7 +13,7 @@ WHERE THIS SITS AMONG THE FOUR ANALYSIS MODULES
     the ones above it and none of them imports back:
 
         engine.py     the five generic tiers, on any dataframe   (this file)
-        cohort.py     the 412-column NHANES merge narrowed to 699 adolescents
+        cohort.py     the 412-column NHANES merge narrowed to 695 adolescents
         study.py      the pre-specified ten-step analysis of that cohort
         predictor.py  the LightGBM ALT model behind the interactive demo
 
@@ -100,9 +100,9 @@ A NOTE ON MISSING VALUES
     those people are rarely a random subset of it. Watch the "n" reported in each
     block -- it is the sample the numbers actually describe.
 
-    One sentinel value gets special handling on the way in; see
-    ANALYTIC_MISSING_SENTINEL, and note what it does and doesn't claim about
-    NHANES generally.
+    One value gets special handling on the way in: the number pandas' XPT
+    reader produces for a zero. See XPORT_ZERO, and note what it does and
+    doesn't claim about NHANES generally.
 
 IMPORT COST
     Only pandas and scipy load when this file is imported. The website only uses
@@ -140,23 +140,32 @@ NUMERIC_THRESHOLD = 0.8
 # on whether a number lands at 0.049 or 0.051.
 ALPHA = 0.05
 
-# The sentinel OUR analytic CSV (Data/nhanes_analytic.csv) uses for a missing
-# numeric cell. This is a property of how our preprocessing pipeline wrote that
-# file -- it is NOT a universal NHANES convention. NHANES ships SAS XPT files
-# whose missing-value representation varies by variable and processing stage, so
-# a different NHANES extract may well use blanks, or documented special codes
-# like 7/9/777/9999 for "refused"/"don't know". Feed this engine such a file and
-# those codes will sail straight through as if they were real measurements; they
-# have to be cleaned upstream.
+# The value pandas' SAS-transport reader writes where an NHANES XPT file holds a
+# ZERO. IBM hexadecimal floating point has no bit pattern for exactly 0.0 in
+# the form pandas decodes, and the smallest positive value it can express --
+# 5.397605346934028e-79 -- is what comes out instead. Data/nhanes_analytic.csv
+# was written from those reads, so every genuine zero in it (an infant's age, a
+# dietary weight for someone with no recall, "less than 1 hour" of television,
+# a poverty ratio of 0) sits at this number, and not one column in the file
+# contains a literal 0. Genuine MISSING cells are blank (NaN) already.
 #
-# Left alone, this value would sink every mean, crush every variance, and fake
-# tens of thousands of data points, so we turn it back into a blank (NaN) on the
-# way in. Files that don't use it (Data/data.csv) are unaffected.
-ANALYTIC_MISSING_SENTINEL = 5.397605346934028e-79
+# An earlier version of this project read the value as a missing-data sentinel
+# and blanked it. That silently deleted every zero: it made "watches less than
+# an hour of TV" disappear from screen time (costing the study 16% of its
+# sample), and it is the reason the cohort could not reproduce the protocol's
+# n. It is mapped back to 0.0 on the way in, which is what it is.
+#
+# This is a property of how OUR file was produced, not an NHANES convention.
+# Other NHANES extracts use blanks or documented codes (7/9/77/99/...) for
+# refused/don't-know, and those have to be decoded upstream -- see
+# cohort.decode_screen_hours for the one case this project handles.
+XPORT_ZERO = 5.397605346934028e-79
 
-# Former name, kept so existing callers and notebooks don't break. The rename is
-# the point: the old name claimed this was how NHANES represents missing data.
-NHANES_MISSING_FILL = ANALYTIC_MISSING_SENTINEL
+# Former names, kept so existing callers and notebooks don't break. Both are
+# misnomers -- the value is a zero, not a missing marker -- which is why they
+# were renamed.
+ANALYTIC_MISSING_SENTINEL = XPORT_ZERO
+NHANES_MISSING_FILL = XPORT_ZERO
 
 # The layer of claim each block of output belongs to (see the module docstring).
 # Nothing here is ever tagged "causal" -- the engine cannot earn that label.
@@ -317,12 +326,12 @@ CLINICAL_THRESHOLDS = {
 
 
 def _coerce_numeric(series):
-    """Parse a column as numbers, treating our analytic sentinel as missing.
+    """Parse a column as numbers, restoring the XPT reader's zero artifact.
 
     Every place in the engine that turns a raw column into numbers goes through
-    here, so ANALYTIC_MISSING_SENTINEL can never sneak into a statistic -- the
+    here, so XPORT_ZERO can never reach a statistic as a value ~1e-79 -- the
     same reason _num() is the single exit every result leaves by. On datasets
-    that don't use the sentinel the .replace() simply finds nothing.
+    that don't carry the artifact the .replace() simply finds nothing.
 
     The result is always plain float64, and that last part is load-bearing.
     pd.to_numeric() preserves some dtypes that are arithmetically fine but are
@@ -343,7 +352,7 @@ def _coerce_numeric(series):
     each of the half-dozen places a design matrix gets built.
     """
     numbers = pd.to_numeric(series, errors="coerce")
-    numbers = numbers.replace(ANALYTIC_MISSING_SENTINEL, np.nan)
+    numbers = numbers.replace(XPORT_ZERO, 0.0)
     return numbers.astype("float64")
 
 

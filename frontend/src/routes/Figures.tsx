@@ -29,6 +29,8 @@ import { ForestLegend, ForestPlot } from "../components/figures/ForestPlot";
 import {
   DoseResponseChart,
   DoseResponseLegend,
+  RiskScoreChart,
+  RiskScoreLegend,
 } from "../components/figures/DoseResponseChart";
 import {
   useBox,
@@ -49,15 +51,17 @@ import type {
   DirectEffectStep,
   DoseResponseStep,
   HistogramResponse,
+  RiskScoreStep,
+  SexDifferencesStep,
 } from "../types/engine";
 
 const SPEC: SpecRow[] = [
   { k: "Source", v: "nhanes_adolescent.csv" },
-  // The cohort file, not the raw all-ages merge: these figures plot the 699
+  // The cohort file, not the raw all-ages merge: these figures plot the 695
   // adolescents the study analyses. This row read 9,254 -- the row count of
   // Data/nhanes_analytic.csv -- against the cohort filename, which is a
   // different dataset.
-  { k: "Rows", v: "699" },
+  { k: "Rows", v: "695" },
   { k: "Drawn", v: "Inline SVG" },
   { k: "Library", v: "None" },
   // Every figure exports the SVG that is on screen. PDF comes out as real
@@ -182,7 +186,7 @@ function CorrelationTable({ data }: { data: CorrelationResponse }): JSX.Element 
  * Same rule as the four above: the table is the accessible reading of the
  * figure, not a fallback. Where a chart draws hundreds of marks — every
  * residual, every Q-Q point — the table gives the summary a reader could
- * actually use rather than 586 rows nobody will scroll, and says so.
+ * actually use rather than 314 rows nobody will scroll, and says so.
  */
 function DensityTable({ data }: { data: DensityResponse }): JSX.Element {
   return (
@@ -245,8 +249,57 @@ function ForestTable({ data }: { data: DirectEffectStep }): JSX.Element {
       corner="Predictor"
       head={["Estimate", "95% CI", "Standardized β", "p"]}
       numeric={[1, 2, 3, 4]}
-      caption="Weighted least squares with cluster-robust standard errors."
+      caption="Weighted least squares with classical standard errors."
       rows={rows}
+    />
+  );
+}
+
+function StrataTable({ data }: { data: SexDifferencesStep }): JSX.Element {
+  const rows: string[][] = [];
+  for (const [label, model] of [
+    ["Males", data.stratified_models.Male],
+    ["Females", data.stratified_models.Female],
+  ] as const) {
+    for (const [name, c] of Object.entries(model.coefficients)) {
+      if (name === "const") continue;
+      rows.push([
+        `${labelOf(name)} — ${label}`,
+        formatTick(c.estimate ?? 0),
+        c.ci_low === null || c.ci_high === null
+          ? "—"
+          : `${formatTick(c.ci_low)} to ${formatTick(c.ci_high)}`,
+        formatTick(c.standardized_beta ?? 0),
+        c.significance.p_value_text ?? String(c.significance.p_value ?? "—"),
+      ]);
+    }
+  }
+  return (
+    <Table
+      corner="Predictor"
+      head={["Estimate", "95% CI", "Standardized β", "p"]}
+      numeric={[1, 2, 3, 4]}
+      caption={`Model B with BMI, fitted separately by sex — males n = ${formatCount(data.stratified_models.Male.n)}, females n = ${formatCount(data.stratified_models.Female.n)}.`}
+      rows={rows}
+    />
+  );
+}
+
+function RiskScoreTable({ data }: { data: RiskScoreStep }): JSX.Element {
+  return (
+    <Table
+      corner="Score"
+      head={["n", "Mean ALT", "Above threshold", "Weighted mean ALT", "Weighted above"]}
+      numeric={[1, 2, 3, 4, 5]}
+      caption="One point each for being above the sample median on sugar, screen time, Trig/HDL, HbA1c and BMI, plus one for male sex. Plain means first, as the protocol's figure plots them; weighted (U.S. adolescent) estimates beside them."
+      rows={data.bands.map((b) => [
+        String(b.score),
+        formatCount(b.n),
+        formatTick(b.mean_alt ?? 0),
+        `${formatTick(b.percent_elevated_alt_unweighted ?? 0)}%`,
+        formatTick(b.weighted_mean_alt ?? 0),
+        `${formatTick(b.percent_elevated_alt ?? 0)}%`,
+      ])}
     />
   );
 }
@@ -324,8 +377,12 @@ export function Figures(): JSX.Element {
   // and the text beside it end up disagreeing.
   const doseStep = useStudyStep("dose-response");
   const primaryStep = useStudyStep("direct-effect");
+  const sexStep = useStudyStep("sex-differences");
+  const riskStep = useStudyStep("risk-score");
   const dose = doseStep.step as DoseResponseStep | null;
   const primary = primaryStep.step as DirectEffectStep | null;
+  const sexes = sexStep.step as SexDifferencesStep | null;
+  const risk = riskStep.step as RiskScoreStep | null;
 
   const toggle = (key: string) => () =>
     setTables((current) => ({ ...current, [key]: !current[key] }));
@@ -770,7 +827,7 @@ export function Figures(): JSX.Element {
                 per standard deviation of the predictor. Sugar is in 10 g/day, BMI in kg/m² and
                 HbA1c in percent, so a raw axis would make them incomparable, and comparing
                 sugar against the Trig/HDL ratio is exactly the protocol&rsquo;s secondary
-                question. Weighted least squares with cluster-robust standard errors; an
+                question. Weighted least squares with classical standard errors; an
                 association in observational data, not an effect of an intervention.
               </>
             ) : undefined
@@ -795,7 +852,103 @@ export function Figures(): JSX.Element {
         </Figure>
       </Module>
 
-      <Module index="09" title="Normal Q-Q" meta="Regression assumption 1">
+      <Module index="09" title="Sex-Stratified Coefficients" meta="Protocol step 8 · exploratory">
+        <p className="text">
+          The primary model, fitted once for boys and once for girls. The protocol&rsquo;s
+          secondary hypothesis was that the sugar–ALT association would be stronger in males;
+          this is the picture that tests it. Read the two sugar rows against each other, and
+          against zero — and remember the sample is halved in each panel, so every interval is
+          wider than in the pooled model above.
+        </p>
+        <Figure
+          title="Standardized coefficients, Model B with BMI, by sex"
+          caption="Dot is the estimate; the bar is its 95% confidence interval. Hollow dots include zero."
+          meta={sexes ? `n = ${formatCount(sexes.n ?? 0)}` : undefined}
+          legend={
+            sexes ? (
+              <ForestLegend
+                models={[
+                  { label: "Males", model: sexes.stratified_models.Male },
+                  { label: "Females", model: sexes.stratified_models.Female },
+                ]}
+              />
+            ) : undefined
+          }
+          footnote={
+            sexes ? (
+              <>
+                Two separate fits show two slopes; only an interaction term tests whether they
+                differ. The pooled model&rsquo;s sugar-by-sex interaction gives{" "}
+                {sexes.interaction_tests.SugarXMale?.p_value_text ?? "—"} and the Trig/HDL-by-sex
+                interaction {sexes.interaction_tests.RatioXMale?.p_value_text ?? "—"}. This step
+                is exploratory and uncorrected for multiplicity: it suggests a direction for
+                future work rather than confirming one.
+              </>
+            ) : undefined
+          }
+        >
+          {sexStep.error && <Status message={sexStep.error} isError />}
+          {!sexStep.error && !sexes && <Loading what="the stratified models" />}
+          {sexes && (
+            <Switchable
+              showTable={tables.strata ?? false}
+              onToggle={toggle("strata")}
+              table={<StrataTable data={sexes} />}
+            >
+              <ForestPlot
+                models={[
+                  { label: "Males", model: sexes.stratified_models.Male },
+                  { label: "Females", model: sexes.stratified_models.Female },
+                ]}
+              />
+            </Switchable>
+          )}
+        </Figure>
+      </Module>
+
+      <Module index="10" title="Composite Risk Score" meta="Protocol step 9 · exploratory">
+        <p className="text">
+          Six yes-or-no risk factors, one point each, summed. No single factor — sugar
+          included — separates adolescents by ALT very well on its own. The question here is
+          whether the count does: does mean ALT climb band by band, and does the share above
+          the clinical threshold climb with it?
+        </p>
+        <Figure
+          title="Mean ALT across risk-score bands"
+          caption="Points are the mean ALT per band. Red is the share above the clinical threshold."
+          meta={risk ? `n = ${formatCount(risk.n ?? 0)}` : undefined}
+          legend={risk ? <RiskScoreLegend bands={risk.bands} /> : undefined}
+          footnote={
+            risk ? (
+              <>
+                Mean ALT rises about{" "}
+                {formatTick(risk.trend_in_mean_alt.u_per_litre_per_point ?? 0)} U/L per point
+                (ordinary least squares, {risk.trend_in_mean_alt.significance.p_value_text ?? "—"}),
+                and the Cochran–Armitage trend in the share above threshold gives z ={" "}
+                {formatTick(risk.trend_in_prevalence.z ?? 0)} (
+                {risk.trend_in_prevalence.significance.p_value_text ?? "—"}). The score is cut at
+                this cohort&rsquo;s own medians and judged on the same data that set them, so it is
+                a proof of concept, not a screening tool.
+                {risk.sparse_bands.length > 0 && ` Sparse bands: ${risk.sparse_bands.join("; ")}.`}
+              </>
+            ) : undefined
+          }
+        >
+          {riskStep.error && <Status message={riskStep.error} isError />}
+          {!riskStep.error && !risk && <Loading what="the score bands" />}
+          {risk && (
+            <Switchable
+              showTable={tables.risk ?? false}
+              onToggle={toggle("risk")}
+              table={<RiskScoreTable data={risk} />}
+            >
+              <RiskScoreChart bands={risk.bands} />
+            </Switchable>
+          )}
+        </Figure>
+      </Module>
+
+      <Module index="11" title="Normal Q-Q" meta="Regression assumption 1">
         <p className="text">
           Every interval on the figure above assumes the model&rsquo;s residuals are roughly
           normal. The expert tier tests that and returns a number; this shows the{" "}
@@ -838,7 +991,7 @@ export function Figures(): JSX.Element {
         </Figure>
       </Module>
 
-      <Module index="10" title="Residuals Against Fitted" meta="Regression assumption 2">
+      <Module index="12" title="Residuals Against Fitted" meta="Regression assumption 2">
         <p className="text">
           The second assumption: that the model is equally wrong across its whole range. If the
           cloud fans out to the right, the model is more uncertain about high-ALT adolescents

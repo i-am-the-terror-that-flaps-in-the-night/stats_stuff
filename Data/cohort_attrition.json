@@ -12,21 +12,27 @@
     "removed": 8347
   },
   {
-    "step": "No viral hepatitis",
-    "rule": "HBsAg-, HCV antibody- and HCV RNA-negative (LBDHBG/LBDHCI/LBXHCR)",
-    "n": 907,
-    "removed": 0
+    "step": "Reliable day-1 dietary recall",
+    "rule": "DR1DRSTZ = 1",
+    "n": 804,
+    "removed": 103
   },
   {
-    "step": "Complete core variables",
-    "rule": "ALT, sugar, weight, BMI, HbA1c, triglycerides, HDL, age, sex all present",
-    "n": 699,
-    "removed": 208
+    "step": "No viral hepatitis B or C",
+    "rule": "anti-HBc-, HBsAg-, HCV antibody- and HCV RNA-negative (LBXHBC/LBDHBG/LBDHCI/LBXHCR)",
+    "n": 802,
+    "removed": 2
+  },
+  {
+    "step": "Complete on the lifestyle model's variables",
+    "rule": "ALT, sugar, dietary weight, screen time, age and sex all present",
+    "n": 695,
+    "removed": 107
   },
   {
     "step": "Positive dietary weight",
     "rule": "WTDRD1 > 0",
-    "n": 699,
+    "n": 695,
     "removed": 0
   }
 ]
