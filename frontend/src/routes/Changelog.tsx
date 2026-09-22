@@ -8,7 +8,7 @@ import { Crumbs, Masthead, Module, Table } from "../components/Page";
 import type { SpecRow } from "../components/Page";
 
 const SPEC: SpecRow[] = [
-  { k: "Current", v: "v4.1.0" },
+  { k: "Current", v: "v4.1.1" },
   { k: "Released", v: "2026·08·30" },
   { k: "Cadence", v: "Iterative" },
   { k: "Status", v: "Stable" },
@@ -24,9 +24,22 @@ interface Release {
 
 const RELEASES: Release[] = [
   {
+    ver: "v4.1.1",
+    date: "22 Sep 2026",
+    current: true,
+    items: [
+      <>
+        <b>Glossary, expanded</b> — 126 entries, up from 80: the statistical
+        vocabulary a reader is most likely to stumble on (null hypothesis, power, false
+        positives, multiplicity, confounding, heteroscedasticity, percentiles, eta squared,
+        Cramér&rsquo;s V, Shapiro&ndash;Wilk, cross-validation, SHAP, overfitting) alongside the
+        study&rsquo;s own terms. A test now fails the build if two entries claim the same label.
+      </>,
+    ],
+  },
+  {
     ver: "v4.1.0",
     date: "20 Sep 2026",
-    current: true,
     items: [
       <>
         <b>Glossary</b> — every statistic label, column name and study term the site prints now
