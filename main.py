@@ -1,8 +1,8 @@
 """
 Deployment entry point at the repo root.
 
-Render's default start command is `uvicorn main:app`, run from the repo root.
-This module just re-exports the FastAPI app in Backend/app.py, which owns every
+`uvicorn main:app`, run from the repo root, is the canonical way to start the
+service. This module just re-exports the FastAPI app in Backend/app.py, which owns every
 route -- "/", /healthz, /api/*, /Web/*, /docs, and the /studio/ and /guide/
 pages (Backend/studio.py, included by app.py). It is a single ASGI app; there is
 no dispatcher and no second framework.

@@ -105,7 +105,7 @@ router = APIRouter(prefix="/api/predict", tags=["predict"])
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 
 # The failover chain, in order. Overridable by environment variable so a model
-# that is renamed or retired on OpenRouter can be swapped on Render without a
+# that is renamed or retired on OpenRouter can be swapped in the host's env without a
 # redeploy -- and so the fair can be run on the paid slugs while development
 # uses the ":free" variants of the same two models.
 #
@@ -771,7 +771,7 @@ class AskIn(PredictIn):
     question: str = Field(min_length=1, max_length=MAX_QUESTION_CHARS)
     # The exchange so far, oldest first, so "and what about the other one?"
     # resolves. Sent by the client because this service keeps no session --
-    # Render's free tier restarts constantly and two visitors must never share
+    # The deploy restarts constantly and two visitors must never share
     # a conversation. Capped in answer_question(), not here, so an over-long
     # history is trimmed rather than 422'd at somebody mid-demo.
     history: list[dict] = Field(default_factory=list)

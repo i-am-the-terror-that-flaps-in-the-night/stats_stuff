@@ -108,7 +108,8 @@ IMPORT COST
     Only pandas and scipy load when this file is imported. The website only uses
     the basic tier, so the slow libraries the higher tiers need -- statsmodels
     and matplotlib -- are imported inside the methods that use them. That keeps
-    them off Render's cold-start path (see the "SPEED ON RENDER" note in app.py).
+    them off the cold-start path (see the "SPEED AND MEMORY ON THE DEPLOY" note
+    in app.py).
 """
 
 from __future__ import annotations
@@ -122,9 +123,9 @@ import pandas as pd
 # application -- 460 ms and 56 MB, more than pandas -- and every one of its
 # twenty uses is inside a function body, so importing it at module scope charged
 # the full cost to `import engine` whether or not the request needed a
-# statistical test. On a Render free instance (0.1 vCPU, 512 MB) that is roughly
-# five seconds of the cold start spent on a module the landing page, the column
-# list, the basic tier and every figure endpoint never touch.
+# statistical test. On the deploy's cold, shared vCPU that is seconds of every
+# cold start spent on a module the landing page, the column list, the basic tier
+# and every figure endpoint never touch.
 #
 # So each function that needs it imports it, which is already the idiom
 # everywhere else in this project (see figures_api.py and lab_api.py). Python

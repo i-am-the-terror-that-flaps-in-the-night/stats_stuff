@@ -23,8 +23,8 @@ WHAT IT SERVES
     a rendered twin each.
 
 THE RUN LOG
-    Saved runs go in a local SQLite file next to this module. Render's free tier
-    has no persistent disk, so this is a lab-notebook for your own machine, not
+    Saved runs go in a local SQLite file next to this module. The deploy has no
+    persistent disk, so this is a lab-notebook for your own machine, not
     shared state the site depends on -- an empty log is the normal online state.
 
 WHY THE IMPORTS ARE LAZY
@@ -57,8 +57,8 @@ def _runs_db_path() -> Path:
 
     Serverless hosts (Vercel) mount the deployment read-only and offer only
     /tmp; on those the log is per-instance and evaporates, which is fine -- it
-    is a local lab-notebook, and nothing on the live site depends on it (see
-    render.yaml). STUDIO_RUNS_DB overrides both for anyone who wants it
+    is a local lab-notebook, and nothing on the live site depends on it.
+    STUDIO_RUNS_DB overrides both for anyone who wants it
     somewhere specific."""
     import os
     import tempfile

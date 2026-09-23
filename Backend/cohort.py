@@ -18,7 +18,7 @@ WHAT THIS IS FOR
     That split is deliberate and it is what makes the deploy work. The raw merge
     is 17 MB and lives in Git LFS; the *derived* cohort is an ordinary tracked
     file. Production reads the derived file and never touches the raw one, so a
-    Render dyno that never fetched an LFS object still boots correctly. Rebuild
+    deploy that never fetched an LFS object still boots correctly. Rebuild
     the cohort on a machine that has the raw file:
 
         python Backend/cli.py build-cohort          # rebuild, print attrition
@@ -113,7 +113,7 @@ def raw_merge_available(path: Path | None = None) -> bool:
 
     `path.is_file()` is NOT this question, and mistaking one for the other is a
     production outage rather than a nicety. Data/nhanes_analytic.csv is tracked
-    in Git LFS and render.yaml deliberately never fetches it, so what sits at
+    in Git LFS and the deploy build deliberately never fetches it, so what sits at
     that path on the deploy is a 133-BYTE POINTER FILE: a real file, with a real
     size, that is_file() reports as present. Hand it to read_csv and the pointer
     metadata is parsed as a header, after which the first NHANES column looked
@@ -686,7 +686,7 @@ def cohort_attrition() -> list[dict]:
 
     That is not a micro-optimization. Recomputing it live parsed 17 MB and 412
     columns to arrive at a fixed list of five rows, and cost 109 MB of peak RSS
-    and 137 ms -- on a Render free instance with 512 MB and a tenth of a vCPU,
+    and 137 ms -- inside a 1024 MB serverless function on a shared vCPU,
     the largest single memory event in the whole application, larger than pandas
     and scipy put together.
 

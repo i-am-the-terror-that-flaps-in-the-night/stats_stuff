@@ -1,12 +1,12 @@
 """
-app.py -- the ASGI web service that Render runs.
+app.py -- the ASGI web service.
 
 WHY THIS EXISTS
     fastapi was already a declared dependency, but nothing actually defined an
-    app or a server entry point, so there was nothing for Render to start. This
+    app or a server entry point, so there was nothing for the host to start. This
     is that entry point: a minimal FastAPI app that
 
-      * exposes a health check (for Render's health probe),
+      * exposes a health check,
       * serves the built React frontend (frontend/dist),
       * exposes a JSON API (backed by engine.py) that the frontend calls to
         compute statistics on Data/nhanes_adolescent.csv -- the study's analytic
@@ -30,7 +30,7 @@ WHY THIS EXISTS
 
 RUNNING IT
     Backend only:  uvicorn app:app --reload      (from this Backend/ directory)
-    On Render:     see ../render.yaml (from the repo root: uvicorn main:app)
+    Deployed:      see ../vercel.json (from the repo root: uvicorn main:app)
 
     In development, run the Vite dev server alongside it for hot reload:
         cd frontend && npm run dev      -> http://localhost:5173
@@ -39,7 +39,7 @@ RUNNING IT
         cd frontend && npm run build    -> then open http://127.0.0.1:8000/
 
 ROUTES
-    GET  /healthz                       {"status": "ok"} -- Render's probe
+    GET  /healthz                       {"status": "ok"} -- liveness probe
     GET  /api/columns                   numeric + categorical column lists
     GET  /api/overview                  dataset telemetry
     GET  /api/cache                     live memo hit/miss counts
@@ -71,13 +71,14 @@ ROUTES
     /assets/*                           the fingerprinted Vite bundle
     anything else that accepts HTML     the SPA shell, for client-side routes
 
-SPEED AND MEMORY ON RENDER
-    The free plan gives this service 0.1 vCPU and 512 MB, and spins it down when
-    idle so boot is paid over and over. Both limits are real constraints on the
+SPEED AND MEMORY ON THE DEPLOY
+    Vercel's free tier runs this as a serverless function -- 1024 MB and a
+    shared vCPU (see vercel.json) -- cold-started on demand, so boot is paid
+    over and over rather than once. Both limits are real constraints on the
     design, and the budget is worth writing down because almost none of it is
     this application's own code. Measured on a development machine, in the shape
-    the deploy actually runs in (multiply the times by roughly ten for a tenth of
-    a CPU; the megabytes carry over as they are):
+    the deploy actually runs in (the times are slower on a cold, shared CPU; the
+    megabytes carry over as they are):
 
         interpreter                                    15 MB
         + fastapi / starlette / pydantic / uvicorn      34 MB    135 ms
@@ -159,8 +160,8 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 # NOTE: pandas and engine.py are imported lazily inside get_dataframe(),
 # analyzable_columns() and compute_stats() -- deliberately NOT at module top --
-# to keep the heavy pandas/numpy import off Render's cold-start path. See the
-# "SPEED ON RENDER" note in the module docstring.
+# to keep the heavy pandas/numpy import off the cold-start path. See the
+# "SPEED AND MEMORY ON THE DEPLOY" note in the module docstring.
 
 # Resolve paths from __file__ so they're correct regardless of the working
 # directory. Data/ lives at the repo root, one level up; the frontend is the
@@ -193,7 +194,7 @@ FAVICON = DIST_DIR / "favicon.ico"
 # points at the fingerprinted assets, so it must be revalidated every time or a
 # deploy would leave browsers requesting bundles that no longer exist.
 # "no-cache" means "store it, but check before reusing" -- an unchanged file
-# comes back as a tiny 304. Neither setting touches Render's cold-start path;
+# comes back as a tiny 304. Neither setting touches the cold-start path;
 # that's the server-side pandas import, not asset fetches.
 STATIC_CACHE_CONTROL = "public, max-age=31536000, immutable"
 INDEX_CACHE_CONTROL = "no-cache"
@@ -206,7 +207,7 @@ INDEX_CACHE_CONTROL = "no-cache"
 # next day, to keep using the stored copy while it refreshes in the background
 # (stale-while-revalidate). A returning visitor therefore never waits on the
 # network for a figure they have already seen, even after the freshness window
-# closes, and never waits on a Render cold start for one either.
+# closes, and never waits on a cold start for one either.
 #
 # What makes that safe rather than reckless is the ETag on every one of these
 # responses (see etag_middleware). The tag is derived from the deployed code and
@@ -227,8 +228,8 @@ def deploy_version() -> str:
     what an answer looks like. Cheap (a few stat() calls, once per process) and
     honest about the two things that can actually change an answer: a new CSV or
     new engine code. A random per-process token would also be correct but would
-    throw away every client's cache on each restart -- and Render restarts a free
-    service constantly.
+    throw away every client's cache on each restart -- and a serverless deploy
+    starts fresh instances constantly.
     """
     parts = []
     here = Path(__file__)
@@ -458,7 +459,8 @@ def _warm_caches() -> None:
     them one click at a time.
 
     Ordered cheapest-and-most-likely-first, so if the process is killed partway
-    through (Render can, mid-boot) the highest-value entries are already there.
+    through (the host can kill it mid-boot) the highest-value entries are
+    already there.
     Every stage is individually guarded: a column the engine cannot analyze must
     not stop the warm-up for the fourteen that follow.
     """
@@ -572,9 +574,8 @@ async def lifespan(_app: FastAPI):
         them: module constants, pandas internals, the cohort frame and the
         cached answers above. Essentially all of it lives until the process
         exits, so every one of those walks is work with a foregone conclusion --
-        30 ms here, and on Render's free tier, where the service gets a tenth of
-        a vCPU, closer to 300 ms, repeated whenever the threshold trips for the
-        rest of the process's life.
+        30 ms here, and appreciably more on the deploy's shared vCPU, repeated
+        whenever the threshold trips for the rest of the process's life.
 
         gc.freeze() moves those objects into a permanent generation the
         collector never visits again. Measured on this app, it takes a full
@@ -661,8 +662,8 @@ async def etag_middleware(request: Request, call_next):
     return response
 
 
-# Compress text responses (HTML/CSS/JS/JSON) so less goes over the wire -- Render
-# doesn't gzip dynamic responses for you. Added before CORS so CORS stays the
+# Compress text responses (HTML/CSS/JS/JSON) so less goes over the wire rather
+# than relying on the host to gzip dynamic responses. Added before CORS so CORS stays the
 # outermost layer and still short-circuits preflight requests.
 #
 # 256, not 500: the JSON here is highly compressible (repeated keys, long prose
@@ -683,7 +684,7 @@ app.add_middleware(
 
 @app.get("/healthz")
 def healthz():
-    """Liveness probe -- Render hits this to decide if the service is up."""
+    """Liveness probe -- answers 200 as soon as the service is up."""
     return {"status": "ok"}
 
 
@@ -897,7 +898,7 @@ app.include_router(studio_router)
 # the cached dataframe and column lists, so it can only be imported once those
 # exist. The module is figures_api and not figures because the repo root holds a
 # `figures/` directory of PDFs -- launched from the root (uvicorn main:app, which
-# is what Render runs) a bare `figures` resolves to that directory as a namespace
+# is how the deploy runs) a bare `figures` resolves to that directory as a namespace
 # package and the import fails on a name, not on the module.
 try:
     from figures_api import router as figures_router

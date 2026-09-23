@@ -261,7 +261,7 @@ export function Downloads(): JSX.Element {
         setProgress(`Rendering ${index + 1} of ${drawn.length} — ${sheet.title}`);
         // Yield to the browser between figures. A PNG is a canvas encode and a
         // PDF is a walk over every mark; ten in a row on one task freezes the
-        // tab, and on Render's tier the reader is on a slow machine already.
+        // tab, and the reader may be on a slow machine already.
         await new Promise((resolve) => setTimeout(resolve, 0));
         const svg = plots.current.get(sheet.key)?.querySelector("svg");
         if (!svg) continue;

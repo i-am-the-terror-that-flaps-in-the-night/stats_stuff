@@ -193,7 +193,7 @@ export function fetchDensity(column: string, group: string | null): Promise<Dens
  *
  * The only figure route that fits a model, which is why it is the only one that
  * can be slow on a cold process: it is the first thing on the page to touch
- * statsmodels, and that import is around 700 ms on Render's free tier. Left
+ * statsmodels, and that import is around 700 ms on the deploy. Left
  * un-prefetched for exactly that reason — a reader who never scrolls to the
  * diagnostics never pays it.
  */

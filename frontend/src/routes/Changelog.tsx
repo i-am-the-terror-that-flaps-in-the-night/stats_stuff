@@ -8,7 +8,7 @@ import { Crumbs, Masthead, Module, Table } from "../components/Page";
 import type { SpecRow } from "../components/Page";
 
 const SPEC: SpecRow[] = [
-  { k: "Current", v: "v4.1.2" },
+  { k: "Current", v: "v4.1.3" },
   { k: "Released", v: "2026·08·30" },
   { k: "Cadence", v: "Iterative" },
   { k: "Status", v: "Stable" },
@@ -24,9 +24,22 @@ interface Release {
 
 const RELEASES: Release[] = [
   {
-    ver: "v4.1.2",
+    ver: "v4.1.3",
     date: "22 Sep 2026",
     current: true,
+    items: [
+      <>
+        <b>Definition cards, actually on their words</b> — the card is measured before it is
+        placed rather than assuming a height, stays attached to its word instead of sliding to
+        the nearest margin near a screen edge, and reads the word&rsquo;s position at the moment
+        it paints. Hover is mouse-only now: the compatibility mouse events a tap emits were
+        aimed at the previously tapped word and kept reopening its card on a phone.
+      </>,
+    ],
+  },
+  {
+    ver: "v4.1.2",
+    date: "22 Sep 2026",
     items: [
       <>
         <b>Definition cards, placed properly</b> — the hover card is now portalled onto the
@@ -172,7 +185,7 @@ const RELEASES: Release[] = [
       <>
         <b>Model drift guards</b> — <span className="expr">train-model --check</span> and{" "}
         <span className="expr">build_offline_demo.py --check</span> added to CI alongside the
-        existing cohort guard, plus the Render config for the new environment variables.
+        existing cohort guard, plus the deploy config for the new environment variables.
       </>,
     ],
   },

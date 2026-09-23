@@ -3,7 +3,7 @@ figures_api.py -- chart-ready aggregates for the frontend's Figures page.
 
     (Named figures_api rather than figures because the repo root already has a
     `figures/` directory of exported PDFs. Launched from the root -- which is
-    how Render runs it -- a top-level `figures` resolves to that directory as a
+    how the deploy runs it -- a top-level `figures` resolves to that directory as a
     namespace package, and the router import fails.)
 
 WHY THIS EXISTS

@@ -1,11 +1,11 @@
 #!/usr/bin/env python
 """
-Boot the service exactly the way Render does and hit every route group.
+Boot the service exactly the way the deploy does and hit every route group.
 
 WHY THIS EXISTS SEPARATELY FROM pytest
     pytest puts Backend/ on sys.path (see pyproject's `pythonpath`), so every
     module there resolves by its bare name -- `import study`, `import app`. The
-    deploy does not: Render runs `uvicorn main:app` from the repo root, where the
+    deploy does not: it runs `uvicorn main:app` from the repo root, where the
     same modules only resolve as `Backend.study`, `Backend.app`. The two paths
     exercise different halves of every `try: import x / except ModuleNotFoundError:
     import Backend.x` pair in this codebase, and a bug in the half pytest never
@@ -31,7 +31,7 @@ WHY IT RUNS A REAL SERVER
     is the only honest test of whether a URL works.
 
     Run it against a checkout with NO Git LFS objects fetched, which is the state
-    a Render deploy is in. If anything reads Data/nhanes_analytic.csv on the
+    a deploy is in. If anything reads Data/nhanes_analytic.csv on the
     request path, it fails here rather than in production.
 
     Usage: python scripts/smoke_test.py
@@ -207,7 +207,7 @@ def main() -> int:
             "--port",
             str(port),
         ],
-        cwd=ROOT,  # the repo root -- the same working directory Render uses
+        cwd=ROOT,  # the repo root -- the same working directory the deploy uses
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         text=True,

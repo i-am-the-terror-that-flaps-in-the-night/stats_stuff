@@ -56,9 +56,9 @@ THE EXPLANATION IS EXACT, AND IT IS NOT AN EXTRA DEPENDENCY
     tests/test_predictor.py pins that identity.
 
 THE MODEL IS A COMMITTED ARTIFACT, NEVER TRAINED AT RUNTIME
-    Same bargain as the cohort CSV in cohort.py, for the same reasons. Render's
-    free tier has an ephemeral filesystem, so anything written at runtime is
-    lost on the next restart, and 0.1 vCPU makes even this second of training
+    Same bargain as the cohort CSV in cohort.py, for the same reasons. The
+    deploy has an ephemeral filesystem, so anything written at runtime is lost
+    on the next restart, and a shared vCPU makes even this second of training
     something no visitor should wait for. So training happens on a developer's
     machine and its two outputs are committed:
 
@@ -160,8 +160,7 @@ PREDICTOR_CARD = MODEL_DIR / "alt_lgbm.json"
 # and Vercel's Python runtime does not install it, so the bare import raises
 # OSError and every predict route 500s. A copy of the library is vendored in
 # Backend/vendor/ (see its README); it is preloaded ONLY when the plain import
-# fails for that reason, so macOS, Render and any box with gcc's runtime never
-# touch it.
+# fails for that reason, so macOS and any box with gcc's runtime never touch it.
 VENDORED_LIBGOMP = Path(__file__).resolve().parent / "vendor" / "libgomp.so.1"
 
 

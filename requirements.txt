@@ -1,5 +1,6 @@
-# Runtime dependencies for the Render web service (render.yaml runs
-# `pip install -r requirements.txt`).
+# Runtime dependencies for the web service -- a pip-installable copy of the
+# runtime set, for any host that wants `pip install -r requirements.txt`. The
+# Vercel build resolves from pyproject.toml + uv.lock, so bump both together.
 #
 # GENERATED -- do not hand-edit. To refresh after changing pyproject.toml:
 #     uv lock

@@ -44,7 +44,7 @@ from cohort import (
 from engine import XPORT_ZERO
 
 # What Git LFS leaves at Data/nhanes_analytic.csv on a checkout that never
-# fetched the object -- which is every Render deploy and every CI job here
+# fetched the object -- which is every deploy and every CI job here
 # except the one that asks for lfs: true.
 LFS_POINTER = (
     "version https://git-lfs.github.com/spec/v1\n"
@@ -364,7 +364,7 @@ def test_committed_cohort_matches_what_the_code_produces():
 # ----------------------------------------------------------------------
 # The deploy shape: no Git LFS object
 #
-# Render checks this repo out and never fetches the 17 MB raw merge, so what
+# The deploy checks this repo out and never fetches the 17 MB raw merge, so what
 # sits at RAW_CSV there is a 133-byte pointer file. Everything below is about
 # code that has to keep working in that state, and it is tested here because
 # the state is invisible on a development machine, where the real file exists
@@ -400,7 +400,7 @@ def test_a_missing_file_counts_as_absent(tmp_path):
 
 
 def test_attrition_answers_on_a_deploy_with_no_lfs_object(tmp_path, monkeypatch):
-    """/api/study/cohort must return the attrition table on Render.
+    """/api/study/cohort must return the attrition table on the deploy.
 
     It is served from the committed artifact, so the pointer stub is never
     opened. Before that artifact existed this raised KeyError: 'RIDAGEYR' --

@@ -14,7 +14,7 @@
 #   built into frontend/dist, which in dev is usually stale or absent.
 #
 #   `./run.sh build` is the pre-deploy check: it produces the real bundle and
-#   serves it exactly the way Render will, from FastAPI at :8000.
+#   serves it exactly the way the deploy will, from FastAPI at :8000.
 
 set -euo pipefail
 cd "$(dirname "$0")"

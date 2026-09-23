@@ -3,9 +3,9 @@
 Build offline/index.html -- the demo that works with no internet at all.
 
 WHY THIS EXISTS
-    Hosting the site on Render makes a network connection a hard dependency of
-    the entire demo, not just of the language model. A venue with a captive
-    portal, a dead hotspot, or a Render incident at the wrong moment takes the
+    Hosting the site makes a network connection a hard dependency of the
+    entire demo, not just of the language model. A venue with a captive
+    portal, a dead hotspot, or a hosting incident at the wrong moment takes the
     whole thing down, and "our website is offline" is not a recoverable answer
     to a judge standing at the table.
 

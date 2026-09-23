@@ -1266,8 +1266,10 @@
     pointer-events: none;
   }
 
+  /* Only once placed: the first render is an off-screen measuring pass and
+     must not burn the entry animation while it is invisible. */
   @media (prefers-reduced-motion: no-preference) {
-    .term-tip {
+    .term-tip.is-placed {
       animation: term-tip-in 120ms ease both;
     }
   }

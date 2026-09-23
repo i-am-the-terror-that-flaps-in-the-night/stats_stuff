@@ -1,10 +1,9 @@
 # Tests, lint and typecheck on every push and pull request.
 #
-# The repo had no CI before this -- only the keepalive pinger -- so a broken
-# engine or a stale cohort could reach Render and only be noticed by looking at
-# the site. Render's build runs `npm run build` (which typechecks) and then
-# installs Python, so a type error already fails a deploy; nothing checked the
-# Python side at all.
+# The repo had no CI before this, so a broken engine or a stale cohort could
+# reach production and only be noticed by looking at the site. The deploy's
+# build runs `npm run build` (which typechecks) and then installs Python, so a
+# type error already fails a deploy; nothing checked the Python side at all.
 #
 # WHAT THE DATA JOB IS FOR
 #   Data/nhanes_adolescent.csv is a build artifact that happens to be committed.
@@ -37,7 +36,7 @@ jobs:
     timeout-minutes: 10
     steps:
       # No LFS here: the tests read the committed cohort CSV, which is an
-      # ordinary Git object. This is the same state a Render deploy is in, so
+      # ordinary Git object. This is the same state a deploy is in, so
       # if the app needs an LFS file to boot, this job is where that shows up.
       - uses: actions/checkout@v5
 
@@ -58,14 +57,14 @@ jobs:
       - name: Tests
         run: uv run pytest -q
 
-      # Boot the real server the way Render does and hit every route group.
+      # Boot the real server the way the deploy does and hit every route group.
       #
       # This is the job's most valuable step, because it is the only one that
       # exercises the import graph the deploy actually uses. Two real bugs live
       # in that gap and neither shows up in pytest, which puts Backend/ on the
       # path and so resolves every module by its bare name:
       #   * a module reading the 17 MB raw merge at import time -- fine locally,
-      #     500 on Render, where the LFS object is a pointer stub. This job
+      #     500 on the deploy, where the LFS object is a pointer stub. This job
       #     deliberately checks out WITHOUT lfs, so that fails here.
       #   * a router importing app.py at module scope, which closes an import
       #     cycle that only breaks on the package path (`uvicorn main:app`).
@@ -86,7 +85,7 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
 
       # `npm ci`, not `npm install`, so this resolves the exact tree in the lock
-      # file -- the same thing render.yaml does.
+      # file -- the same thing vercel.json's buildCommand does.
       - name: Install
         run: npm ci
         working-directory: frontend
@@ -129,7 +128,7 @@ jobs:
     timeout-minutes: 10
     steps:
       # No LFS. The predictor trains on the COMMITTED cohort, not the raw merge,
-      # so this job runs in the same state a Render deploy does -- and if the
+      # so this job runs in the same state a deploy does -- and if the
       # training path ever starts reaching for the 17 MB file, it fails here.
       - uses: actions/checkout@v5
 

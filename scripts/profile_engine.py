@@ -12,8 +12,8 @@ Time every part of the engine, so optimizing goes where the seconds actually are
 
 The suites map to the four things the engine spends time on:
 
-    boot     import cost, measured in a fresh interpreter -- Render's free tier
-             pays this on every cold start, so it is a user-visible number
+    boot     import cost, measured in a fresh interpreter -- the deploy pays
+             this on every cold start, so it is a user-visible number
     data     reading CSVs and deriving the cohort
     study    each protocol step, then the whole study end to end
     tiers    the five DataAnalyzer tiers the website calls
@@ -47,7 +47,7 @@ MEMORY (--memory)
     The same cases, measured in bytes. This matters here for a reason specific
     to the engine: nearly everything is lru_cached and nothing is ever evicted,
     so memory a step allocates on its first call is memory the process holds for
-    as long as it runs. On Render's free tier that budget is 512 MB, and the
+    as long as it runs. On the deploy that budget is 1024 MB, and the
     question "which step is expensive" has a memory answer as well as a time one.
 
     Three numbers per case, because no single one is honest on its own:
@@ -562,7 +562,7 @@ def main(argv=None) -> int:
     parser.add_argument(
         "--no-raw",
         action="store_true",
-        help="hide the raw merge, the way a Render deploy sees it",
+        help="hide the raw merge, the way a deploy sees it",
     )
     parser.add_argument("--list", action="store_true", help="list the cases and exit")
     args = parser.parse_args(argv)

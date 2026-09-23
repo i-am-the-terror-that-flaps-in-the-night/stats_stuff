@@ -1,6 +1,6 @@
 [project]
 name = "stats-and-more"
-version = "4.1.2"
+version = "4.1.3"
 description = "Descriptive statistics with a minimal FastAPI web service"
 readme = "README.md"
 requires-python = ">=3.14.6"
@@ -18,7 +18,7 @@ dependencies = [
 
 # Vercel's FastAPI builder scans main.py for a literal top-level `app = ...`
 # and does not follow the import there, so the entrypoint is declared here.
-# Same app object as `uvicorn main:app` (Render) -- see main.py.
+# Same app object as `uvicorn main:app` -- see main.py.
 [tool.vercel]
 entrypoint = "Backend.app:app"
 

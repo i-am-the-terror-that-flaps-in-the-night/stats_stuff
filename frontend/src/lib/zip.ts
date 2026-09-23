@@ -3,7 +3,7 @@
 // WHY THIS EXISTS RATHER THAN A LIBRARY
 //   The same reason lib/svgExport.ts writes its own PDF: the archive this needs
 //   to produce is the simplest one the format allows, and a dependency for it
-//   would cost more in bundle size on a cold Render start than the ninety lines
+//   would cost more in bundle size on a cold start than the ninety lines
 //   below. There is no compression here at all — every entry is STORED. The
 //   payloads are PDFs and PNGs, both already compressed, so deflating them
 //   would spend real CPU to save a percent or two.

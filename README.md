@@ -16,7 +16,7 @@ do. See [The study](#the-study).
 | **Cohort derivation** | `Backend/cohort.py` | Turns the raw 412-column NHANES merge into the 695-adolescent analytic cohort, with a logged attrition table |
 | **The study** | `Backend/study.py` | The pre-specified ten-step analysis: weighted regressions, mediation, dose-response, risk score |
 | **ALT predictor** | `Backend/predictor.py` | The LightGBM model behind the interactive demo, plus its committed model card |
-| **Web service** | `Backend/app.py` | FastAPI: `/healthz`, the JSON API, and the built frontend; deploys to Render |
+| **Web service** | `Backend/app.py` | FastAPI: `/healthz`, the JSON API, and the built frontend; deploys to Vercel |
 | **Study API** | `Backend/study_api.py` | `/api/study/*` — the study's results over HTTP |
 | **Studio API** | `Backend/studio.py` | `/api/datasets` and `/api/runs` — dataset inventory and the local SQLite run log |
 | **Frontend** | `frontend/` | React 19 + Vite 8 + TypeScript 7 SPA: the dashboard, the Study page, the static pages and the Studio |
@@ -136,7 +136,7 @@ quietly replaced by whichever subgroup happened to clear *p* < 0.05.
 
 ```
 stats_and_more/
-├── main.py                  # Deploy entry point: re-exports Backend/app.py (Render's `uvicorn main:app`)
+├── main.py                  # Deploy entry point: re-exports Backend/app.py (`uvicorn main:app`)
 ├── Backend/
 │   ├── engine.py            # The five generic stats tiers (DataAnalyzer)
 │   ├── cohort.py            # The cohort derivation         (`cli.py build-cohort`)
@@ -176,9 +176,9 @@ stats_and_more/
 │   ├── test_study.py        # Survey design, shared samples, protocol fidelity
 │   └── test_predictor.py    # SHAP additivity, the specification, the LLM failover
 ├── .gitattributes           # Git LFS: Data/nhanes_analytic.csv
-├── render.yaml              # Render Blueprint
+├── vercel.json              # Vercel deployment config
 ├── pyproject.toml           # Dependencies (managed with uv)
-└── requirements.txt         # Pip-compatible pin list -- what Render builds from
+└── requirements.txt         # Pip-compatible pin list -- pinned runtime deps
 ```
 
 ## Requirements
@@ -251,18 +251,18 @@ zero"* and *"we never checked"* are different claims and only one of them is def
 ### Why the cohort is committed and the raw merge is in LFS
 
 The deployed app reads a 100 KB tracked file and a 655-byte JSON log. It never needs an LFS object,
-so a Render dyno that never ran `git lfs pull` boots correctly, and the cold start pays milliseconds
+so a deploy that never ran `git lfs pull` boots correctly, and the cold start pays milliseconds
 instead of parsing 17 MB of mostly-irrelevant columns. The raw merge is still under version
 control — it is the provenance for everything else — just not in the ordinary object history.
 
 The attrition log is committed for the same reason, and it is worth being precise about why, because
 the code originally rebuilt it live and guarded that with `RAW_CSV.is_file()`. A checkout that never
 fetched the LFS object does not leave *nothing* at that path — it leaves a 133-byte pointer file,
-which `is_file()` reports as present. So on Render the guard passed, `read_csv` parsed the pointer
+which `is_file()` reports as present. So on the deploy the guard passed, `read_csv` parsed the pointer
 metadata as a header, and every study endpoint answered `500`. `raw_merge_available()` asks the
 question the guard meant to ask, and the committed log means production has no reason to ask it at
-all: rebuilding it cost 109 MB of peak RSS — more than pandas and scipy together, on a 512 MB
-instance — to recompute five rows that had not changed since the last deploy.
+all: rebuilding it cost 109 MB of peak RSS — more than pandas and scipy together, inside a 1 GB
+function — to recompute five rows that had not changed since the last deploy.
 
 ### Variables
 
@@ -320,7 +320,7 @@ cd frontend && npm run dev         # frontend only (no API)
 
 | Route | Returns |
 |---|---|
-| `GET /healthz` | Liveness probe for Render |
+| `GET /healthz` | Liveness probe |
 | `GET /api/overview` | Dataset telemetry: shape, analyzable/categorical/excluded split |
 | `GET /api/columns` | Numeric and categorical columns, plus label values |
 | `GET /api/stats/{column}` | The basic tier (kept for backward compatibility) |
@@ -378,7 +378,7 @@ npm run build      # tsc -b (typecheck) then vite build -> frontend/dist
 npm run typecheck  # types only
 ```
 
-`frontend/dist` is gitignored and built on deploy (see `render.yaml`), so there is no committed
+`frontend/dist` is gitignored and built on deploy (see `vercel.json`), so there is no committed
 bundle that can drift from its source.
 
 Two things worth knowing before changing the build:
@@ -398,8 +398,8 @@ Two things worth knowing before changing the build:
 - **Methodology** — the pipeline, the tiers, the formulas and the missing-data rule
 - **Studio** (`/studio`, `/guide`) — the column and dataset browser, the experiments, the run log
 
-The Studio's run log is a local SQLite file (`Backend/studio_runs.db`, gitignored). Render's free
-tier has no persistent disk, so it is a personal lab notebook, not shared state the site depends
+The Studio's run log is a local SQLite file (`Backend/studio_runs.db`, gitignored). The deploy
+has no persistent disk, so it is a personal lab notebook, not shared state the site depends
 on. An empty log is the normal online state.
 
 ## The prediction demo
@@ -453,8 +453,8 @@ uv run python Backend/cli.py train-model          # refit, write Backend/model/
 uv run python Backend/cli.py train-model --check  # CI's drift guard
 ```
 
-Same bargain as the cohort CSV: Render's filesystem is ephemeral and 0.1 vCPU is not something to
-run a fit on inside a request, so training happens locally and the booster plus its model card are
+Same bargain as the cohort CSV: the deploy's filesystem is ephemeral and a shared vCPU is not
+something to run a fit on inside a request, so training happens locally and the booster plus its model card are
 committed. `--check` retrains in memory and compares — **structure exactly** (features, n, clusters,
 rounds, hyperparameters, input ranges, importance order) and **behaviour to 1e-6** across the whole
 cohort. It is not a byte diff on purpose: the model is trained on a Mac and verified on x86 Linux,
@@ -538,14 +538,14 @@ the same argument behind the frontend's hand-rolled ZIP and PDF writers.
 it. The browser calls this service; this service calls OpenRouter:
 
 ```
-browser  →  Render (holds the key)  →  OpenRouter  →  Nemotron
+browser  →  the service (holds the key)  →  OpenRouter  →  Nemotron
 ```
 
-Set it in the Render dashboard (`render.yaml` declares it `sync: false`, so the value is never in
-the repo). Locally, export it in your shell. Then check:
+Set it in the Vercel project settings, so the value is never in the repo. Locally, export it in
+your shell. Then check:
 
 ```bash
-curl https://<service>.onrender.com/api/predict/llm
+curl https://<your-deployment>/api/predict/llm
 ```
 
 **Leaving it unset is safe.** `/api/predict` never touches it, and `/api/predict/explain` falls
@@ -563,7 +563,7 @@ uv run python scripts/build_offline_demo.py          # write offline/index.html
 uv run python scripts/build_offline_demo.py --check  # CI's staleness guard
 ```
 
-Hosting on Render makes a network connection a hard dependency of the *entire* demo, not just of
+Hosting the site makes a network connection a hard dependency of the *entire* demo, not just of
 the language model — a captive portal on the venue wifi takes down the whole thing.
 `offline/index.html` is one self-contained file with no server, no API, no fonts, no CDN and no
 JavaScript library. Put it on a laptop or a USB stick and open it with a double click.
@@ -622,7 +622,7 @@ stratum (clustering on the raw PSU column would collapse 30 clusters into 2 and 
 correction), that compared models share a sample, that answer codes are decoded rather than
 averaged, and that the caveats and claim grades are still attached.
 
-`scripts/smoke_test.py` covers the gap the other two cannot. It boots uvicorn the way Render does
+`scripts/smoke_test.py` covers the gap the other two cannot. It boots uvicorn the way the deploy does
 and sweeps every tier x column x group-by, every study step, every figure and lab endpoint, and
 every client-side route -- 291 requests. Two things make it worth its runtime:
 
@@ -639,8 +639,6 @@ line with no error anywhere in the stack.
 
 ## Deploying
 
-Two hosts are configured; either works from the same repo.
-
 ### Vercel (`vercel.json` + `pyproject.toml`)
 
 Vercel's FastAPI preset runs the app as one function. `[tool.vercel] entrypoint = "Backend.app:app"`
@@ -651,48 +649,35 @@ the frontend source, tests and the 17 MB LFS merge out of the bundle. Python is 
 `.python-version`; dependencies come from `pyproject.toml` + `uv.lock`, which is why matplotlib
 (only used by the local `figure_production` helper) lives in the dev group. The `/assets` mount is
 promoted to Vercel's CDN at build time. The deployment filesystem is read-only, so the Studio's
-SQLite run log falls back to `/tmp` (see `studio._runs_db_path`) — per-instance and ephemeral, as
-on Render's free tier. Set the same `OPENROUTER_*` environment variables as below in the Vercel
-project settings; leaving the key unset is safe.
+SQLite run log falls back to `/tmp` (see `studio._runs_db_path`) — per-instance and ephemeral. Set
+the `OPENROUTER_*` environment variables in the Vercel project settings; leaving the key unset is
+safe.
 
-### Render (`render.yaml`)
-
-`render.yaml` is a Render Blueprint. The build runs `npm ci && npm run build` first — if the
-frontend fails, the deploy fails before touching Python and the previous version stays live — then
-`pip install -r requirements.txt`. The start command is `uvicorn main:app`.
+### Dependency manifests
 
 Two dependency manifests exist and can drift, so it's worth knowing which does what:
 
-- **`requirements.txt`** hard-pins exact versions. **This is what Render builds from.**
-- **`pyproject.toml` + `uv.lock`** drive local `uv sync`; `uv.lock` is the source of truth for the
-  versions `uv` resolves.
+- **`requirements.txt`** hard-pins exact versions — a pip-installable copy of the runtime set.
+- **`pyproject.toml` + `uv.lock`** drive local `uv sync` and the Vercel build; `uv.lock` is the
+  source of truth for the versions `uv` resolves.
 
 Nothing regenerates one from the other, so bump both together.
 
-`render.yaml` also declares the demo's environment: `OPENROUTER_API_KEY` as `sync: false` (Render
-prompts for it; the value is never in the repo), plus the two model slugs and their timeouts as
-plain values so a retired model can be swapped from the dashboard without a redeploy. See
-[The language model](#the-language-model).
+The demo's environment is set in the Vercel project settings: `OPENROUTER_API_KEY` (never in the
+repo), plus the two model slugs and their timeouts, so a retired model can be swapped without a
+redeploy. Defaults live in `Backend/predict_api.py`. See [The language model](#the-language-model).
 
 ### Cold starts
 
-Render's free plan spins the service down when idle. Two things keep the restart fast: pandas,
-statsmodels and the engine are imported *lazily* inside the functions that use them, so uvicorn
-binds the port and `/healthz` answers before any of that loads; and a background thread warms every
-cache on startup — the dataframe, the column lists, the basic tier for each column, the figures,
-and finally the study itself — so the first visitor usually finds the answers already computed.
-`.github/workflows/keepalive.yml` pings `/healthz` on a schedule to keep the process resident —
-but it needs a repo variable that is **currently unset**, so every scheduled run fails immediately:
+A serverless deploy starts a fresh instance whenever there isn't a warm one, so boot cost is paid
+over and over rather than once. Two things keep it fast: pandas, statsmodels and the engine are
+imported *lazily* inside the functions that use them, so uvicorn binds the port and `/healthz`
+answers before any of that loads; and a background thread warms every cache on startup — the
+dataframe, the column lists, the basic tier for each column, the figures, and finally the study
+itself — so the first visitor usually finds the answers already computed.
 
-```bash
-gh variable set SERVICE_URL --body https://<service>.onrender.com
-```
-
-For a fair specifically, the pinger is second best. GitHub's cron is best-effort and routinely runs
-late, which leaves a window wide enough for Render to spin the service down between judges. The
-reliable fix is one line in `render.yaml` — `plan: starter` (~$7/month, always on) — for the month
-of the fair, cancelled afterwards. Left on `free` in the repo because switching plans is a billing
-decision, not a code one.
+For a fair specifically, the thing to know is that a cold start is the worst case a judge can hit.
+The offline demo (`offline/index.html`) exists precisely so that no judge ever depends on this.
 
 ## Data sources
 

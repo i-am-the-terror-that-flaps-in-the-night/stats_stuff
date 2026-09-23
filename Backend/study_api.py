@@ -63,9 +63,10 @@ def _study():
 
     The import stays
     lazy for the same reason it always did: the protocol's models pull in
-    statsmodels, the single slowest import in the dependency set, and Render's
-    free plan pays every import on every cold start. A visitor who never opens
-    the study page should never pay for it. See app.py's "SPEED ON RENDER".
+    statsmodels, the single slowest import in the dependency set, and the
+    deploy pays every import on every cold start. A visitor who never opens the
+    study page should never pay for it. See app.py's "SPEED AND MEMORY ON THE
+    DEPLOY".
     """
     try:
         import study
