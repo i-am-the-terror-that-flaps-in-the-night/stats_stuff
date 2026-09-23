@@ -4,20 +4,42 @@
 // "HbA1c" -- and a reader who blanks on one of them should not have to leave
 // the number to find out. <Term> looks the label up in lib/glossary; if there
 // is an entry it draws the word with a dotted underline and shows the
-// definition in a small card beneath it. If there is no entry it renders the
+// definition in a small card beside it. If there is no entry it renders the
 // children untouched, so it is safe to wrap every label on the site.
 //
-// Keyboard and touch both work: the wrapper is focusable, and the card is shown
-// on :hover and :focus-within alike. The card is position:fixed with its
-// coordinates measured on hover, because the labels live inside stat grids,
-// result panels and scrolling tables that clip overflow -- an absolutely
-// positioned card would be cut off at the cell edge. It flips to hang off the
-// right edge when it would otherwise leave the viewport.
+// THE CARD IS A PORTAL ON <body>, AND HAS TO BE.
+//   Two separate things make an in-place card wrong. The labels sit inside
+//   stat grids, result panels and .results-scroll tables that clip overflow,
+//   so an absolutely positioned card is cut off at the cell edge. And
+//   position:fixed does not fix that either: .results, .module-head and
+//   .step-panel all run `animation: rise ... both`, and an element with a
+//   transform animation in effect becomes the containing block for its fixed
+//   descendants -- so a card measured against the viewport renders offset by
+//   wherever that panel happens to sit. Portalling to <body> escapes both,
+//   because <body> is nobody's transformed descendant.
+//
+//   The cost is that `.term:hover .term-tip` can no longer show it: the card is
+//   not a descendant of the word any more. Visibility is React state instead,
+//   which is also what makes Escape and the scroll re-measure possible.
 
-import type { JSX, ReactNode } from "react";
-import type React from "react";
-import { useEffect, useRef, useState } from "react";
+import type { CSSProperties, JSX, ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { lookup } from "../lib/glossary";
+
+/** Card width, matched by .term-tip's max-width. */
+const WIDTH = 320;
+/** Enough room for the tallest card; below this it flips above the word. */
+const HEIGHT = 190;
+const GAP = 8;
+const EDGE = 12;
+
+/** The card currently open, so a second one closes the first.
+ *
+ * Without this, two cards can sit on screen at once: mouseleave does not fire
+ * if the pointer leaves the window, and a focused label keeps its card while
+ * the mouse opens another. One definition at a time is the whole idea. */
+let openCard: (() => void) | null = null;
 
 export function Term({
   k,
@@ -32,42 +54,55 @@ export function Term({
   const key = k ?? (typeof children === "string" ? children : "");
   const entry = key ? lookup(key) : null;
   const ref = useRef<HTMLSpanElement | null>(null);
-  const [pos, setPos] = useState<React.CSSProperties>({});
-  const [shown, setShown] = useState(false);
+  const [pos, setPos] = useState<CSSProperties | null>(null);
 
-  const place = (): void => {
+  // Stable identity: the singleton below compares functions, and a fresh
+  // closure each render would make "am I the open one?" always false.
+  const close = useCallback((): void => {
+    if (openCard === close) openCard = null;
+    setPos(null);
+  }, []);
+
+  const place = useCallback((): void => {
     const el = ref.current;
     if (!el) return;
+    if (openCard && openCard !== close) openCard();
+    openCard = close;
     const rect = el.getBoundingClientRect();
-    const width = Math.min(320, window.innerWidth * 0.82);
-    const flip = rect.left + width > window.innerWidth - 12;
-    const below = rect.bottom + 8;
-    // Hang above the word when it sits in the bottom quarter of the screen.
-    const up = below + 160 > window.innerHeight;
-    setPos({
-      left: flip ? Math.max(8, rect.right - width) : rect.left,
-      top: up ? undefined : below,
-      bottom: up ? window.innerHeight - rect.top + 8 : undefined,
-      maxWidth: width,
-    });
-  };
+    const width = Math.min(WIDTH, window.innerWidth - EDGE * 2);
+    // Hug the word's left edge, but never hang off the right of the viewport.
+    const left = Math.min(Math.max(EDGE, rect.left), window.innerWidth - EDGE - width);
+    // Below the word by default; above it when there is no room below.
+    const below = rect.bottom + GAP;
+    const above = rect.top - GAP;
+    const fitsBelow = below + HEIGHT <= window.innerHeight - EDGE;
+    setPos(
+      fitsBelow
+        ? { left, top: below, width }
+        : { left, bottom: Math.max(EDGE, window.innerHeight - above), width },
+    );
+  }, [close]);
 
-  // Focusing a label can scroll it into view AFTER the first measurement, and
-  // a fixed card measured against the old position ends up nowhere near the
-  // word. Re-measure once the frame settles, and again on any scroll while the
-  // card is open.
-  const open = (): void => {
-    setShown(true);
-    place();
-    window.requestAnimationFrame(place);
-  };
-  const close = (): void => setShown(false);
+
+  // While the card is open, follow the word: any scroll (including inside the
+  // tables the labels live in, hence capture) re-measures, and Escape dismisses
+  // it for keyboard users, who cannot "move the mouse away".
+  useEffect(() => close, [close]);
 
   useEffect(() => {
-    if (!shown) return;
+    if (!pos) return;
+    const onKey = (event: KeyboardEvent): void => {
+      if (event.key === "Escape") close();
+    };
     window.addEventListener("scroll", place, { passive: true, capture: true });
-    return () => window.removeEventListener("scroll", place, { capture: true });
-  }, [shown]);
+    window.addEventListener("resize", place, { passive: true });
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("scroll", place, { capture: true });
+      window.removeEventListener("resize", place);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [pos !== null, close, place]);
 
   if (!entry) return <>{children}</>;
 
@@ -76,19 +111,23 @@ export function Term({
       ref={ref}
       className={`term${className ? ` ${className}` : ""}`}
       tabIndex={0}
-      onMouseEnter={open}
+      onMouseEnter={place}
       onMouseLeave={close}
-      onFocus={open}
+      onFocus={place}
       onBlur={close}
     >
       <span className="term-label">{children}</span>
-      <span className="term-tip" role="tooltip" style={pos}>
-        <b className="term-tip-head">
-          {entry.term}
-          {entry.unit && <i className="term-tip-unit">{entry.unit}</i>}
-        </b>
-        {entry.def}
-      </span>
+      {pos !== null &&
+        createPortal(
+          <span className="term-tip" role="tooltip" style={pos}>
+            <b className="term-tip-head">
+              {entry.term}
+              {entry.unit && <i className="term-tip-unit">{entry.unit}</i>}
+            </b>
+            {entry.def}
+          </span>,
+          document.body,
+        )}
     </span>
   );
 }

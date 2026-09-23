@@ -8,7 +8,7 @@ import { Crumbs, Masthead, Module, Table } from "../components/Page";
 import type { SpecRow } from "../components/Page";
 
 const SPEC: SpecRow[] = [
-  { k: "Current", v: "v4.1.1" },
+  { k: "Current", v: "v4.1.2" },
   { k: "Released", v: "2026·08·30" },
   { k: "Cadence", v: "Iterative" },
   { k: "Status", v: "Stable" },
@@ -24,9 +24,23 @@ interface Release {
 
 const RELEASES: Release[] = [
   {
-    ver: "v4.1.1",
+    ver: "v4.1.2",
     date: "22 Sep 2026",
     current: true,
+    items: [
+      <>
+        <b>Definition cards, placed properly</b> — the hover card is now portalled onto the
+        document body. It was <span className="expr">position: fixed</span> inside panels that
+        run the page-load reveal, and an element with a transform animation in effect becomes
+        the containing block for its fixed children, so every card rendered offset by wherever
+        its panel sat. Only one card is ever open, Escape dismisses it, and it follows the word
+        on scroll.
+      </>,
+    ],
+  },
+  {
+    ver: "v4.1.1",
+    date: "22 Sep 2026",
     items: [
       <>
         <b>Glossary, expanded</b> — 126 entries, up from 80: the statistical

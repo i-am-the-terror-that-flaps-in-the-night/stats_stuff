@@ -1241,11 +1241,13 @@
     text-decoration-color: var(--accent);
   }
 
+  /* The card is portalled onto <body> (see Term.tsx) and positioned from JS,
+     so it is shown by being in the DOM at all -- no :hover selector, which
+     could not reach it from here anyway. */
   .term-tip {
     position: fixed;
     z-index: 70;
-    width: max-content;
-    max-width: min(320px, 82vw);
+    display: block;
     padding: 10px 12px 11px;
     background: var(--surface-2);
     border: 1px solid var(--line-strong);
@@ -1261,18 +1263,20 @@
     text-align: left;
     white-space: normal;
     color: var(--ink-2);
-    opacity: 0;
-    visibility: hidden;
-    transform: translateY(-4px);
     pointer-events: none;
   }
 
-  .term:hover .term-tip,
-  .term:focus-within .term-tip {
-    opacity: 1;
-    visibility: visible;
-    transform: none;
-    transition: opacity 120ms ease, transform 120ms ease;
+  @media (prefers-reduced-motion: no-preference) {
+    .term-tip {
+      animation: term-tip-in 120ms ease both;
+    }
+  }
+
+  @keyframes term-tip-in {
+    from {
+      opacity: 0;
+      transform: translateY(-4px);
+    }
   }
 
   .term-tip-head {
@@ -3774,10 +3778,6 @@
     .qa-row {
       grid-template-columns: 1fr;
       gap: 6px;
-    }
-
-    .term-tip {
-      max-width: 82vw;
     }
   }
 }
