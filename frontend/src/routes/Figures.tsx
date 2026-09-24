@@ -377,7 +377,7 @@ export function Figures(): JSX.Element {
   // and the text beside it end up disagreeing.
   const doseStep = useStudyStep("dose-response");
   const primaryStep = useStudyStep("direct-effect");
-  const sexStep = useStudyStep("sex-differences");
+  const sexStep = useStudyStep("sex");
   const riskStep = useStudyStep("risk-score");
   const dose = doseStep.step as DoseResponseStep | null;
   const primary = primaryStep.step as DirectEffectStep | null;

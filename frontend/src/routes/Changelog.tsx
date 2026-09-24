@@ -8,7 +8,7 @@ import { Crumbs, Masthead, Module, Table } from "../components/Page";
 import type { SpecRow } from "../components/Page";
 
 const SPEC: SpecRow[] = [
-  { k: "Current", v: "v4.1.3" },
+  { k: "Current", v: "v4.1.4" },
   { k: "Released", v: "2026·08·30" },
   { k: "Cadence", v: "Iterative" },
   { k: "Status", v: "Stable" },
@@ -24,9 +24,22 @@ interface Release {
 
 const RELEASES: Release[] = [
   {
+    ver: "v4.1.4",
+    date: "23 Sep 2026",
+    current: true,
+    items: [
+      <>
+        <b>The sex-stratified figure is back</b> — Figures 09 and its download tile asked the
+        API for a step called <span className="expr">sex-differences</span>; the API serves it
+        as <span className="expr">sex</span>, so both had been silently empty. The smoke test
+        now reads the step names out of the route files and fails if the client asks for one
+        the server does not serve.
+      </>,
+    ],
+  },
+  {
     ver: "v4.1.3",
     date: "22 Sep 2026",
-    current: true,
     items: [
       <>
         <b>Definition cards, actually on their words</b> — the card is measured before it is

@@ -40,6 +40,7 @@ WHY IT RUNS A REAL SERVER
 from __future__ import annotations
 
 import json
+import re
 import socket
 import subprocess
 import sys
@@ -318,6 +319,22 @@ def main() -> int:
 
         for name in STUDY_STEPS:
             check(f"/api/study/step/{name}")
+
+        # The step names the FRONTEND asks for, checked against the ones the
+        # API serves. The Figures page requested "sex-differences" for weeks
+        # while the API registered "sex": the sex-stratified forest plot and
+        # its download tile quietly never loaded, and every backend check here
+        # still passed, because the backend was fine. A wrong name on the
+        # client is invisible to a server-side smoke test unless it is read
+        # off the client.
+        for source in sorted((ROOT / "frontend" / "src").rglob("*.tsx")):
+            for name in re.findall(r'useStudyStep\("([^"]+)"\)', source.read_text()):
+                checked += 1
+                if name not in STUDY_STEPS:
+                    failures.append(
+                        f"{source.relative_to(ROOT)} requests study step "
+                        f"'{name}', which the API does not serve"
+                    )
 
         # The per-column sweep. The bug this script missed was in
         # "expert · TrigHDLRatio" -- one tier on one column -- so checking a
