@@ -137,3 +137,7 @@ frontend/node_modules/
 frontend/dist/
 frontend/.vite/
 frontend/node_modules/.tmp/
+
+# Personal scratch space for experiments. Anchored to the repo root like
+# /figures/ above, so it can't swallow a same-named directory deeper in the tree.
+/scratch/
