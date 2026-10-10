@@ -777,7 +777,6 @@ def _mediation_verdict(total: dict, direct: dict) -> str:
 def step_dose_response() -> dict:
     """Does ALT climb steadily across sugar quartiles, or scatter?"""
     frame = analysis_frame(["ALT", "TotalSugars", "Age", "Sex"])
-    weights = frame["DietWeight"]
 
     # Quartile edges from the SAMPLE distribution: the protocol's Step 3 divides
     # "participants into four equal-sized groups", and the Revised Results'

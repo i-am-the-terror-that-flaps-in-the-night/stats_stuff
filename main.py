@@ -9,7 +9,7 @@ no dispatcher and no second framework.
 
     uvicorn main:app --reload                 # from the repo root (this file)
     uvicorn Backend.app:app --reload          # identical -- same app object
-    cd Backend && uvicorn app:app --reload    # the README's local instructions
+    cd Backend && uvicorn app:app --reload    # also works -- the except branch below
 """
 
 try:

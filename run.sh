@@ -39,16 +39,19 @@ UVICORN_ARGS=(
   --reload-exclude ".venv"
 )
 
+# Install before the build branch, not after it: `npm run build` needs tsc and
+# vite out of node_modules too, so on a fresh clone `./run.sh build` would
+# otherwise die with "tsc: command not found".
+if [[ ! -d frontend/node_modules ]]; then
+  echo "Installing frontend dependencies..."
+  (cd frontend && npm ci)
+fi
+
 if [[ "${1:-}" == "build" ]]; then
   (cd frontend && npm run build)
   echo
   echo "Serving the built bundle at http://127.0.0.1:8000/"
   exec uvicorn "${UVICORN_ARGS[@]}"
-fi
-
-if [[ ! -d frontend/node_modules ]]; then
-  echo "Installing frontend dependencies..."
-  (cd frontend && npm ci)
 fi
 
 # Shut both servers down on Ctrl-C (or `kill` on this script). If one server
