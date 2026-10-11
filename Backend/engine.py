@@ -1712,7 +1712,7 @@ class DataAnalyzer:
             return count_against_cutoff(
                 column,
                 series,
-                cutoff=reference["units"][applied_unit]["cutoff"],
+                cutoff=reference["units"].get(applied_unit, {}).get("cutoff", None) if isinstance(reference["units"], dict) else None,
                 direction=direction or reference["direction"],
                 source=reference["source"],
                 meaning=reference["means"],
